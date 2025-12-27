@@ -6,6 +6,7 @@ Tests for mission scheduling, execution, and state management.
 These are critical tests for the drone's mission control system.
 """
 
+import os
 import pytest
 import asyncio
 import time
