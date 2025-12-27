@@ -1,6 +1,8 @@
 import csv
 from mavsdk.system import System
 
+from src.constants import NetworkDefaults, TrajectoryState
+
 
 class Drone:
     def __init__(self, config):
@@ -11,21 +13,22 @@ class Drone:
         self.ip = config.ip
         self.mavlink_port = config.mavlink_port
         # Note: debug_port and gcs_ip removed - now centralized in Params.py
-        self.grpc_port = 50040 + int(self.hw_id)
+        self.grpc_port = NetworkDefaults.GRPC_BASE_PORT + int(self.hw_id)
         self.drone = System(mavsdk_server_address="127.0.0.1", port=self.grpc_port)
         self.waypoints = []
+        # Mode descriptions now come from TrajectoryState enum
         self.mode_descriptions = {
             0: "On the ground",
-            10: "Initial climbing state",
-            20: "Initial holding after climb",
-            30: "Moving to start point",
-            40: "Holding at start point",
-            50: "Moving to maneuvering start point",
-            60: "Holding at maneuver start point",
-            70: "Maneuvering (trajectory)",
-            80: "Holding at the end of the trajectory coordinate",
-            90: "Returning to home coordinate",
-            100: "Landing"
+            TrajectoryState.INITIAL_CLIMB: TrajectoryState.get_description(TrajectoryState.INITIAL_CLIMB),
+            TrajectoryState.HOLDING_AFTER_CLIMB: TrajectoryState.get_description(TrajectoryState.HOLDING_AFTER_CLIMB),
+            TrajectoryState.MOVING_TO_START: TrajectoryState.get_description(TrajectoryState.MOVING_TO_START),
+            TrajectoryState.HOLDING_AT_START: TrajectoryState.get_description(TrajectoryState.HOLDING_AT_START),
+            TrajectoryState.MOVING_TO_MANEUVER: TrajectoryState.get_description(TrajectoryState.MOVING_TO_MANEUVER),
+            TrajectoryState.HOLDING_AT_MANEUVER: TrajectoryState.get_description(TrajectoryState.HOLDING_AT_MANEUVER),
+            TrajectoryState.MANEUVERING: TrajectoryState.get_description(TrajectoryState.MANEUVERING),
+            TrajectoryState.HOLDING_AT_END: TrajectoryState.get_description(TrajectoryState.HOLDING_AT_END),
+            TrajectoryState.RETURNING_HOME: TrajectoryState.get_description(TrajectoryState.RETURNING_HOME),
+            TrajectoryState.LANDING: TrajectoryState.get_description(TrajectoryState.LANDING)
         }
         self.home_position = None
         self.trajectory_offset = (0, 0, 0)
@@ -72,7 +75,7 @@ class Drone:
         for waypoint in self.waypoints:
             t, px, py, pz, vx, vy, vz, ax, ay, az, mode_code = waypoint
 
-            if mode_code == 70:  # If the mode code is for maneuvering (trajectory)
+            if TrajectoryState.is_maneuvering(mode_code):  # If the mode code is for maneuvering (trajectory)
                 print(f"Drone {self.hw_id} maneuvering.")
                 # Send the waypoint to the drone
                 await self.drone.action.goto_location(px, py, pz, yaw)
