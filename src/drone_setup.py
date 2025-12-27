@@ -224,6 +224,98 @@ class DroneSetup:
         self.drone_config.state = State.IDLE.value
         self._log_mission_result(success, "Mission finished." if success else "Mission failed.")
 
+    # --------------------- MISSION HANDLER HELPERS ---------------------
+    # Extracted common logic to reduce duplication in mission handlers
+
+    def _check_mission_conditions(self, current_time: int, earlier_trigger_time: int) -> bool:
+        """
+        Check if conditions are met to execute a mission.
+
+        Common pre-condition check used by mission handlers:
+        - State must be MISSION_READY
+        - Current time must be >= earlier_trigger_time
+
+        Args:
+            current_time: Current timestamp in milliseconds
+            earlier_trigger_time: Adjusted trigger time
+
+        Returns:
+            True if conditions are met, False otherwise
+        """
+        return (
+            self.drone_config.state == State.MISSION_READY.value
+            and current_time >= earlier_trigger_time
+        )
+
+    def _prepare_mission_start(self, mission_name: str) -> int:
+        """
+        Prepare for mission execution by transitioning state.
+
+        Common state transition used at the start of mission execution:
+        - Logs conditions met
+        - Sets state to MISSION_EXECUTING
+        - Captures and clears trigger_time
+
+        Args:
+            mission_name: Name of the mission for logging
+
+        Returns:
+            The original trigger_time value (for use in action string)
+        """
+        logger.debug(f"Conditions met for {mission_name}; transitioning to TRIGGERED.")
+        self.drone_config.state = State.MISSION_EXECUTING.value
+        real_trigger_time = self.drone_config.trigger_time
+        self.drone_config.trigger_time = 0
+        return real_trigger_time
+
+    def _get_phase2_flags(self) -> tuple:
+        """
+        Get Phase 2 flags from drone_config or Params defaults.
+
+        Returns:
+            Tuple of (auto_global_origin, use_global_setpoints)
+        """
+        auto_global_origin = self.drone_config.auto_global_origin
+        if auto_global_origin is None:
+            auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+
+        use_global_setpoints = self.drone_config.use_global_setpoints
+        if use_global_setpoints is None:
+            use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
+
+        return (auto_global_origin, use_global_setpoints)
+
+    def _build_offboard_action(
+        self,
+        trigger_time: int,
+        mission_type: int,
+        custom_csv: str = None
+    ) -> str:
+        """
+        Build action string for offboard executor with Phase 2 flags.
+
+        Args:
+            trigger_time: The trigger time for --start_time
+            mission_type: Mission type code for --mission_type
+            custom_csv: Optional custom CSV filename
+
+        Returns:
+            Action string with all flags
+        """
+        auto_global_origin, use_global_setpoints = self._get_phase2_flags()
+
+        action = f"--start_time={trigger_time}"
+        if custom_csv:
+            action += f" --custom_csv={custom_csv}"
+        action += f" --auto_global_origin {auto_global_origin}"
+        action += f" --use_global_setpoints {use_global_setpoints}"
+        action += f" --mission_type {mission_type}"
+
+        logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
+                   f"use_global_setpoints={use_global_setpoints}")
+
+        return action
+
     def check_running_processes(self):
         """
         Debug helper to see if any processes ended unexpectedly.
@@ -296,137 +388,79 @@ class DroneSetup:
 
     async def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.DRONE_SHOW_FROM_CSV."""
-        if (
-            self.drone_config.state == State.MISSION_READY.value
-            and current_time >= earlier_trigger_time
-        ):
-            logger.debug("Conditions met for Standard Drone Show; transitioning to TRIGGERED.")
-            self.drone_config.state = State.MISSION_EXECUTING.value
-            real_trigger_time = self.drone_config.trigger_time
-            self.drone_config.trigger_time = 0
+        if not self._check_mission_conditions(current_time, earlier_trigger_time):
+            logger.debug("Conditions NOT met for Standard Drone Show.")
+            return (False, "Conditions not met for Standard Drone Show.")
 
-            main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
-            if not main_offboard_executer:
-                logger.error("No 'main_offboard_executer' specified for standard drone show.")
-                self._reset_mission_state(False)
-                return (False, "No executer script specified.")
+        real_trigger_time = self._prepare_mission_start("Standard Drone Show")
 
-            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
-            auto_global_origin = self.drone_config.auto_global_origin
-            if auto_global_origin is None:
-                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+        main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
+        if not main_offboard_executer:
+            logger.error("No 'main_offboard_executer' specified for standard drone show.")
+            self._reset_mission_state(False)
+            return (False, "No executer script specified.")
 
-            use_global_setpoints = self.drone_config.use_global_setpoints
-            if use_global_setpoints is None:
-                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
-
-            # Build action string with all flags
-            action = f"--start_time={real_trigger_time}"
-            action += f" --auto_global_origin {auto_global_origin}"
-            action += f" --use_global_setpoints {use_global_setpoints}"
-            action += " --mission_type 1"  # DRONE_SHOW_FROM_CSV
-
-            logger.info(f"Starting Standard Drone Show using '{main_offboard_executer}'.")
-            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
-                       f"use_global_setpoints={use_global_setpoints}")
-            return await self.execute_mission_script(main_offboard_executer, action)
-
-        logger.debug("Conditions NOT met for Standard Drone Show.")
-        return (False, "Conditions not met for Standard Drone Show.")
+        action = self._build_offboard_action(real_trigger_time, Mission.DRONE_SHOW_FROM_CSV.value)
+        logger.info(f"Starting Standard Drone Show using '{main_offboard_executer}'.")
+        return await self.execute_mission_script(main_offboard_executer, action)
 
     async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.CUSTOM_CSV_DRONE_SHOW."""
-        if (
-            self.drone_config.state == State.MISSION_READY.value
-            and current_time >= earlier_trigger_time
-        ):
-            logger.debug("Conditions met for Custom Drone Show; transitioning to TRIGGERED.")
-            self.drone_config.state = State.MISSION_EXECUTING.value
-            real_trigger_time = self.drone_config.trigger_time
-            self.drone_config.trigger_time = 0
+        if not self._check_mission_conditions(current_time, earlier_trigger_time):
+            logger.debug("Conditions NOT met for Custom CSV Drone Show.")
+            return (False, "Conditions not met for Custom CSV Drone Show.")
 
-            main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
-            custom_csv_file_name = getattr(self.params, 'custom_csv_file_name', None)
+        real_trigger_time = self._prepare_mission_start("Custom Drone Show")
 
-            if not main_offboard_executer:
-                logger.error("No 'main_offboard_executer' specified for custom drone show.")
-                self._reset_mission_state(False)
-                return (False, "No executer script specified.")
+        main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
+        custom_csv_file_name = getattr(self.params, 'custom_csv_file_name', None)
 
-            if not custom_csv_file_name:
-                logger.error("No custom CSV file specified for Custom Drone Show.")
-                self._reset_mission_state(False)
-                return (False, "No custom CSV file specified.")
+        if not main_offboard_executer:
+            logger.error("No 'main_offboard_executer' specified for custom drone show.")
+            self._reset_mission_state(False)
+            return (False, "No executer script specified.")
 
-            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
-            auto_global_origin = self.drone_config.auto_global_origin
-            if auto_global_origin is None:
-                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+        if not custom_csv_file_name:
+            logger.error("No custom CSV file specified for Custom Drone Show.")
+            self._reset_mission_state(False)
+            return (False, "No custom CSV file specified.")
 
-            use_global_setpoints = self.drone_config.use_global_setpoints
-            if use_global_setpoints is None:
-                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
-
-            # Build action string with all flags
-            action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
-            action += f" --auto_global_origin {auto_global_origin}"
-            action += f" --use_global_setpoints {use_global_setpoints}"
-            action += " --mission_type 3"  # CUSTOM_CSV
-
-            logger.info(f"Starting Custom Drone Show with '{custom_csv_file_name}' using '{main_offboard_executer}'.")
-            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
-                       f"use_global_setpoints={use_global_setpoints}")
-            return await self.execute_mission_script(main_offboard_executer, action)
-
-        logger.debug("Conditions NOT met for Custom CSV Drone Show.")
-        return (False, "Conditions not met for Custom CSV Drone Show.")
+        action = self._build_offboard_action(
+            real_trigger_time,
+            Mission.CUSTOM_CSV_DRONE_SHOW.value,
+            custom_csv=custom_csv_file_name
+        )
+        logger.info(f"Starting Custom Drone Show with '{custom_csv_file_name}' using '{main_offboard_executer}'.")
+        return await self.execute_mission_script(main_offboard_executer, action)
 
     async def _execute_hover_test(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.HOVER_TEST."""
-        if (
-            self.drone_config.state == State.MISSION_READY.value
-            and current_time >= earlier_trigger_time
-        ):
-            logger.debug("Conditions met for Hover Test; transitioning to TRIGGERED.")
-            self.drone_config.state = State.MISSION_EXECUTING.value
-            real_trigger_time = self.drone_config.trigger_time
-            self.drone_config.trigger_time = 0
+        if not self._check_mission_conditions(current_time, earlier_trigger_time):
+            logger.debug("Conditions NOT met for Hover Test CSV Drone Show.")
+            return (False, "Conditions not met for Hover Test CSV Drone Show.")
 
-            main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
-            hover_test_csv_file_name = getattr(self.params, 'hover_test_csv_file_name', None)
+        real_trigger_time = self._prepare_mission_start("Hover Test")
 
-            if not main_offboard_executer:
-                logger.error("No 'main_offboard_executer' specified for hover test.")
-                self._reset_mission_state(False)
-                return (False, "No executer script specified.")
+        main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
+        hover_test_csv_file_name = getattr(self.params, 'hover_test_csv_file_name', None)
 
-            if not hover_test_csv_file_name:
-                logger.error("No hover test CSV file specified for Hover Test Drone Show.")
-                self._reset_mission_state(False)
-                return (False, "No hover test CSV file specified.")
+        if not main_offboard_executer:
+            logger.error("No 'main_offboard_executer' specified for hover test.")
+            self._reset_mission_state(False)
+            return (False, "No executer script specified.")
 
-            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
-            auto_global_origin = self.drone_config.auto_global_origin
-            if auto_global_origin is None:
-                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+        if not hover_test_csv_file_name:
+            logger.error("No hover test CSV file specified for Hover Test Drone Show.")
+            self._reset_mission_state(False)
+            return (False, "No hover test CSV file specified.")
 
-            use_global_setpoints = self.drone_config.use_global_setpoints
-            if use_global_setpoints is None:
-                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
-
-            # Build action string with all flags
-            action = f"--start_time={real_trigger_time} --custom_csv={hover_test_csv_file_name}"
-            action += f" --auto_global_origin {auto_global_origin}"
-            action += f" --use_global_setpoints {use_global_setpoints}"
-            action += " --mission_type 106"  # HOVER_TEST
-
-            logger.info(f"Starting Hover Test with '{hover_test_csv_file_name}' using '{main_offboard_executer}'.")
-            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
-                       f"use_global_setpoints={use_global_setpoints}")
-            return await self.execute_mission_script(main_offboard_executer, action)
-
-        logger.debug("Conditions NOT met for Hover Test CSV Drone Show.")
-        return (False, "Conditions not met for Hover Test CSV Drone Show.")
+        action = self._build_offboard_action(
+            real_trigger_time,
+            Mission.HOVER_TEST.value,
+            custom_csv=hover_test_csv_file_name
+        )
+        logger.info(f"Starting Hover Test with '{hover_test_csv_file_name}' using '{main_offboard_executer}'.")
+        return await self.execute_mission_script(main_offboard_executer, action)
 
     async def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.SMART_SWARM."""
