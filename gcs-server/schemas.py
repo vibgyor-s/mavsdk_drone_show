@@ -61,7 +61,7 @@ class GitStatus(str, Enum):
 
 class DroneConfig(BaseModel):
     """Individual drone configuration"""
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra='ignore')  # Ignore unknown fields for forward compatibility
 
     pos_id: int = Field(..., ge=0, description="Position ID (0-based)")
     hw_id: str = Field(..., min_length=1, description="Hardware ID")
@@ -143,7 +143,7 @@ class BatteryStatus(BaseModel):
 
 class DroneTelemetry(BaseModel):
     """Complete drone telemetry snapshot"""
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra='ignore')  # Ignore unknown fields for forward compatibility
 
     # Identity
     pos_id: int = Field(..., ge=0, description="Position ID")
