@@ -259,10 +259,11 @@ class TestHeartbeatEndpoints:
     @patch('app_fastapi.get_all_heartbeats')
     def test_get_heartbeats(self, mock_get_heartbeats, test_client):
         """Test GET /get-heartbeats"""
-        mock_get_heartbeats.return_value = [
-            {'pos_id': 0, 'hw_id': '1', 'online': True},
-            {'pos_id': 1, 'hw_id': '2', 'online': True}
-        ]
+        # get_all_heartbeats returns a dict keyed by hw_id
+        mock_get_heartbeats.return_value = {
+            '1': {'pos_id': 0, 'hw_id': '1', 'timestamp': 1700000000000},
+            '2': {'pos_id': 1, 'hw_id': '2', 'timestamp': 1700000000000}
+        }
 
         response = test_client.get("/get-heartbeats")
         assert response.status_code == 200
@@ -286,22 +287,23 @@ class TestOriginEndpoints:
         response = test_client.get("/get-origin")
         assert response.status_code == 200
         data = response.json()
-        assert data['latitude'] == 35.123456
-        assert data['longitude'] == -120.654321
+        assert data['lat'] == 35.123456
+        assert data['lon'] == -120.654321
 
     @patch('app_fastapi.save_origin')
     def test_set_origin(self, mock_save, test_client):
         """Test POST /set-origin"""
+        # API uses short field names: lat, lon, alt
         origin_data = {
-            'latitude': 35.123456,
-            'longitude': -120.654321,
-            'altitude': 488.0
+            'lat': 35.123456,
+            'lon': -120.654321,
+            'alt': 488.0
         }
 
         response = test_client.post("/set-origin", json=origin_data)
         assert response.status_code == 200
         data = response.json()
-        assert data['latitude'] == origin_data['latitude']
+        assert data['lat'] == origin_data['lat']
 
     @patch('app_fastapi.load_origin')
     def test_get_gps_global_origin(self, mock_load, test_client, mock_origin):
