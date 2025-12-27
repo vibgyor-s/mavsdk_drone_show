@@ -70,7 +70,8 @@ class TestCommands:
         # Verify command was processed
         mock_drone_communicator.process_command.assert_called_once()
         call_args = mock_drone_communicator.process_command.call_args[0][0]
-        assert call_args['missionType'] == 'ARM'
+        # sample_command is cmd_takeoff() which uses missionType='10' (TAKE_OFF)
+        assert call_args['missionType'] == '10'
 
     def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
         """Test different mission types"""
