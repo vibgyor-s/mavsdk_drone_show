@@ -39,9 +39,7 @@ def _safe_signal(sig, handler):
 
 signal.signal = _safe_signal
 
-# Now safe to set up paths and import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gcs-server'))
+# Path configuration is handled by conftest.py
 
 from fastapi.testclient import TestClient
 

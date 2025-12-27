@@ -13,11 +13,8 @@ import asyncio
 import threading
 import time
 from unittest.mock import Mock, MagicMock, patch, AsyncMock, PropertyMock
-import sys
-import os
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Path configuration is handled by conftest.py
 
 from src.enums import Mission, State
 

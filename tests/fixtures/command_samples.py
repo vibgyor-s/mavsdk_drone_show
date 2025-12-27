@@ -9,11 +9,8 @@ Includes valid, invalid, and edge case commands.
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 import time
-import sys
-import os
 
-# Import from single source of truth
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# Path configuration is handled by conftest.py
 from src.enums import Mission
 
 

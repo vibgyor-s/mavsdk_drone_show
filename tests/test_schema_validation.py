@@ -303,12 +303,11 @@ class TestGPSFixValidation:
 
 
 # Import helper to make schemas accessible
+# Path configuration is handled by conftest.py
 @pytest.fixture(scope="module", autouse=True)
 def setup_imports():
     """Setup imports for schema tests"""
     import sys
-    sys.path.insert(0, '/opt/mavsdk_drone_show/gcs-server')
-
     # Create module alias for cleaner imports in tests
     import schemas as gcs_server_schemas
     sys.modules['gcs_server_schemas'] = gcs_server_schemas

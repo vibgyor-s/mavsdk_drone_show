@@ -10,10 +10,8 @@ import pytest
 import time
 from unittest.mock import Mock, MagicMock, patch, AsyncMock
 from typing import Dict, List, Any
-import sys
-import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Path configuration is handled by conftest.py
 
 from src.enums import Mission, State
 

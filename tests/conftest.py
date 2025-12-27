@@ -18,10 +18,18 @@ from unittest.mock import Mock, MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
 from typing import Dict, List, Any
 
-# Import the drone API server
+# Configure Python path for all test modules
+# This is the SINGLE source of truth for path configuration in tests
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+_GCS_SERVER = os.path.join(_PROJECT_ROOT, 'gcs-server')
+
+# Add paths in order of priority
+for _path in [_PROJECT_ROOT, _GCS_SERVER]:
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
 from src.drone_api_server import DroneAPIServer
 from src.params import Params

@@ -11,10 +11,8 @@ import asyncio
 import time
 from unittest.mock import Mock, MagicMock, patch, AsyncMock, PropertyMock
 from typing import Dict, Any
-import sys
-import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Path configuration is handled by conftest.py
 
 from src.enums import Mission, State
 from src.drone_config import DroneConfig
