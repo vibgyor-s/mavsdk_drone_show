@@ -1,11 +1,20 @@
 #gcs-server/config.py
-import csv
+"""
+GCS Configuration Management
+=============================
+Handles drone configuration, swarm settings, and Git status operations.
+
+CSV operations use the shared functions/file_utils.py module.
+"""
 import os
 import logging
 import subprocess
 import requests
 from params import Params
 from collections import defaultdict
+
+# Import shared CSV utilities (single source of truth)
+from functions.file_utils import load_csv, save_csv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
@@ -17,53 +26,6 @@ logger = logging.getLogger(__name__)
 # Note: x,y removed - positions are now always fetched from trajectory CSV (single source of truth)
 CONFIG_COLUMNS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate']
 SWARM_COLUMNS = ['hw_id' , 'follow' , 'offset_n' , 'offset_e' , 'offset_alt' , 'body_coord']
-
-
-def load_csv(file_path):
-    """General function to load data from a CSV file."""
-    data = []
-    if not os.path.exists(file_path):
-        logger.error(f"File not found: {file_path}")
-        return data
-
-    try:
-        with open(file_path, mode='r') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                data.append(row)
-
-        if not data:
-            logger.warning(f"File is empty: {file_path}")
-    except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
-    except csv.Error as e:
-        logger.error(f"Error reading CSV file {file_path}: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error loading file {file_path}: {e}")
-
-    return data
-
-def save_csv(data, file_path, fieldnames=None):
-    """General function to save data to a CSV file with a specified column order."""
-    if not data:
-        logger.warning(f"No data provided to save in {file_path}. Operation aborted.")
-        return
-
-    try:
-        with open(file_path, mode='w', newline='') as file:
-            # Use the provided fieldnames if available, otherwise use the keys from the data
-            writer = csv.DictWriter(file, fieldnames=fieldnames or data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
-        logger.info(f"Data successfully saved to {file_path}")
-    except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
-    except csv.Error as e:
-        logger.error(f"Error writing CSV file {file_path}: {e}")
-    except IOError as e:
-        logger.error(f"IO error saving file {file_path}: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error saving file {file_path}: {e}")
 
 def load_config(file_path=CONFIG_FILE_PATH):
     return load_csv(file_path)

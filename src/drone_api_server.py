@@ -25,7 +25,6 @@ API Documentation:
 - OpenAPI Schema:   http://drone-ip:7070/openapi.json
 """
 
-import csv
 import math
 import os
 import time
@@ -47,6 +46,7 @@ import json
 # Project imports
 from src.drone_config import DroneConfig
 from functions.data_utils import safe_float, safe_get
+from functions.file_utils import load_csv, get_trajectory_first_position
 from src.params import Params
 
 # Base directory
@@ -488,30 +488,7 @@ class DroneAPIServer:
 
     def load_swarm(self, file_path):
         """Load swarm data from CSV file"""
-        return self.load_csv(file_path)
-
-    def load_csv(self, file_path):
-        """General function to load data from a CSV file."""
-        data = []
-        if not os.path.exists(file_path):
-            logging.error(f"File not found: {file_path}")
-            return data
-
-        try:
-            with open(file_path, mode='r') as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    data.append(row)
-
-            if not data:
-                logging.warning(f"File is empty: {file_path}")
-        except FileNotFoundError:
-            logging.error(f"File not found: {file_path}")
-        except csv.Error as e:
-            logging.error(f"Error reading CSV file {file_path}: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error loading file {file_path}: {e}")
-        return data
+        return load_csv(file_path)
 
     def _get_origin_from_gcs(self):
         """Fetches the origin coordinates from the GCS."""
