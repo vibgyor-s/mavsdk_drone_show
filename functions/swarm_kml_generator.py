@@ -499,24 +499,24 @@ def _calculate_path_distance(trajectory_df: pd.DataFrame) -> float:
     """Calculate approximate path distance in meters"""
     try:
         import math
-        
+
         total_distance = 0.0
         for i in range(1, len(trajectory_df)):
             lat1, lon1, alt1 = trajectory_df.iloc[i-1][['lat', 'lon', 'alt']]
             lat2, lon2, alt2 = trajectory_df.iloc[i][['lat', 'lon', 'alt']]
-            
+
             # Haversine formula for ground distance
             dlat = math.radians(lat2 - lat1)
             dlon = math.radians(lon2 - lon1)
             a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
             ground_dist = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)) * 6371000  # Earth radius in meters
-            
+
             # Add altitude difference
             alt_diff = abs(alt2 - alt1)
             total_distance += math.sqrt(ground_dist**2 + alt_diff**2)
-        
+
         return total_distance
-    except:
+    except (ValueError, TypeError, KeyError):
         return 0.0
 
 def generate_swarm_kml(processed_dir: str, plots_dir: str) -> dict:

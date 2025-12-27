@@ -384,7 +384,7 @@ def register_swarm_trajectory_routes(app):
                 if os.path.exists(processed_leader_file):
                     os.remove(processed_leader_file)
                     removed_files.append(f'processed/Drone {leader_id}.csv')
-            except:
+            except OSError:
                 pass  # Ignore if already removed or doesn't exist
 
             message = f"Removed trajectory for Drone {leader_id}"

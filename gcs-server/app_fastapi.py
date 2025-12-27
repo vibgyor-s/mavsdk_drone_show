@@ -837,7 +837,7 @@ async def get_origin():
             try:
                 dt = datetime.fromisoformat(origin['timestamp'])
                 timestamp_ms = int(dt.timestamp() * 1000)
-            except:
+            except (ValueError, TypeError):
                 timestamp_ms = int(time.time() * 1000)
 
         return OriginResponse(

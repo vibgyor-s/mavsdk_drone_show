@@ -1,8 +1,11 @@
 # src/params.py
 
+import logging
 import os
 import struct
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 class Params:
     """
@@ -426,8 +429,7 @@ class Params:
             filename
         )
         
-        # Debug: Print the trajectory file path
-        print(f"[DEBUG] Swarm Trajectory File: {trajectory_path}")
+        logger.debug(f"Swarm Trajectory File: {trajectory_path}")
         return trajectory_path
 
     @classmethod
@@ -457,8 +459,7 @@ class Params:
                 'shapes', custom_csv
             )
 
-        # Debug: Print the selected trajectory files
-        print(f"[DEBUG] Drone Trajectory File: {drone_show_trajectory_filename}")
-        print(f"[DEBUG] Custom Trajectory File: {custom_show_trajectory_filename}")
+        logger.debug(f"Drone Trajectory File: {drone_show_trajectory_filename}")
+        logger.debug(f"Custom Trajectory File: {custom_show_trajectory_filename}")
 
         return (drone_show_trajectory_filename, custom_show_trajectory_filename)

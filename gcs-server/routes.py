@@ -1305,7 +1305,7 @@ def setup_routes(app):
                     gps_fix_type = int(gps_fix_type)
                     satellites = int(satellites)
                     hdop = float(hdop)
-                except:
+                except (ValueError, TypeError):
                     gps_fix_type = 0
                     satellites = 0
                     hdop = 99

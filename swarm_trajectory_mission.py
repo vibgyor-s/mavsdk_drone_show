@@ -645,7 +645,7 @@ async def perform_swarm_trajectory(
                 await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
                 await asyncio.sleep(0.5)
                 continue
-            except:
+            except Exception:
                 break
         except Exception as e:
             logger.exception(f"Critical error in trajectory loop at waypoint {waypoint_index}: {e}")
@@ -1304,7 +1304,7 @@ def start_mavsdk_server(udp_port: int):
             try:
                 mavsdk_server.terminate()
                 mavsdk_server.wait(timeout=5)
-            except:
+            except Exception:
                 pass
             return None
 

@@ -84,7 +84,7 @@ def load_origin():
                 # Save migrated data
                 try:
                     save_origin(data)
-                except:
+                except Exception:
                     pass  # Don't fail if save fails during migration
 
             logger.info("Origin coordinates loaded successfully.")
