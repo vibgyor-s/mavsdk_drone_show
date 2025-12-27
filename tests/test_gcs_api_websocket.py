@@ -10,20 +10,34 @@ Tests real-time streaming for:
 - Heartbeats (WS /ws/heartbeats)
 
 Author: MAVSDK Drone Show Test Team
-Last Updated: 2025-11-22
+Last Updated: 2025-12-27
 """
 
 import pytest
 import json
 import asyncio
-from unittest.mock import Mock, patch
-from fastapi.testclient import TestClient
-
-# Import paths
+import signal
 import sys
 import os
+from unittest.mock import Mock, patch
+
+# Mock signal.signal BEFORE any imports that might use it
+_original_signal = signal.signal
+def _safe_signal(sig, handler):
+    """Safe signal registration that works in threads"""
+    try:
+        return _original_signal(sig, handler)
+    except ValueError:
+        # In a thread, just return None
+        return None
+
+signal.signal = _safe_signal
+
+# Now safe to set up paths and import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gcs-server'))
+
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

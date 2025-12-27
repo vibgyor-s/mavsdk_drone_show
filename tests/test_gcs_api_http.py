@@ -15,21 +15,36 @@ Tests all major endpoint categories:
 - Swarm trajectory management
 
 Author: MAVSDK Drone Show Test Team
-Last Updated: 2025-11-22
+Last Updated: 2025-12-27
 """
 
 import pytest
 import json
 import tempfile
 import os
+import signal
+import sys
 from unittest.mock import Mock, patch, MagicMock
-from fastapi.testclient import TestClient
 from io import BytesIO
 
-# Import the FastAPI GCS app
-import sys
+# Mock signal.signal BEFORE any imports that might use it
+_original_signal = signal.signal
+def _safe_signal(sig, handler):
+    """Safe signal registration that works in threads"""
+    try:
+        return _original_signal(sig, handler)
+    except ValueError:
+        # In a thread, just return None
+        return None
+
+signal.signal = _safe_signal
+
+# Now safe to set up paths and import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gcs-server'))
+
+from fastapi.testclient import TestClient
+
 
 # Mock the background services before importing the app
 @pytest.fixture(autouse=True)

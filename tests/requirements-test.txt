@@ -15,3 +15,37 @@ pytest-mock==3.14.0
 
 # Coverage reporting
 coverage[toml]==7.6.9
+
+# =============================================
+# Additional Dependencies for Phase 0 Testing
+# =============================================
+
+# Parallel test execution (for faster test runs)
+pytest-xdist==3.5.0
+
+# Performance/benchmark testing
+pytest-benchmark==4.0.0
+
+# Timeout handling (prevent hanging tests)
+pytest-timeout==2.3.1
+
+# Property-based testing (generate edge cases)
+hypothesis==6.92.2
+
+# Better test output and reporting
+pytest-sugar==1.0.0
+
+# Retry flaky tests
+pytest-rerunfailures==14.0
+
+# Test ordering
+pytest-ordering==0.6
+
+# Environment variable handling
+pytest-env==1.1.3
+
+# Snapshot testing (for complex data structures)
+syrupy==4.6.0
+
+# Async mock support
+aioresponses==0.7.6

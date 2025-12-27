@@ -3,12 +3,20 @@
 Pytest Configuration and Shared Fixtures
 =========================================
 Provides reusable test fixtures for all test modules.
+
+This module includes:
+- Basic mock fixtures for unit tests
+- Multi-drone configurations for swarm tests (5, 10, 50+ drones)
+- MAVLink simulation fixtures
+- Command and telemetry sample fixtures
+- Coordinator and drone setup fixtures
 """
 
 import pytest
 import asyncio
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
+from typing import Dict, List, Any
 
 # Import the drone API server
 import sys
@@ -19,9 +27,74 @@ from src.drone_api_server import DroneAPIServer
 from src.params import Params
 from src.drone_config import DroneConfig
 
+# Import test fixtures
+from tests.fixtures.drone_configs import (
+    DroneConfigData,
+    ZURICH_ORIGIN,
+    single_drone_sitl,
+    single_drone_real,
+    single_drone_armed,
+    single_drone_flying,
+    single_drone_low_battery,
+    single_drone_no_gps,
+    generate_drone_configs,
+    five_drone_swarm,
+    ten_drone_line,
+    fifty_drone_grid,
+    hundred_drone_grid,
+    drone_with_timeout,
+    drone_disconnected,
+    drones_to_config_csv,
+    drones_to_swarm_csv,
+    drones_to_telemetry_response,
+)
+
+from tests.fixtures.command_samples import (
+    MissionType,
+    cmd_takeoff,
+    cmd_land,
+    cmd_hold,
+    cmd_rtl,
+    cmd_kill_terminate,
+    cmd_drone_show,
+    cmd_smart_swarm,
+    cmd_hover_test,
+    all_valid_commands,
+    all_invalid_commands,
+)
+
+from tests.fixtures.telemetry_samples import (
+    PX4FlightMode,
+    MAVState,
+    drone_state_idle,
+    drone_state_armed,
+    drone_state_flying_mission,
+    multi_drone_telemetry,
+    fifty_drone_telemetry,
+    heartbeat_response,
+)
+
+from tests.fixtures.mission_samples import (
+    Mission,
+    MissionState,
+    MissionConfig,
+    sample_trajectory_csv,
+    origin_zurich,
+    swarm_config_single_leader,
+)
+
+from tests.mocks.mavlink_simulator import (
+    MockMAVLinkConnection,
+    MockMAVSDKSystem,
+    MockMAVLinkRouter,
+    create_mock_mavsdk_system,
+    create_mock_mavlink_connection,
+    create_mock_mavlink_router,
+)
+
 
 # ============================================================================
-# Mock Fixtures
+# Basic Mock Fixtures (Original)
 # ============================================================================
 
 @pytest.fixture
@@ -36,6 +109,16 @@ def mock_params():
     params.gcs_api_port = 5000
     params.config_csv_name = "config_sitl.csv"
     params.swarm_csv_name = "swarm_sitl.csv"
+    params.serial_mavlink = False
+    params.sitl_port = 14550
+    params.mavsdk_port = 14540
+    params.trigger_sooner_seconds = 4
+    params.schedule_mission_frequency = 2
+    params.default_takeoff_alt = 10
+    params.max_takeoff_alt = 100
+    params.heartbeat_interval = 10
+    params.telem_poll_interval = 1.0
+    params.git_poll_interval = 10.0
     return params
 
 
@@ -84,6 +167,12 @@ def mock_drone_config():
     }
 
     config.hw_id = '1'
+    config.state = MissionState.IDLE
+    config.mission = Mission.NONE
+    config.last_mission = Mission.NONE
+    config.trigger_time = 0
+    config.is_armed = False
+    config.is_ready_to_arm = True
 
     return config
 
@@ -94,33 +183,7 @@ def mock_drone_communicator():
     communicator = Mock()
 
     # Mock drone state
-    communicator.get_drone_state.return_value = {
-        'pos_id': 1,
-        'detected_pos_id': 1,
-        'state': 0,
-        'mission': 'IDLE',
-        'last_mission': 'IDLE',
-        'position_lat': 47.397742,
-        'position_long': 8.545594,
-        'position_alt': 488.5,
-        'velocity_north': 0.0,
-        'velocity_east': 0.0,
-        'velocity_down': 0.0,
-        'yaw': 180.5,
-        'battery_voltage': 12.6,
-        'follow_mode': 'LEADER',
-        'update_time': '2025-11-22 10:30:45',
-        'flight_mode': 4,
-        'base_mode': 81,
-        'system_status': 4,
-        'is_armed': False,
-        'is_ready_to_arm': True,
-        'hdop': 0.8,
-        'vdop': 1.2,
-        'gps_fix_type': 3,
-        'satellites_visible': 12,
-        'ip': '192.168.1.100'
-    }
+    communicator.get_drone_state.return_value = drone_state_idle('1', 1)
 
     # Mock command processing
     communicator.process_command = Mock()
@@ -145,10 +208,7 @@ def test_client(api_server):
 @pytest.fixture
 def sample_command():
     """Sample command data for testing"""
-    return {
-        "missionType": "ARM",
-        "triggerTime": "1732270300"
-    }
+    return cmd_takeoff()
 
 
 # ============================================================================
@@ -161,3 +221,364 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+# ============================================================================
+# Multi-Drone Configuration Fixtures
+# ============================================================================
+
+@pytest.fixture
+def single_drone():
+    """Single drone in SITL mode"""
+    return single_drone_sitl()
+
+
+@pytest.fixture
+def single_drone_config_armed():
+    """Single armed drone"""
+    return single_drone_armed()
+
+
+@pytest.fixture
+def single_drone_config_flying():
+    """Single flying drone"""
+    return single_drone_flying()
+
+
+@pytest.fixture
+def five_drones():
+    """5 drones in swarm formation"""
+    return five_drone_swarm()
+
+
+@pytest.fixture
+def ten_drones():
+    """10 drones in line formation"""
+    return ten_drone_line()
+
+
+@pytest.fixture
+def fifty_drones():
+    """50 drones for load testing"""
+    return fifty_drone_grid()
+
+
+@pytest.fixture
+def hundred_drones():
+    """100 drones for extreme load testing"""
+    return hundred_drone_grid()
+
+
+# ============================================================================
+# Telemetry Fixtures
+# ============================================================================
+
+@pytest.fixture
+def telemetry_single_idle():
+    """Telemetry for single idle drone"""
+    return drone_state_idle('1', 1)
+
+
+@pytest.fixture
+def telemetry_single_armed():
+    """Telemetry for single armed drone"""
+    return drone_state_armed('1', 1)
+
+
+@pytest.fixture
+def telemetry_single_flying():
+    """Telemetry for single flying drone"""
+    return drone_state_flying_mission('1', 1)
+
+
+@pytest.fixture
+def telemetry_five_drones():
+    """Telemetry for 5 drones"""
+    return multi_drone_telemetry(5)
+
+
+@pytest.fixture
+def telemetry_fifty_drones():
+    """Telemetry for 50 drones"""
+    return fifty_drone_telemetry()
+
+
+@pytest.fixture
+def heartbeat_five_drones():
+    """Heartbeat response for 5 drones"""
+    return heartbeat_response(5)
+
+
+# ============================================================================
+# Command Fixtures
+# ============================================================================
+
+@pytest.fixture
+def cmd_takeoff_10m():
+    """Takeoff command to 10m"""
+    return cmd_takeoff(altitude=10.0)
+
+
+@pytest.fixture
+def cmd_drone_show_zurich():
+    """Drone show command with Zurich origin"""
+    return cmd_drone_show(auto_origin=True, origin=ZURICH_ORIGIN)
+
+
+@pytest.fixture
+def valid_commands():
+    """All valid command samples"""
+    return all_valid_commands()
+
+
+@pytest.fixture
+def invalid_commands():
+    """All invalid command samples"""
+    return all_invalid_commands()
+
+
+# ============================================================================
+# Mission Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mission_config_takeoff():
+    """Mission config for takeoff"""
+    return MissionConfig(
+        mission_type=Mission.TAKE_OFF,
+        trigger_time=0,  # Immediate
+        takeoff_altitude=10.0
+    )
+
+
+@pytest.fixture
+def mission_config_drone_show():
+    """Mission config for drone show"""
+    return MissionConfig(
+        mission_type=Mission.DRONE_SHOW_FROM_CSV,
+        trigger_time=0,
+        auto_global_origin=True,
+        origin={'lat': 47.397742, 'lon': 8.545594, 'alt': 488.0}
+    )
+
+
+@pytest.fixture
+def trajectory_csv():
+    """Sample trajectory CSV data"""
+    return sample_trajectory_csv()
+
+
+@pytest.fixture
+def swarm_config():
+    """Sample swarm configuration"""
+    return swarm_config_single_leader()
+
+
+@pytest.fixture
+def origin_data():
+    """Sample origin data"""
+    return origin_zurich()
+
+
+# ============================================================================
+# MAVLink Mock Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mock_mavlink_connection():
+    """Mock MAVLink connection"""
+    conn = create_mock_mavlink_connection()
+    yield conn
+    conn.disconnect()
+
+
+@pytest.fixture
+def mock_mavlink_connection_armed():
+    """Mock MAVLink connection with armed drone"""
+    conn = create_mock_mavlink_connection(armed=True)
+    yield conn
+    conn.disconnect()
+
+
+@pytest.fixture
+def mock_mavsdk_system():
+    """Mock MAVSDK system"""
+    return create_mock_mavsdk_system()
+
+
+@pytest.fixture
+def mock_mavlink_router():
+    """Mock MAVLink router"""
+    return create_mock_mavlink_router()
+
+
+# ============================================================================
+# Coordinator Mock Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mock_mavlink_manager():
+    """Mock MavlinkManager"""
+    manager = Mock()
+    manager.start = Mock()
+    manager.stop = Mock()
+    manager.is_running = True
+    return manager
+
+
+@pytest.fixture
+def mock_local_mavlink_controller():
+    """Mock LocalMavlinkController"""
+    controller = Mock()
+    controller.start = Mock()
+    controller.stop = Mock()
+    controller.is_running = True
+    controller.get_telemetry = Mock(return_value=drone_state_idle('1', 1))
+    return controller
+
+
+@pytest.fixture
+def mock_heartbeat_sender():
+    """Mock HeartbeatSender"""
+    sender = Mock()
+    sender.start = Mock()
+    sender.stop = Mock()
+    sender.is_running = False
+    return sender
+
+
+@pytest.fixture
+def mock_connectivity_checker():
+    """Mock ConnectivityChecker"""
+    checker = Mock()
+    checker.start = Mock()
+    checker.stop = Mock()
+    checker.is_connected = True
+    return checker
+
+
+@pytest.fixture
+def mock_led_controller():
+    """Mock LEDController"""
+    led = Mock()
+    led.set_color = Mock()
+    led.clear = Mock()
+    return led
+
+
+@pytest.fixture
+def mock_drone_setup():
+    """Mock DroneSetup for mission scheduling"""
+    setup = Mock()
+    setup.schedule_mission = AsyncMock()
+    setup.cancel_mission = Mock()
+    setup.get_current_mission = Mock(return_value=Mission.NONE)
+    setup.get_state = Mock(return_value=MissionState.IDLE)
+    return setup
+
+
+# ============================================================================
+# GCS Server Mock Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mock_gcs_telemetry_data(fifty_drones):
+    """Mock GCS telemetry data for 50 drones"""
+    return drones_to_telemetry_response(fifty_drones)
+
+
+@pytest.fixture
+def mock_gcs_config_csv(fifty_drones):
+    """Mock config.csv content for 50 drones"""
+    return drones_to_config_csv(fifty_drones)
+
+
+@pytest.fixture
+def mock_gcs_swarm_csv(fifty_drones):
+    """Mock swarm.csv content for 50 drones"""
+    return drones_to_swarm_csv(fifty_drones)
+
+
+# ============================================================================
+# Integration Test Fixtures
+# ============================================================================
+
+@pytest.fixture
+def integration_timeout():
+    """Timeout for integration tests (longer than unit tests)"""
+    return 30  # seconds
+
+
+@pytest.fixture
+def sitl_docker_image():
+    """Docker image for SITL testing"""
+    return "alireza787/mavsdk-drone-show:px4-sitl-latest"
+
+
+# ============================================================================
+# Test Helpers as Fixtures
+# ============================================================================
+
+@pytest.fixture
+def assert_drone_state():
+    """Helper to assert drone state"""
+    def _assert(state: Dict, expected_mission: int = None, expected_armed: bool = None):
+        assert 'hw_id' in state
+        assert 'pos_id' in state
+        assert 'position_lat' in state
+        assert 'position_long' in state
+        assert 'battery_voltage' in state
+
+        if expected_mission is not None:
+            assert state.get('mission') == expected_mission
+
+        if expected_armed is not None:
+            assert state.get('is_armed') == expected_armed
+
+    return _assert
+
+
+@pytest.fixture
+def assert_command_success():
+    """Helper to assert command was successful"""
+    def _assert(response):
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get('status') in ['success', 'accepted', 'ok']
+    return _assert
+
+
+# ============================================================================
+# Cleanup Fixtures
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def cleanup_async_tasks():
+    """Clean up any pending async tasks after each test"""
+    yield
+    # Get all tasks and cancel pending ones
+    try:
+        loop = asyncio.get_event_loop()
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            if not task.done():
+                task.cancel()
+    except RuntimeError:
+        pass  # No event loop
+
+
+# ============================================================================
+# Markers
+# ============================================================================
+
+def pytest_configure(config):
+    """Configure custom markers"""
+    config.addinivalue_line("markers", "unit: Unit tests (fast, no external deps)")
+    config.addinivalue_line("markers", "integration: Integration tests (may use SITL)")
+    config.addinivalue_line("markers", "slow: Slow running tests")
+    config.addinivalue_line("markers", "swarm: Swarm coordination tests")
+    config.addinivalue_line("markers", "load: Load/performance tests")
+    config.addinivalue_line("markers", "coordinator: Coordinator startup tests")
+    config.addinivalue_line("markers", "mission: Mission execution tests")
+    config.addinivalue_line("markers", "command: Command processing tests")
+    config.addinivalue_line("markers", "telemetry: Telemetry handling tests")
