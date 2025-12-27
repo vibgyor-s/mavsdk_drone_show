@@ -4,17 +4,18 @@ GCS Configuration Management
 =============================
 Handles drone configuration, swarm settings, and Git status operations.
 
-CSV operations use the shared functions/file_utils.py module.
+Shared utilities:
+- CSV operations: functions/file_utils.py
+- Git operations: functions/git_manager.py
 """
 import os
 import logging
-import subprocess
-import requests
 from params import Params
 from collections import defaultdict
 
-# Import shared CSV utilities (single source of truth)
+# Import shared utilities (single source of truth)
 from functions.file_utils import load_csv, save_csv
+from functions.git_manager import get_local_git_report, get_remote_git_status
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
@@ -42,55 +43,21 @@ def save_swarm(swarm, file_path=SWARM_FILE_PATH):
 
 
 def get_gcs_git_report():
-    """Retrieve the Git status of the GCS."""
-    try:
-        branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
-        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
-        author_name = subprocess.check_output(['git', 'show', '-s', '--format=%an', commit]).strip().decode('utf-8')
-        author_email = subprocess.check_output(['git', 'show', '-s', '--format=%ae', commit]).strip().decode('utf-8')
-        commit_date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit]).strip().decode('utf-8')
-        commit_message = subprocess.check_output(['git', 'show', '-s', '--format=%B', commit]).strip().decode('utf-8')
-        remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).strip().decode('utf-8')
-        tracking_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).strip().decode('utf-8')
-        status = subprocess.check_output(['git', 'status', '--porcelain']).strip().decode('utf-8')
+    """
+    Retrieve the Git status of the GCS.
 
-        return {
-            'branch': branch,
-            'commit': commit,
-            'author_name': author_name,
-            'author_email': author_email,
-            'commit_date': commit_date,
-            'commit_message': commit_message,
-            'remote_url': remote_url,
-            'tracking_branch': tracking_branch,
-            'status': 'clean' if not status else 'dirty',
-            'uncommitted_changes': status.splitlines() if status else []
-        }
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to get Git status: {e}")
-        return {'error': f"Git command failed: {str(e)}"}
+    Delegates to functions.git_manager.get_local_git_report() for implementation.
+    """
+    return get_local_git_report()
+
 
 def get_drone_git_status(drone_uri):
-    """Retrieve the Git status from a specific drone."""
-    try:
-        logging.debug(f"Sending request to {drone_uri}/get-git-status")
-        response = requests.get(f"{drone_uri}/get-git-status")  # Make sure it's `requests`
-        logging.debug(f"Received response with status code {response.status_code}")
+    """
+    Retrieve the Git status from a specific drone.
 
-        if response.status_code == 200:
-            try:
-                json_data = response.json()
-                logging.debug(f"Response JSON: {json_data}")
-                return json_data
-            except ValueError as ve:
-                logging.error(f"Error decoding JSON: {str(ve)}")
-                return {'error': 'Failed to decode JSON from response'}
-        else:
-            logging.error(f"Failed to retrieve status, status code: {response.status_code}")
-            return {'error': f"Failed to retrieve status from {drone_uri}"}
-    except Exception as e:
-        logging.error(f"Error contacting drone {drone_uri}: {str(e)}")
-        return {'error': f"Error contacting drone {drone_uri}: {str(e)}"}
+    Delegates to functions.git_manager.get_remote_git_status() for implementation.
+    """
+    return get_remote_git_status(drone_uri)
 
 
 def validate_and_process_config(config_data, sim_mode=None):
