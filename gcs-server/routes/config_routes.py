@@ -17,7 +17,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from config import load_config, save_config, validate_and_process_config
-from origin import _get_expected_position_from_trajectory
+from coordinate_utils import get_expected_position_from_trajectory
 from utils import git_operations
 from params import Params
 
@@ -194,7 +194,7 @@ def get_trajectory_first_row():
         sim_mode = getattr(Params, 'sim_mode', False)
 
         # Get expected position from trajectory CSV
-        north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+        north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
         if north is None or east is None:
             return error_response(

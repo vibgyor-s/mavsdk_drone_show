@@ -26,7 +26,8 @@ from config import get_drone_git_status, get_gcs_git_report, load_config, save_c
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
 from get_elevation import get_elevation
-from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations, _get_expected_position_from_trajectory
+from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
+from coordinate_utils import get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
@@ -296,7 +297,7 @@ def setup_routes(app):
             sim_mode = getattr(Params, 'sim_mode', False)
 
             # Get expected position from trajectory CSV
-            north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+            north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
             if north is None or east is None:
                 return error_response(
@@ -1198,7 +1199,7 @@ def setup_routes(app):
                 sim_mode = getattr(Params, 'sim_mode', False)
 
                 # Get expected position from trajectory CSV (single source of truth)
-                expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+                expected_north, expected_east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
                 if expected_north is None or expected_east is None:
                     deviations[hw_id] = {

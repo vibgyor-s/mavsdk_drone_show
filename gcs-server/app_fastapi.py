@@ -60,8 +60,9 @@ from params import Params
 from get_elevation import get_elevation
 from origin import (
     compute_origin_from_drone, save_origin, load_origin,
-    calculate_position_deviations, _get_expected_position_from_trajectory
+    calculate_position_deviations
 )
+from coordinate_utils import get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
@@ -591,7 +592,7 @@ async def get_trajectory_first_row(pos_id: int = Query(..., description="Positio
     """Get expected position from trajectory CSV file"""
     try:
         sim_mode = getattr(Params, 'sim_mode', False)
-        north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+        north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
         if north is None or east is None:
             raise HTTPException(status_code=404, detail=f"Trajectory file not found for pos_id={pos_id}")
@@ -1444,7 +1445,7 @@ async def get_position_deviations():
 
             # Get expected position from trajectory CSV
             sim_mode = getattr(Params, 'sim_mode', False)
-            expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+            expected_north, expected_east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
             if expected_north is None or expected_east is None:
                 deviations[hw_id] = {
@@ -1605,7 +1606,7 @@ async def compute_origin_endpoint(request: Request):
 
         # Get intended position from trajectory CSV (single source of truth)
         sim_mode = getattr(Params, 'sim_mode', False)
-        intended_north, intended_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+        intended_north, intended_east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
         if intended_north is None or intended_east is None:
             raise HTTPException(
@@ -1653,7 +1654,7 @@ async def get_desired_launch_positions(
             pos_id = drone.get('pos_id', drone.get('hw_id'))
             sim_mode = getattr(Params, 'sim_mode', False)
 
-            north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+            north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
             if north is None or east is None:
                 continue
 

@@ -83,7 +83,7 @@ def validate_and_process_config(config_data, sim_mode=None):
     Returns:
         dict: Validation report with updated_config, warnings, and changes
     """
-    from origin import _get_expected_position_from_trajectory
+    from coordinate_utils import get_expected_position_from_trajectory
 
     # Detect sim_mode if not provided
     if sim_mode is None:
@@ -141,7 +141,7 @@ def validate_and_process_config(config_data, sim_mode=None):
                 })
 
             # Check if trajectory file exists for this pos_id
-            expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+            expected_north, expected_east = get_expected_position_from_trajectory(pos_id, sim_mode)
 
             if expected_north is None or expected_east is None:
                 # Missing trajectory file
@@ -210,7 +210,7 @@ def get_all_drone_positions(sim_mode=None):
               [{"hw_id": int, "pos_id": int, "x": float, "y": float}, ...]
               Returns empty list on error.
     """
-    from origin import _get_expected_position_from_trajectory
+    from coordinate_utils import get_expected_position_from_trajectory
 
     # Detect sim_mode if not provided
     if sim_mode is None:
@@ -228,7 +228,7 @@ def get_all_drone_positions(sim_mode=None):
                 pos_id = int(drone.get('pos_id', hw_id))  # Fallback to hw_id if no pos_id
 
                 # Get position from trajectory CSV (single source of truth)
-                x, y = _get_expected_position_from_trajectory(pos_id, sim_mode)
+                x, y = get_expected_position_from_trajectory(pos_id, sim_mode)
 
                 if x is not None and y is not None:
                     positions.append({

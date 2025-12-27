@@ -31,7 +31,6 @@ import time
 import subprocess
 import logging
 from typing import Dict, Any, Optional, List
-from pyproj import Proj, Transformer
 
 # FastAPI imports
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -45,6 +44,7 @@ import json
 
 # Project imports
 from src.drone_config import DroneConfig
+from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 from functions.data_utils import safe_float, safe_get
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src.params import Params
@@ -306,7 +306,9 @@ class DroneAPIServer:
                 if not pos_id:
                     pos_id = self.drone_config.hw_id
 
-                initial_north, initial_east = self._get_expected_position_from_trajectory(pos_id)
+                initial_north, initial_east = get_expected_position_from_trajectory(
+                    pos_id, self.params.sim_mode, base_dir=BASE_DIR
+                )
 
                 if initial_north is None or initial_east is None:
                     raise HTTPException(
@@ -315,7 +317,7 @@ class DroneAPIServer:
                     )
 
                 # Step 4: Convert current position to NE coordinates
-                current_north, current_east = self._latlon_to_ne(current_lat, current_lon, origin['lat'], origin['lon'])
+                current_north, current_east = latlon_to_ne(current_lat, current_lon, origin['lat'], origin['lon'])
 
                 # Step 5: Calculate deviations
                 deviation_north = current_north - initial_north
@@ -512,60 +514,6 @@ class DroneAPIServer:
         except requests.RequestException as e:
             logging.error(f"Error fetching origin from GCS: {e}")
             return None
-
-    def _latlon_to_ne(self, lat, lon, origin_lat, origin_lon):
-        """Converts lat/lon to north-east coordinates relative to the origin."""
-        proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
-        transformer = Transformer.from_proj(
-            Proj('epsg:4326'),  # Source coordinate system (WGS84)
-            Proj(proj_string)   # Local tangent plane projection
-        )
-        east, north = transformer.transform(lat, lon)
-        return north, east
-
-    def _get_expected_position_from_trajectory(self, pos_id):
-        """
-        Get the expected position (starting point) from a trajectory CSV file.
-
-        Returns:
-            tuple: (north, east) coordinates from first waypoint, or (None, None) on error
-        """
-        try:
-            base_dir = 'shapes_sitl' if self.params.sim_mode else 'shapes'
-            trajectory_file = os.path.join(
-                BASE_DIR,
-                base_dir,
-                'swarm',
-                'processed',
-                f"Drone {pos_id}.csv"
-            )
-
-            if not os.path.exists(trajectory_file):
-                logging.error(f"Trajectory file not found: {trajectory_file}")
-                return None, None
-
-            with open(trajectory_file, 'r') as f:
-                reader = csv.DictReader(f)
-                first_waypoint = next(reader, None)
-
-                if first_waypoint is None:
-                    logging.error(f"Trajectory file is empty: {trajectory_file}")
-                    return None, None
-
-                expected_north = float(first_waypoint.get('px', 0))
-                expected_east = float(first_waypoint.get('py', 0))
-
-                logging.debug(
-                    f"Expected position for pos_id={pos_id}: "
-                    f"North={expected_north:.2f}m, East={expected_east:.2f}m "
-                    f"(from {trajectory_file})"
-                )
-
-                return expected_north, expected_east
-
-        except Exception as e:
-            logging.error(f"Unexpected error reading trajectory file for pos_id={pos_id}: {e}")
-            return None, None
 
     def _execute_git_command(self, command):
         """

@@ -1,14 +1,14 @@
 # gcs-server/origin.py
 
+import logging
 import math
 import os
 import json
-import csv
-import logging
 from datetime import datetime
+
 from params import Params
-from pyproj import Proj, Transformer
 from scipy.optimize import minimize
+from coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -97,94 +97,6 @@ def load_origin():
         logger.warning("Origin file does not exist. Returning default values.")
         return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
 
-def _latlon_to_ne(lat, lon, origin_lat, origin_lon):
-    """Converts lat/lon to north-east coordinates relative to the origin."""
-    try:
-        # Define a local projection centered at the origin
-        proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
-        transformer = Transformer.from_proj(
-            Proj('epsg:4326'),  # WGS84 coordinate system
-            Proj(proj_string),
-            always_xy=True
-        )
-        east, north = transformer.transform(lon, lat)
-        return north, east
-    except Exception as e:
-        logger.error(f"Error in coordinate transformation: {e}", exc_info=True)
-        raise
-
-
-def _get_expected_position_from_trajectory(pos_id, sim_mode=False):
-    """
-    Get the expected position (starting point) from a trajectory CSV file.
-
-    This function reads the first waypoint from the trajectory CSV file
-    corresponding to the given position ID. This is the single source of truth
-    for expected position, especially critical when hw_id ≠ pos_id.
-
-    Args:
-        pos_id (int): Position ID (determines which trajectory file to read)
-        sim_mode (bool): Whether in simulation mode (affects path: shapes vs shapes_sitl)
-
-    Returns:
-        tuple: (north, east) coordinates from first waypoint, or (None, None) on error
-
-    Example:
-        When hw_id=10 performs pos_id=1's show, this function reads
-        "Drone 1.csv" first row to get the expected starting position.
-    """
-    try:
-        # Construct trajectory file path based on pos_id
-        base_dir = 'shapes_sitl' if sim_mode else 'shapes'
-        trajectory_file = os.path.join(
-            BASE_DIR,  # Use GCS server base directory
-            base_dir,
-            'swarm',
-            'processed',
-            f"Drone {pos_id}.csv"
-        )
-
-        # Check if file exists
-        if not os.path.exists(trajectory_file):
-            logger.error(f"Trajectory file not found: {trajectory_file}")
-            return None, None
-
-        # Read first waypoint from CSV
-        with open(trajectory_file, 'r') as f:
-            reader = csv.DictReader(f)
-            first_waypoint = next(reader, None)
-
-            if first_waypoint is None:
-                logger.error(f"Trajectory file is empty: {trajectory_file}")
-                return None, None
-
-            # Extract px (North) and py (East) from first waypoint
-            # These represent the canonical expected position for this pos_id
-            expected_north = float(first_waypoint.get('px', 0))
-            expected_east = float(first_waypoint.get('py', 0))
-
-            logger.debug(
-                f"Expected position for pos_id={pos_id}: "
-                f"North={expected_north:.2f}m, East={expected_east:.2f}m "
-                f"(from {trajectory_file})"
-            )
-
-            return expected_north, expected_east
-
-    except FileNotFoundError:
-        logger.error(f"Trajectory file not found for pos_id={pos_id}")
-        return None, None
-    except KeyError as e:
-        logger.error(f"Missing column in trajectory CSV: {e}")
-        return None, None
-    except ValueError as e:
-        logger.error(f"Invalid coordinate value in trajectory CSV: {e}")
-        return None, None
-    except Exception as e:
-        logger.error(f"Unexpected error reading trajectory file for pos_id={pos_id}: {e}")
-        return None, None
-
-
 def calculate_position_deviations(telemetry_data_all_drones, drones_config, origin_lat, origin_lon):
     """
     Calculates the position deviations for all drones.
@@ -217,7 +129,7 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
         sim_mode = getattr(Params, 'sim_mode', False)
 
         # Get expected position from trajectory CSV (single source of truth)
-        initial_north, initial_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+        initial_north, initial_east = get_expected_position_from_trajectory(pos_id, sim_mode, base_dir=BASE_DIR)
 
         if initial_north is None or initial_east is None:
             deviations[hw_id] = {
@@ -255,7 +167,7 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
 
         # Convert current lat/lon to NE coordinates relative to the origin
         try:
-            current_north, current_east = _latlon_to_ne(current_lat, current_lon, origin_lat, origin_lon)
+            current_north, current_east = latlon_to_ne(current_lat, current_lon, origin_lat, origin_lon)
         except Exception as e:
             deviations[hw_id] = {
                 "error": f"Coordinate transformation error: {str(e)}"
