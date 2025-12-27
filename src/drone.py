@@ -1,3 +1,12 @@
+"""
+Drone Class
+===========
+Represents a single drone in the swarm show system.
+
+This module provides the Drone class which encapsulates drone configuration,
+MAVSDK connection, trajectory waypoints, and flight control methods.
+"""
+
 import csv
 from mavsdk.system import System
 
@@ -5,7 +14,38 @@ from src.constants import NetworkDefaults, TrajectoryState
 
 
 class Drone:
+    """
+    Represents a single drone in the swarm system.
+
+    Each Drone instance manages:
+    - Connection to MAVSDK server via gRPC
+    - Trajectory waypoints loaded from CSV
+    - Home position and offset tracking
+    - Flight mode descriptions
+
+    Attributes:
+        hw_id: Hardware ID of the drone
+        pos_id: Position ID for show choreography
+        x, y: Initial position coordinates
+        ip: Network IP address
+        mavlink_port: MAVLink communication port
+        grpc_port: gRPC port for MAVSDK connection
+        drone: MAVSDK System instance
+        waypoints: List of trajectory waypoints
+        home_position: GPS home position
+        trajectory_offset: (x, y, z) offset for trajectory
+        altitude_offset: Altitude adjustment in meters
+        time_offset: Time offset for synchronization
+    """
+
     def __init__(self, config):
+        """
+        Initialize a Drone instance.
+
+        Args:
+            config: Configuration object with drone settings including
+                    hw_id, pos_id, x, y, ip, and mavlink_port
+        """
         self.hw_id = config.hw_id
         self.pos_id = config.pos_id
         self.x = config.x
@@ -36,6 +76,13 @@ class Drone:
         self.time_offset = 0
 
     async def connect(self):
+        """
+        Connect to the drone via MAVSDK.
+
+        Establishes UDP connection to the drone's MAVLink port and waits
+        for connection confirmation and valid global position estimate.
+        Sets the home_position once GPS is available.
+        """
         await self.drone.connect(system_address=f"udp://{self.mavlink_port}")
         print(f"Drone connecting with UDP: {self.mavlink_port}")
         async for state in self.drone.core.connection_state():
@@ -52,6 +99,17 @@ class Drone:
                 break
 
     async def read_trajectory(self, filename):
+        """
+        Load trajectory waypoints from a CSV file.
+
+        Reads waypoint data including position, velocity, acceleration,
+        yaw, and mode code. Applies trajectory and altitude offsets.
+
+        Args:
+            filename: Path to the trajectory CSV file
+
+        The CSV must have columns: t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode
+        """
         # Read data from the CSV file
         with open(filename, newline="") as csvfile:
             reader = csv.DictReader(csvfile)
@@ -71,6 +129,13 @@ class Drone:
 
                 self.waypoints.append((t, px, py, pz, vx, vy, vz,ax,ay,az,mode_code))
     async def perform_trajectory(self):
+        """
+        Execute the loaded trajectory waypoints.
+
+        Iterates through waypoints and sends goto commands for maneuvering
+        waypoints. Uses TrajectoryState to determine when the drone is
+        actively maneuvering vs holding position.
+        """
         print(f"Drone {self.hw_id} starting trajectory.")
         for waypoint in self.waypoints:
             t, px, py, pz, vx, vy, vz, ax, ay, az, mode_code = waypoint

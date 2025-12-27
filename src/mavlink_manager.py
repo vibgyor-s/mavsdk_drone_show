@@ -1,14 +1,61 @@
+"""
+MAVLink Manager
+===============
+Manages the MAVLink router process for drone communication.
+
+This module handles starting and stopping the mavlink-routerd process
+which routes MAVLink messages between the flight controller, MAVSDK,
+and the GCS.
+"""
+
 import subprocess
 import logging
 
+logger = logging.getLogger(__name__)
+
+
 class MavlinkManager:
+    """
+    Manages the MAVLink router subprocess.
+
+    The MavlinkManager is responsible for:
+    - Starting mavlink-routerd with appropriate endpoints
+    - Configuring routes for SITL vs real hardware
+    - Terminating the router on shutdown
+
+    Attributes:
+        params: System parameters (Params instance)
+        drone_config: Drone configuration (DroneConfig instance)
+        mavlink_router_process: Subprocess handle for mavlink-routerd
+    """
+
     def __init__(self, params, drone_config):
+        """
+        Initialize the MAVLink Manager.
+
+        Args:
+            params: Params instance with system configuration
+            drone_config: DroneConfig instance with drone-specific settings
+        """
         self.params = params
         self.drone_config = drone_config
         self.mavlink_router_process = None
-        logging.info("Initialized MavlinkManager")
+        logger.info("Initialized MavlinkManager")
 
     def initialize(self):
+        """
+        Start the MAVLink router with configured endpoints.
+
+        Configures mavlink-routerd based on operating mode:
+        - SITL mode: Connects to simulator on configured port
+        - Real mode (serial): Connects to Pixhawk via serial port
+        - Real mode (UDP): Connects to Pixhawk via UDP
+
+        Endpoints are added for MAVSDK and GCS communication.
+
+        Raises:
+            Exception: If router fails to start (logged, not raised)
+        """
         try:
             if self.params.sim_mode:
                 logging.info("Sim mode is enabled. Connecting to SITL...")
@@ -48,6 +95,12 @@ class MavlinkManager:
             logging.error(f"An error occurred in initialize(): {e}")
 
     def terminate(self):
+        """
+        Terminate the MAVLink router process.
+
+        Gracefully stops the mavlink-routerd subprocess if running.
+        Safe to call even if the process is not running.
+        """
         try:
             if self.mavlink_router_process:
                 self.mavlink_router_process.terminate()
