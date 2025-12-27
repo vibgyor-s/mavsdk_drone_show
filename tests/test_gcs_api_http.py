@@ -79,26 +79,38 @@ def mock_config():
 
 @pytest.fixture
 def mock_telemetry_data():
-    """Mock telemetry data for all drones"""
+    """Mock telemetry data for all drones - matches DroneTelemetry schema"""
     return {
         '1': {
             'pos_id': 0,
             'hw_id': '1',
-            'battery_voltage': 12.6,
-            'Position_Lat': 35.123456,
-            'Position_Long': -120.654321,
-            'Position_Alt': 488.5,
+            'state': 'idle',
+            'flight_mode': 'MANUAL',
             'armed': False,
+            'in_air': False,
+            'health_ok': True,
+            'battery_voltage': 12.6,
+            'position_lat': 35.123456,
+            'position_long': -120.654321,
+            'position_alt': 488.5,
+            'gps_fix_type': 3,
+            'satellites_visible': 12,
             'timestamp': 1700000000000
         },
         '2': {
             'pos_id': 1,
             'hw_id': '2',
-            'battery_voltage': 12.4,
-            'Position_Lat': 35.123457,
-            'Position_Long': -120.654322,
-            'Position_Alt': 488.6,
+            'state': 'idle',
+            'flight_mode': 'MANUAL',
             'armed': False,
+            'in_air': False,
+            'health_ok': True,
+            'battery_voltage': 12.4,
+            'position_lat': 35.123457,
+            'position_long': -120.654322,
+            'position_alt': 488.6,
+            'gps_fix_type': 3,
+            'satellites_visible': 10,
             'timestamp': 1700000000000
         }
     }
