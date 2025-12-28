@@ -64,6 +64,15 @@ class DroneSetup:
         }
 
     def _validate_params(self):
+        """
+        Validate that required parameters exist and have correct types.
+
+        Checks for 'trigger_sooner_seconds' and converts string values to numeric.
+
+        Raises:
+            AttributeError: If required parameter is missing.
+            TypeError: If parameter has invalid type.
+        """
         required_attrs = {
             'trigger_sooner_seconds': (int, float, str)
         }
@@ -88,6 +97,16 @@ class DroneSetup:
                 raise TypeError(f"'{attr}' must be int or float.")
 
     def _validate_drone_config(self):
+        """
+        Validate that drone_config has required attributes with correct types.
+
+        Checks for 'trigger_time' and mission-specific attributes.
+        Converts string values to numeric types as needed.
+
+        Raises:
+            AttributeError: If required attribute is missing.
+            TypeError: If attribute has invalid type.
+        """
         required_attrs = {
             'trigger_time': (int, float, str)
         }
@@ -116,10 +135,24 @@ class DroneSetup:
                 raise TypeError(f"'{attr}' must be {expected_types}.")
 
     def _get_python_exec_path(self) -> str:
-        # Adjust to your project’s Python environment path if needed
+        """
+        Get the path to the Python executable in the project's virtual environment.
+
+        Returns:
+            str: Absolute path to the Python interpreter.
+        """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'venv', 'bin', 'python')
 
     def _get_script_path(self, script_name: str) -> str:
+        """
+        Get the absolute path to a mission script.
+
+        Args:
+            script_name: Relative path to the script from project root.
+
+        Returns:
+            str: Absolute path to the script file.
+        """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
     async def terminate_all_running_processes(self):
@@ -329,6 +362,12 @@ class DroneSetup:
                 logger.debug(f"Process '{script_name}' still running.")
 
     def synchronize_time(self):
+        """
+        Synchronize system time using the time sync script.
+
+        Runs tools/sync_time_linux.sh to synchronize the drone's system clock.
+        This is important for coordinated show timing across multiple drones.
+        """
         script_path = self._get_script_path('tools/sync_time_linux.sh')
         if not os.path.isfile(script_path):
             logger.warning("Time sync script not found, skipping time synchronization.")
