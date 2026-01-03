@@ -51,7 +51,7 @@ class ConnectivityChecker:
         """
         if self.is_running:
             self.stop_event.set()
-            self.thread.join()
+            self.thread.join(timeout=5.0)  # Prevent indefinite blocking
             self.is_running = False
             logger.info("ConnectivityChecker stopped.")
         else:

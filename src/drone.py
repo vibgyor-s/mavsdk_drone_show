@@ -83,8 +83,11 @@ class Drone:
         for connection confirmation and valid global position estimate.
         Sets the home_position once GPS is available.
         """
-        await self.drone.connect(system_address=f"udp://{self.mavlink_port}")
-        print(f"Drone connecting with UDP: {self.mavlink_port}")
+        # For SITL/local connections, mavlink_port is just the port number
+        # mavlink-router handles routing, so we connect via localhost
+        system_address = f"udp://127.0.0.1:{self.mavlink_port}"
+        await self.drone.connect(system_address=system_address)
+        print(f"Drone connecting with UDP: {system_address}")
         async for state in self.drone.core.connection_state():
             if state.is_connected:
                 print(f"Drone id {self.hw_id} connected on Port: {self.mavlink_port} and grpc Port: {self.grpc_port}")
@@ -127,7 +130,7 @@ class Drone:
                 yaw = float(row["yaw"])
                 mode_code = int(row["mode"])  # Assuming the mode code is in a column named "mode"
 
-                self.waypoints.append((t, px, py, pz, vx, vy, vz,ax,ay,az,mode_code))
+                self.waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code))
     async def perform_trajectory(self):
         """
         Execute the loaded trajectory waypoints.
@@ -138,7 +141,7 @@ class Drone:
         """
         print(f"Drone {self.hw_id} starting trajectory.")
         for waypoint in self.waypoints:
-            t, px, py, pz, vx, vy, vz, ax, ay, az, mode_code = waypoint
+            t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code = waypoint
 
             if TrajectoryState.is_maneuvering(mode_code):  # If the mode code is for maneuvering (trajectory)
                 print(f"Drone {self.hw_id} maneuvering.")
