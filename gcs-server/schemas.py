@@ -9,10 +9,17 @@ Author: MAVSDK Drone Show Team
 Last Updated: 2025-11-22
 """
 
+import os
+import sys
+
 from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
+
+# Import shared enums from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from enums import CommandStatus
 
 
 # ============================================================================
@@ -495,29 +502,24 @@ class HeartbeatStreamMessage(WebSocketMessage):
 # ============================================================================
 # Command Tracking Schemas
 # ============================================================================
-
-class CommandStatus(str, Enum):
-    """Command lifecycle status"""
-    CREATED = "created"
-    SUBMITTED = "submitted"
-    EXECUTING = "executing"
-    COMPLETED = "completed"
-    PARTIAL = "partial"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    TIMEOUT = "timeout"
-
+# Note: CommandStatus enum is imported from src/enums.py to avoid duplication
 
 class DroneAckDetail(BaseModel):
     """Acknowledgment detail from a single drone"""
-    status: str = Field(..., description="'accepted', 'offline', 'rejected', or 'error'")
+    status: str = Field(
+        ...,
+        pattern="^(accepted|offline|rejected|error)$",
+        description="'accepted', 'offline', 'rejected', or 'error'"
+    )
     category: str = Field(
         "accepted",
+        pattern="^(accepted|offline|rejected|error)$",
         description="Result category: 'accepted' (success), 'offline' (unreachable - neutral), 'rejected' (drone refused), 'error' (unexpected)"
     )
-    message: Optional[str] = Field(None, description="Status message")
-    error_code: Optional[str] = Field(None, description="Error code if rejected/error")
-    timestamp: int = Field(..., description="ACK timestamp (Unix ms)")
+    message: Optional[str] = Field(None, max_length=500, description="Status message")
+    error_code: Optional[str] = Field(None, pattern="^E[0-9]{3}$", description="Error code if rejected/error (e.g., E202)")
+    error_detail: Optional[str] = Field(None, max_length=500, description="Detailed error information")
+    timestamp: int = Field(..., ge=0, description="ACK timestamp (Unix ms)")
 
 
 class DroneExecutionDetail(BaseModel):

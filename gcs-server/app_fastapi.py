@@ -725,64 +725,57 @@ async def submit_command(request: Request):
         # Add command_id to the data sent to drones so they can report back
         command_data['command_id'] = command_id
 
-        # Process command in background thread with tracking
-        def process_command_with_tracking():
-            try:
-                if target_drones:
-                    results = send_commands_to_selected(drones, command_data, target_drones)
-                else:
-                    results = send_commands_to_all(drones, command_data)
+        # Execute command synchronously - send_commands_to_all already uses ThreadPoolExecutor
+        # This ensures ACKs are recorded before response is returned (no race condition)
+        if target_drones:
+            results = send_commands_to_selected(drones, command_data, target_drones)
+        else:
+            results = send_commands_to_all(drones, command_data)
 
-                # Record ACKs based on HTTP response (immediate feedback)
-                # Note: This records the HTTP-level success/failure, not the actual ACK from drone
-                # The actual ACK with error codes comes from the drone's response
-                import asyncio
+        # Mark as submitted and record ACKs synchronously
+        await tracker.mark_submitted(command_id)
 
-                async def record_all_acks():
-                    """Async helper to record all ACKs in sequence."""
-                    await tracker.mark_submitted(command_id)
+        for drone_id, result in results.get('results', {}).items():
+            category = result.get('category', 'error')
+            if result.get('success'):
+                await tracker.record_ack(
+                    command_id, drone_id,
+                    category='accepted',
+                    message='HTTP 200 received'
+                )
+            elif category == 'offline':
+                # Drone unreachable - neutral, not an error
+                await tracker.record_ack(
+                    command_id, drone_id,
+                    category='offline',
+                    message=result.get('error', 'Drone unreachable'),
+                    error_code='E304'  # DRONE_OFFLINE
+                )
+            elif category == 'rejected':
+                # Drone actively rejected
+                await tracker.record_ack(
+                    command_id, drone_id,
+                    category='rejected',
+                    message=result.get('error', 'Drone rejected command'),
+                    error_code='E303'  # HTTP_ERROR
+                )
+            else:
+                # Unexpected error
+                await tracker.record_ack(
+                    command_id, drone_id,
+                    category='error',
+                    message=result.get('error', 'Unexpected error'),
+                    error_code='E500'  # INTERNAL_ERROR
+                )
 
-                    for drone_id, result in results.get('results', {}).items():
-                        category = result.get('category', 'error')
-                        if result.get('success'):
-                            await tracker.record_ack(
-                                command_id, drone_id,
-                                category='accepted',
-                                message='HTTP 200 received'
-                            )
-                        elif category == 'offline':
-                            # Drone unreachable - neutral, not an error
-                            await tracker.record_ack(
-                                command_id, drone_id,
-                                category='offline',
-                                message=result.get('error', 'Drone unreachable'),
-                                error_code='E304'  # DRONE_OFFLINE
-                            )
-                        elif category == 'rejected':
-                            # Drone actively rejected
-                            await tracker.record_ack(
-                                command_id, drone_id,
-                                category='rejected',
-                                message=result.get('error', 'Drone rejected command'),
-                                error_code='E303'  # HTTP_ERROR
-                            )
-                        else:
-                            # Unexpected error
-                            await tracker.record_ack(
-                                command_id, drone_id,
-                                category='error',
-                                message=result.get('error', 'Unexpected error'),
-                                error_code='E500'  # INTERNAL_ERROR
-                            )
-
-                # Use asyncio.run() - cleaner than manual loop management (Python 3.7+)
-                asyncio.run(record_all_acks())
-
-            except Exception as e:
-                log_system_error(f"Error processing command: {e}", "command")
-
-        thread = threading.Thread(target=process_command_with_tracking, daemon=True)
-        thread.start()
+        # Build ACK summary for response
+        ack_summary = {
+            'accepted': results.get('success', 0),
+            'offline': results.get('offline', 0),
+            'rejected': results.get('rejected', 0),
+            'errors': results.get('errors', 0),
+            'result_summary': results.get('result_summary', '')
+        }
 
         # Get mission name for response
         from src.enums import Mission
@@ -791,16 +784,21 @@ async def submit_command(request: Request):
         except ValueError:
             mission_name = f"MISSION_{mission_type}"
 
+        # Determine success based on results
+        has_success = results.get('success', 0) > 0
+        has_failures = results.get('rejected', 0) > 0 or results.get('errors', 0) > 0
+
         return SubmitCommandResponse(
-            success=True,  # Command submitted successfully (tracking started)
+            success=has_success,  # True if at least one drone accepted
             command_id=command_id,
             status="submitted",
             mission_type=mission_type_int,
             mission_name=mission_name,
             target_drones=target_hw_ids,
-            submitted_count=len(target_hw_ids),
-            message=f"Command {mission_name} submitted to {len(target_hw_ids)} drones",
-            timestamp=int(time.time() * 1000)
+            submitted_count=results.get('success', 0),
+            message=results.get('result_summary', f"Command {mission_name} sent"),
+            timestamp=int(time.time() * 1000),
+            ack_summary=ack_summary
         )
 
     except HTTPException:

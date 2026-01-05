@@ -49,6 +49,25 @@ class CommandResultCategory(str, Enum):
     PENDING = "pending"     # Awaiting response
 
 
+class CommandStatus(str, Enum):
+    """
+    Status of a tracked command in the system.
+
+    Lifecycle:
+    CREATED → SUBMITTED → EXECUTING → COMPLETED/FAILED/PARTIAL
+                       ↘ TIMEOUT
+                       ↘ CANCELLED
+    """
+    CREATED = "created"       # Command created but not yet sent
+    SUBMITTED = "submitted"   # Command sent to drones, awaiting ACKs
+    EXECUTING = "executing"   # All ACKs received, execution in progress
+    COMPLETED = "completed"   # All drones completed successfully
+    PARTIAL = "partial"       # Some drones succeeded, some failed
+    FAILED = "failed"         # All drones failed
+    CANCELLED = "cancelled"   # Command was cancelled
+    TIMEOUT = "timeout"       # Command timed out waiting for responses
+
+
 class CommandErrorCode(str, Enum):
     """
     Standardized error codes for command processing.

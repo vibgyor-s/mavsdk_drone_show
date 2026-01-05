@@ -58,17 +58,17 @@ const CommandSender = ({ drones }) => {
 
         const response = await sendDroneCommand(commandDataToSend);
 
-        if (response.success) {
+        if (response && response.success) {
           // Show categorized feedback based on results
           const acks = response.ack_summary || {};
-          const accepted = acks.accepted || response.submitted_count || 0;
+          const accepted = acks.accepted ?? response.submitted_count ?? 0;
           const offline = acks.offline || 0;
           const rejected = acks.rejected || 0;
           const errors = acks.errors || 0;
 
           if (offline > 0 && (rejected === 0 && errors === 0)) {
-            // Some accepted, rest offline - show info (not error)
-            toast.info(`Command sent: ${accepted} drones accepted, ${offline} offline`);
+            // Some accepted, rest offline - show warning (partial success)
+            toast.warning(`Command sent: ${accepted} accepted, ${offline} offline`);
           } else if (rejected > 0 || errors > 0) {
             // Has actual problems - show warning
             toast.warning(`Command partial: ${accepted} accepted, ${rejected} rejected, ${errors} errors`);

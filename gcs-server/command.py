@@ -10,7 +10,7 @@ import os
 import sys
 import requests
 import time
-from requests.exceptions import Timeout, ConnectionError, HTTPError
+from requests.exceptions import Timeout, ConnectionError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple
 
@@ -183,7 +183,9 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
     
     # Calculate execution time
     execution_time = time.time() - start_time
-    failed_count = offline_count + rejected_count + error_count
+    # failed_count only includes actual failures (rejected/errors), not offline
+    failed_count = rejected_count + error_count
+    unavailable_count = offline_count  # Separate tracking for unreachable drones
 
     # Log comprehensive summary with categorization
     success_rate = (success_count / len(drones)) * 100 if drones else 0
@@ -266,7 +268,8 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
         'offline': offline_count,
         'rejected': rejected_count,
         'errors': error_count,
-        'failed': failed_count,  # Total of offline + rejected + errors (backward compatible)
+        'failed': failed_count,  # Only rejected + errors (actual failures)
+        'unavailable': unavailable_count,  # Offline drones (not a failure)
         'total': len(drones),
         'success_rate': success_rate,
         'execution_time': execution_time,
@@ -411,45 +414,6 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
             'message': error_msg,
             'results': {}
         }
-
-# Command execution statistics for monitoring
-_command_stats = {
-    'total_commands': 0,
-    'successful_commands': 0,
-    'failed_commands': 0,
-    'start_time': time.time()
-}
-
-def get_command_statistics() -> Dict[str, Any]:
-    """Get command execution statistics"""
-    uptime = time.time() - _command_stats['start_time']
-    
-    return {
-        'total_commands': _command_stats['total_commands'],
-        'successful_commands': _command_stats['successful_commands'], 
-        'failed_commands': _command_stats['failed_commands'],
-        'success_rate': (_command_stats['successful_commands'] / max(_command_stats['total_commands'], 1)) * 100,
-        'uptime_hours': uptime / 3600,
-        'commands_per_hour': _command_stats['total_commands'] / max(uptime / 3600, 0.01)
-    }
-
-def update_command_statistics(success_count: int, failed_count: int):
-    """Update global command statistics"""
-    _command_stats['total_commands'] += success_count + failed_count
-    _command_stats['successful_commands'] += success_count
-    _command_stats['failed_commands'] += failed_count
-
-# Integration with the updated system - wrap the statistics updates
-_original_send_commands_to_all = send_commands_to_all
-
-def send_commands_to_all_with_stats(drones: List[Dict[str, str]], command_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Wrapper to include statistics tracking"""
-    result = _original_send_commands_to_all(drones, command_data)
-    update_command_statistics(result.get('success', 0), result.get('failed', 0))
-    return result
-
-# Replace the original function
-send_commands_to_all = send_commands_to_all_with_stats
 
 # Standalone test mode
 if __name__ == "__main__":

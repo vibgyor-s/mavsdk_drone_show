@@ -72,14 +72,14 @@ const DroneCriticalCommands = ({ droneId }) => {
 
     try {
       const response = await sendDroneCommand(commandData);
-      if (response.success) {
+      if (response && response.success) {
         toast.success(
           `Command "${pendingAction.label}" sent to drone ${droneId} successfully!`
         );
       } else {
         toast.error(
           `Error sending command "${pendingAction.label}" to drone ${droneId}: ${
-            response.message || 'Unknown error'
+            response?.message || 'Unknown error'
           }`
         );
       }

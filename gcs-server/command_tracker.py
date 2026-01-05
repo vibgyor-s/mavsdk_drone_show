@@ -45,27 +45,20 @@ Usage:
 
 import asyncio
 import logging
+import os
+import sys
 import time
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
+# Import shared enums from src
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from enums import CommandStatus
+
 logger = logging.getLogger(__name__)
-
-
-class CommandStatus(str, Enum):
-    """Command lifecycle status"""
-    CREATED = "created"
-    SUBMITTED = "submitted"
-    EXECUTING = "executing"
-    COMPLETED = "completed"
-    PARTIAL = "partial"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    TIMEOUT = "timeout"
 
 
 @dataclass
