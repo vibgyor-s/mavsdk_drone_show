@@ -459,7 +459,9 @@ update_repository() {
 
 handle_env_file() {
     log_info "Checking .env configuration..."
-    
+
+    local env_example="$REACT_APP_DIR/.env.example"
+
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file found."
         if [[ -n "$OVERWRITE_IP" ]]; then
@@ -469,26 +471,52 @@ handle_env_file() {
             log_success "Server IP updated and backup created."
         fi
     else
-        log_warn ".env file not found. Creating new one..."
+        log_warn ".env file not found. Creating from template..."
+
+        # Determine server IP based on mode
         local server_ip="${OVERWRITE_IP:-}"
+
         if [[ -z "$server_ip" ]]; then
-            echo -n "Enter server IP (e.g., 192.168.1.100): "
-            read server_ip
+            if [[ "$USE_SITL" == "true" ]] || [[ ! -f "$REAL_MODE_FILE" ]]; then
+                # SITL mode: use localhost automatically (no prompt needed)
+                server_ip="localhost"
+                log_info "SITL mode: Using localhost for server URL"
+            else
+                # Real mode without IP specified: prompt user
+                echo ""
+                echo "Real drone mode requires GCS server IP address."
+                echo "This is the IP where the GCS server is running."
+                echo -n "Enter server IP (e.g., 192.168.1.100): "
+                read server_ip
+
+                if [[ ! $server_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    log_error "Invalid IP address format."
+                    exit 1
+                fi
+            fi
         fi
-        
-        if [[ ! $server_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            log_error "Invalid IP address format."
-            exit 1
-        fi
-        
+
+        # Create .env from template if available, otherwise create minimal
         mkdir -p "$(dirname "$ENV_FILE_PATH")"
-        cat > "$ENV_FILE_PATH" << EOF
+
+        if [[ -f "$env_example" ]]; then
+            # Copy from .env.example and update SERVER_URL
+            cp "$env_example" "$ENV_FILE_PATH"
+            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$server_ip|" "$ENV_FILE_PATH"
+            log_success ".env created from template with server: $server_ip"
+        else
+            # Fallback: create minimal .env
+            cat > "$ENV_FILE_PATH" << EOF
+# Auto-generated .env file
 REACT_APP_SERVER_URL=http://$server_ip
 REACT_APP_GCS_PORT=5000
 REACT_APP_DRONE_PORT=7070
+PORT=3030
 GENERATE_SOURCEMAP=false
+SKIP_PREFLIGHT_CHECK=true
 EOF
-        log_success ".env file created with IP: $server_ip"
+            log_success ".env file created with IP: $server_ip"
+        fi
     fi
 }
 
