@@ -60,11 +60,11 @@ const CommandSender = ({ drones }) => {
 
         if (response && response.success) {
           // Show categorized feedback based on results
-          const acks = response.ack_summary || {};
-          const accepted = acks.accepted ?? response.submitted_count ?? 0;
-          const offline = acks.offline || 0;
-          const rejected = acks.rejected || 0;
-          const errors = acks.errors || 0;
+          const summary = response.results_summary || response.ack_summary || {};
+          const accepted = summary.accepted ?? response.submitted_count ?? 0;
+          const offline = summary.offline || 0;
+          const rejected = summary.rejected || 0;
+          const errors = summary.errors || 0;
 
           if (offline > 0 && (rejected === 0 && errors === 0)) {
             // Some accepted, rest offline - show warning (partial success)

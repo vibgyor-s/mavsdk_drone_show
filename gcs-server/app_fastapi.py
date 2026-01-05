@@ -768,13 +768,12 @@ async def submit_command(request: Request):
                     error_code='E500'  # INTERNAL_ERROR
                 )
 
-        # Build ACK summary for response
-        ack_summary = {
+        # Build results summary for response (simple dict for immediate feedback)
+        results_summary = {
             'accepted': results.get('success', 0),
             'offline': results.get('offline', 0),
             'rejected': results.get('rejected', 0),
-            'errors': results.get('errors', 0),
-            'result_summary': results.get('result_summary', '')
+            'errors': results.get('errors', 0)
         }
 
         # Get mission name for response
@@ -786,7 +785,6 @@ async def submit_command(request: Request):
 
         # Determine success based on results
         has_success = results.get('success', 0) > 0
-        has_failures = results.get('rejected', 0) > 0 or results.get('errors', 0) > 0
 
         return SubmitCommandResponse(
             success=has_success,  # True if at least one drone accepted
@@ -798,7 +796,7 @@ async def submit_command(request: Request):
             submitted_count=results.get('success', 0),
             message=results.get('result_summary', f"Command {mission_name} sent"),
             timestamp=int(time.time() * 1000),
-            ack_summary=ack_summary
+            results_summary=results_summary
         )
 
     except HTTPException:

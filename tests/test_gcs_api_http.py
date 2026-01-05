@@ -437,7 +437,14 @@ class TestCommandEndpoints:
     def test_submit_command(self, mock_load, mock_send, test_client, mock_config):
         """Test POST /submit_command - new SubmitCommandResponse format"""
         mock_load.return_value = mock_config
-        mock_send.return_value = {'success': 2, 'failed': 0, 'results': {}}
+        # Mock needs all expected fields from the updated command.py
+        mock_send.return_value = {
+            'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '2 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'},
+                '2': {'success': True, 'category': 'accepted'}
+            }
+        }
 
         # New format requires missionType and triggerTime
         command_data = {
