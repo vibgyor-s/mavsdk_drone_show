@@ -158,11 +158,7 @@ class DroneCommunicator:
         # hw_id and pos_id are immutable - use the drone's configured values
         hw_id = self.drone_config.hw_id
 
-        # Update mutable state: set to 1 (command received/armed)
-        state = 1  # Command received state
-        self._update_drone_state(state, trigger_time)
-
-        # Phase 2: Store flags in drone_config (None means use Params defaults later)
+        # Phase 2: Store flags in drone_config (safe - just storing references)
         self.drone_config.auto_global_origin = command_data.get('auto_global_origin', None)
         self.drone_config.use_global_setpoints = command_data.get('use_global_setpoints', None)
 
@@ -171,10 +167,16 @@ class DroneCommunicator:
         if self.drone_config.use_global_setpoints is not None:
             logging.info(f"🌍 Phase 2: use_global_setpoints={self.drone_config.use_global_setpoints}")
 
+        # ATOMIC: Process mission-specific data FIRST (may fail)
+        # State is only updated if mission processing succeeds
         try:
             self._process_mission_command(mission, command_data)
-        except ValueError as e:
-            logging.warning(f"Invalid mission command: {e}")
+        except Exception as e:
+            logging.error(f"Mission processing failed: {e}. State unchanged.")
+            return  # State NOT changed - drone remains in previous state
+
+        # Only update state AFTER successful mission processing
+        self._update_drone_state(State.MISSION_READY.value, trigger_time)
 
         self._log_updated_configuration()
         self.drones[hw_id] = self.drone_config

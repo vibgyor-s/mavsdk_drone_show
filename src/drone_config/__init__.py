@@ -98,8 +98,25 @@ class DroneConfig:
 
     @property
     def takeoff_altitude(self) -> float:
-        """Default takeoff altitude in meters."""
+        """Takeoff altitude - runtime value or default from config."""
+        if self._state.runtime_takeoff_altitude is not None:
+            return self._state.runtime_takeoff_altitude
         return self._config_data.takeoff_altitude
+
+    @takeoff_altitude.setter
+    def takeoff_altitude(self, value: float):
+        """Set runtime takeoff altitude for current command."""
+        self._state.runtime_takeoff_altitude = value
+
+    @property
+    def runtime_takeoff_altitude(self) -> Optional[float]:
+        """Direct access to runtime takeoff altitude override."""
+        return self._state.runtime_takeoff_altitude
+
+    @runtime_takeoff_altitude.setter
+    def runtime_takeoff_altitude(self, value: Optional[float]):
+        """Set or clear runtime takeoff altitude override."""
+        self._state.runtime_takeoff_altitude = value
 
     @property
     def all_configs(self) -> Dict[int, Dict[str, float]]:
@@ -393,3 +410,37 @@ class DroneConfig:
     def get_baudrate(self) -> int:
         """Get baudrate configuration."""
         return self._config_data.get_baudrate()
+
+    def update(self, **kwargs) -> None:
+        """
+        Update drone state from telemetry data.
+
+        Only updates mutable state fields (not configuration).
+        Used by drone_communicator for telemetry updates.
+
+        Args:
+            **kwargs: Field names and values to update
+        """
+        # Map telemetry field names to internal state field names
+        field_mapping = {
+            'battery_voltage': 'battery',
+            'update_time': 'last_update_timestamp'
+        }
+
+        # Set of mutable fields that can be updated from telemetry
+        mutable_fields = {
+            'state', 'mission', 'trigger_time', 'position', 'velocity',
+            'yaw', 'battery', 'last_update_timestamp', 'hdop', 'vdop',
+            'gps_fix_type', 'satellites_visible', 'is_armed', 'is_ready_to_arm'
+        }
+
+        for key, value in kwargs.items():
+            # Map telemetry field name to internal field name
+            field = field_mapping.get(key, key)
+
+            if field in mutable_fields and hasattr(self, field):
+                try:
+                    setattr(self, field, value)
+                except AttributeError:
+                    # Skip fields that don't have setters
+                    pass

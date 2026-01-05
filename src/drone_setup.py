@@ -338,10 +338,12 @@ class DroneSetup:
         """
         Reset the mission and state after script completion or forced kill.
         Both success and failure lead to mission=NONE and state=IDLE.
+        Also clears runtime overrides like takeoff_altitude.
         """
         logger.info(f"Resetting mission state. Success={success}")
         self.drone_config.mission = Mission.NONE.value
         self.drone_config.state = State.IDLE.value
+        self.drone_config.runtime_takeoff_altitude = None  # Clear runtime override
         self._log_mission_result(success, "Mission finished." if success else "Mission failed.")
 
     # --------------------- MISSION HANDLER HELPERS ---------------------
