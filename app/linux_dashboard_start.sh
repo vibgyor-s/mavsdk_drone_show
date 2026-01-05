@@ -247,12 +247,15 @@ run_configuration_check() {
     # Check .env file
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file: OK"
-        local server_url=$(grep "REACT_APP_SERVER_URL" "$ENV_FILE_PATH" 2>/dev/null || echo "")
+        local server_url=$(grep "^REACT_APP_SERVER_URL=" "$ENV_FILE_PATH" 2>/dev/null | head -1 || echo "")
         if [[ -n "$server_url" ]]; then
-            log_info "  Server URL: $server_url"
+            log_info "  Server URL: $server_url (explicit override)"
+        else
+            log_info "  Server URL: Auto-detected from browser"
         fi
     else
         log_warn ".env file: MISSING (will be created on first run)"
+        log_info "  Server URL: Will auto-detect from browser"
     fi
 
     # Check current drone mode
@@ -464,58 +467,54 @@ handle_env_file() {
 
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file found."
+        # Handle explicit IP override (for advanced use cases)
         if [[ -n "$OVERWRITE_IP" ]]; then
             log_info "Overwriting server IP to: $OVERWRITE_IP"
             cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
-            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            # Add or update SERVER_URL line
+            if grep -q "^REACT_APP_SERVER_URL=" "$ENV_FILE_PATH"; then
+                sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            else
+                echo "REACT_APP_SERVER_URL=http://$OVERWRITE_IP" >> "$ENV_FILE_PATH"
+            fi
             log_success "Server IP updated and backup created."
         fi
     else
         log_warn ".env file not found. Creating from template..."
-
-        # Determine server IP based on mode
-        local server_ip="${OVERWRITE_IP:-}"
-
-        if [[ -z "$server_ip" ]]; then
-            if [[ "$USE_SITL" == "true" ]] || [[ ! -f "$REAL_MODE_FILE" ]]; then
-                # SITL mode: use localhost automatically (no prompt needed)
-                server_ip="localhost"
-                log_info "SITL mode: Using localhost for server URL"
-            else
-                # Real mode without IP specified: prompt user
-                echo ""
-                echo "Real drone mode requires GCS server IP address."
-                echo "This is the IP where the GCS server is running."
-                echo -n "Enter server IP (e.g., 192.168.1.100): "
-                read server_ip
-
-                if [[ ! $server_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    log_error "Invalid IP address format."
-                    exit 1
-                fi
-            fi
-        fi
-
-        # Create .env from template if available, otherwise create minimal
         mkdir -p "$(dirname "$ENV_FILE_PATH")"
 
         if [[ -f "$env_example" ]]; then
-            # Copy from .env.example and update SERVER_URL
+            # Copy from .env.example (SERVER_URL is commented out for auto-detection)
             cp "$env_example" "$ENV_FILE_PATH"
-            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$server_ip|" "$ENV_FILE_PATH"
-            log_success ".env created from template with server: $server_ip"
+            log_success ".env created from template"
+            log_info "Server URL: Auto-detected from browser (no configuration needed)"
         else
-            # Fallback: create minimal .env
+            # Fallback: create minimal .env with essential settings
             cat > "$ENV_FILE_PATH" << EOF
 # Auto-generated .env file
-REACT_APP_SERVER_URL=http://$server_ip
+# Server URL is auto-detected from browser location (no configuration needed)
+# Uncomment only if you need to override (e.g., different host):
+# REACT_APP_SERVER_URL=http://192.168.1.100
+
 REACT_APP_GCS_PORT=5000
 REACT_APP_DRONE_PORT=7070
 PORT=3030
 GENERATE_SOURCEMAP=false
 SKIP_PREFLIGHT_CHECK=true
 EOF
-            log_success ".env file created with IP: $server_ip"
+            log_success ".env file created with auto-detection enabled"
+        fi
+
+        # Apply explicit override if provided
+        if [[ -n "$OVERWRITE_IP" ]]; then
+            log_info "Applying server IP override: $OVERWRITE_IP"
+            # Add SERVER_URL for override
+            if grep -q "^# REACT_APP_SERVER_URL=" "$ENV_FILE_PATH"; then
+                sed -i "s|^# REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            else
+                echo "REACT_APP_SERVER_URL=http://$OVERWRITE_IP" >> "$ENV_FILE_PATH"
+            fi
+            log_success "Server IP override applied: $OVERWRITE_IP"
         fi
     fi
 }

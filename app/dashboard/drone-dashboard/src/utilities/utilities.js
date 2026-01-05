@@ -1,13 +1,10 @@
 // utilities.js
 
-// Get the base server URL from environment variables
-const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
+// Import centralized API config with auto-detection
+import { getBackendURL } from '../config/apiConfig';
 
-// Function to get the backend URL, always including the specified or default port
-export function getBackendURL(servicePort = process.env.REACT_APP_GCS_PORT || '5000') {
-    // Ensure that the port is always appended to the URL
-    return `${baseServerURL}:${servicePort}`;
-}
+// Re-export for backward compatibility
+export { getBackendURL };
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
