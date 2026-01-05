@@ -73,6 +73,7 @@ class DroneState:
         self.last_mission: int = 0
         self.trigger_time: float = 0
         self.drone_setup: Any = None
+        self.current_command_id: Optional[str] = None  # For command tracking
 
         # Phase 2: Auto Global Origin Correction flags
         self.auto_global_origin: Optional[bool] = None

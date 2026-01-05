@@ -317,7 +317,8 @@ class DroneSetup:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=report_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
                     if response.status == 200:
-                        logger.info(f"Execution result reported to GCS for command {command_id[:8]}...")
+                        cmd_short = command_id[:8] if len(command_id) >= 8 else command_id
+                        logger.info(f"Execution result reported to GCS for command {cmd_short}...")
                     else:
                         logger.warning(
                             f"Failed to report execution to GCS: HTTP {response.status}"

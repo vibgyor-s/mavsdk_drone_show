@@ -36,7 +36,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import uvicorn
 import requests
 import asyncio
@@ -71,11 +71,10 @@ ERROR_SYMBOL = RED + "❌" + RESET
 
 class CommandRequest(BaseModel):
     """Command request from GCS"""
+    model_config = ConfigDict(extra='allow')  # Allow additional fields for flexibility
+
     missionType: str = Field(..., description="Mission type")
     triggerTime: Optional[str] = Field("0", description="Trigger time")
-    # Add other command fields as needed
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
 
 
 class DroneStateResponse(BaseModel):
@@ -290,7 +289,7 @@ class DroneAPIServer:
                 logging.error(f"Missing field in command: {e}")
                 return CommandAckResponse(
                     status="rejected",
-                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    command_id=command_data.get('command_id') if command_data else None,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
@@ -303,7 +302,7 @@ class DroneAPIServer:
                 logging.error(f"Invalid value in command: {e}")
                 return CommandAckResponse(
                     status="rejected",
-                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    command_id=command_data.get('command_id') if command_data else None,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
@@ -316,7 +315,7 @@ class DroneAPIServer:
                 logging.exception(f"Unexpected error processing command: {e}")
                 return CommandAckResponse(
                     status="rejected",
-                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    command_id=command_data.get('command_id') if command_data else None,
                     hw_id=hw_id,
                     pos_id=pos_id,
                     current_state=current_state,
