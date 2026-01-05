@@ -614,6 +614,7 @@ class SubmitCommandRequest(BaseModel):
 
 class SubmitCommandResponse(BaseModel):
     """Response for command submission"""
+    success: bool = Field(..., description="Whether command was successfully sent to at least one drone")
     command_id: str = Field(..., description="Command tracking UUID")
     status: str = Field(..., description="Submission status ('submitted', 'partial', 'offline', or 'failed')")
     mission_type: int = Field(..., description="Mission type code")

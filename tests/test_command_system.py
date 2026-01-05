@@ -122,7 +122,7 @@ class TestCommandTracker:
 
         # Record ACK from drone 1
         success = await tracker.record_ack(
-            command_id, hw_id='1', status='accepted', message='OK'
+            command_id, hw_id='1', category='accepted', message='OK'
         )
         assert success
 
@@ -133,7 +133,7 @@ class TestCommandTracker:
 
         # Record ACK from drone 2
         await tracker.record_ack(
-            command_id, hw_id='2', status='accepted'
+            command_id, hw_id='2', category='accepted'
         )
 
         status = await tracker.get_status(command_id)
@@ -151,13 +151,13 @@ class TestCommandTracker:
 
         # Both drones reject
         await tracker.record_ack(
-            command_id, hw_id='1', status='rejected',
-            category='rejected',  # Required for categorization
+            command_id, hw_id='1',
+            category='rejected',
             error_code='E202', message='Not ready to arm'
         )
         await tracker.record_ack(
-            command_id, hw_id='2', status='rejected',
-            category='rejected',  # Required for categorization
+            command_id, hw_id='2',
+            category='rejected',
             error_code='E202'
         )
 
@@ -175,7 +175,7 @@ class TestCommandTracker:
         )
 
         # ACK first
-        await tracker.record_ack(command_id, hw_id='1', status='accepted')
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
 
         # Record execution
         success = await tracker.record_execution(
@@ -198,7 +198,7 @@ class TestCommandTracker:
 
         # All accept
         for hw_id in ['1', '2', '3']:
-            await tracker.record_ack(command_id, hw_id=hw_id, status='accepted')
+            await tracker.record_ack(command_id, hw_id=hw_id, category='accepted')
 
         # 2 succeed, 1 fails
         await tracker.record_execution(command_id, hw_id='1', success=True)
@@ -251,12 +251,12 @@ class TestCommandTracker:
         """Test command statistics"""
         # Create and complete a command
         cmd1 = await tracker.create_command(mission_type=10, target_drones=['1'])
-        await tracker.record_ack(cmd1, '1', 'accepted')
+        await tracker.record_ack(cmd1, '1', category='accepted')
         await tracker.record_execution(cmd1, '1', True)
 
         # Create a failed command
         cmd2 = await tracker.create_command(mission_type=10, target_drones=['2'])
-        await tracker.record_ack(cmd2, '2', 'rejected', category='rejected', error_code='E200')
+        await tracker.record_ack(cmd2, '2', category='rejected', error_code='E200')
 
         stats = await tracker.get_statistics()
         assert stats['total_commands'] == 2
@@ -449,6 +449,7 @@ class TestSchemas:
         from schemas import SubmitCommandResponse
 
         response = SubmitCommandResponse(
+            success=True,  # Required field
             command_id="abc-123",
             status="submitted",
             mission_type=10,
@@ -458,6 +459,7 @@ class TestSchemas:
             message="Command submitted",
             timestamp=int(time.time() * 1000)
         )
+        assert response.success == True
         assert response.command_id == "abc-123"
         assert response.submitted_count == 2
 

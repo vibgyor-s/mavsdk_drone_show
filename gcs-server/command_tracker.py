@@ -253,7 +253,6 @@ class CommandTracker:
         self,
         command_id: str,
         hw_id: str,
-        status: str,
         category: str = "accepted",
         message: Optional[str] = None,
         error_code: Optional[str] = None,
@@ -265,8 +264,7 @@ class CommandTracker:
         Args:
             command_id: Command UUID
             hw_id: Drone hardware ID
-            status: 'accepted', 'offline', 'rejected', or 'error'
-            category: Result category for UI ('accepted', 'offline', 'rejected', 'error')
+            category: Result category ('accepted', 'offline', 'rejected', 'error')
             message: Optional status message
             error_code: Error code if rejected/error
             error_detail: Detailed error information
@@ -287,9 +285,10 @@ class CommandTracker:
                 logger.debug(f"Duplicate ACK from {hw_id} for {command_id[:8]}")
                 return True
 
+            # Use category as both status and category (they were always identical)
             ack = DroneAck(
                 hw_id=hw_id,
-                status=status,
+                status=category,  # Derive status from category
                 category=category,
                 message=message,
                 error_code=error_code,
@@ -468,7 +467,9 @@ class CommandTracker:
         timestamp = int(time.time() * 1000)
 
         async with self._lock:
-            for command_id, command in self._commands.items():
+            # Snapshot to list to avoid modification during iteration
+            commands_snapshot = list(self._commands.items())
+            for command_id, command in commands_snapshot:
                 if command.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
                                       CommandStatus.EXECUTING]:
                     if command.timeout_at and timestamp > command.timeout_at:
@@ -582,13 +583,21 @@ class CommandTracker:
         return ", ".join(parts) if parts else "pending"
 
     def _command_to_dict(self, command: TrackedCommand) -> Dict[str, Any]:
-        """Convert TrackedCommand to dictionary"""
+        """Convert TrackedCommand to dictionary.
+
+        Note: Makes copies of mutable collections to avoid race conditions
+        when called outside the lock context.
+        """
+        # Copy mutable dicts to prevent race conditions during iteration
+        acks_snapshot = dict(command.acks)
+        executions_snapshot = dict(command.executions)
+
         return {
             'command_id': command.command_id,
             'mission_type': command.mission_type,
             'mission_name': command.mission_name,
-            'target_drones': command.target_drones,
-            'params': command.params,
+            'target_drones': list(command.target_drones),  # Copy list too
+            'params': dict(command.params),  # Copy dict
             'status': command.status.value,
 
             # Timing
@@ -614,7 +623,7 @@ class CommandTracker:
                         'error_code': ack.error_code,
                         'timestamp': ack.timestamp
                     }
-                    for hw_id, ack in command.acks.items()
+                    for hw_id, ack in acks_snapshot.items()  # Use snapshot
                 }
             },
 
@@ -632,7 +641,7 @@ class CommandTracker:
                         'duration_ms': exe.duration_ms,
                         'timestamp': exe.timestamp
                     }
-                    for hw_id, exe in command.executions.items()
+                    for hw_id, exe in executions_snapshot.items()  # Use snapshot
                 }
             },
 

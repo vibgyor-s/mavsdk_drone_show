@@ -16,6 +16,7 @@ from typing import List, Dict, Any, Tuple
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
+from enums import CommandResultCategory
 
 # Import the new logging system
 from logging_config import (
@@ -43,7 +44,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     attempt = 0
     backoff_factor = 1
     last_error = ""
-    last_category = "error"  # Default category for failures
+    last_category = CommandResultCategory.ERROR.value  # Default category for failures
 
     # Ensure missionType is string for drone API compatibility
     command_payload = command_data.copy()
@@ -70,16 +71,16 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                     log_drone_command(drone_id, command_type, True)
                 # Don't log routine successful commands to reduce noise
 
-                return True, "", "accepted"
+                return True, "", CommandResultCategory.ACCEPTED.value
 
             else:
                 last_error = f"HTTP {response.status_code}: {response.text[:100]}"
-                last_category = "rejected"  # Drone responded but rejected command
+                last_category = CommandResultCategory.REJECTED.value  # Drone responded but rejected command
                 
         except (Timeout, ConnectionError) as e:
             attempt += 1
             last_error = f"{e.__class__.__name__}: Connection issue"
-            last_category = "offline"  # Network issues = drone offline (NOT an error)
+            last_category = CommandResultCategory.OFFLINE.value  # Network issues = drone offline (NOT an error)
 
             if attempt < retries:
                 wait_time = backoff_factor * (2 ** (attempt - 1))
@@ -101,7 +102,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     
     # Command failed after all retries
     # Only log as error for actual errors, not offline drones
-    if last_category != "offline":
+    if last_category != CommandResultCategory.OFFLINE.value:
         log_drone_command(drone_id, command_type, False, last_error)
     # Offline drones are logged at DEBUG level (not worth cluttering logs)
 
@@ -161,9 +162,9 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
 
                 if success:
                     success_count += 1
-                elif category == "offline":
+                elif category == CommandResultCategory.OFFLINE.value:
                     offline_count += 1
-                elif category == "rejected":
+                elif category == CommandResultCategory.REJECTED.value:
                     rejected_count += 1
                 else:
                     error_count += 1
@@ -173,7 +174,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
                 error_msg = f"Thread execution failed: {str(e)}"
                 results[drone_id] = {
                     'success': False,
-                    'category': 'error',
+                    'category': CommandResultCategory.ERROR.value,
                     'error': error_msg,
                     'drone_ip': drone['ip']
                 }
@@ -235,16 +236,17 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
     # Log details of failures by category
     if rejected_count > 0 or error_count > 0:
         # Only log rejected/error drones (not offline - that's expected)
+        problem_categories = (CommandResultCategory.REJECTED.value, CommandResultCategory.ERROR.value)
         problem_drones = [
             drone_id for drone_id, result in results.items()
-            if result.get('category') in ('rejected', 'error')
+            if result.get('category') in problem_categories
         ]
 
         # Group by category and error type for cleaner reporting
         category_groups = {}
         for drone_id in problem_drones:
             result = results[drone_id]
-            category = result.get('category', 'error')
+            category = result.get('category', CommandResultCategory.ERROR.value)
             error = result['error'] or "Unknown error"
             key = f"{category}:{error.split(':')[0]}"
             if key not in category_groups:
@@ -253,7 +255,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
 
         for key, drone_list in category_groups.items():
             category, error_type = key.split(':', 1)
-            log_level = "ERROR" if category == "error" else "WARNING"
+            log_level = "ERROR" if category == CommandResultCategory.ERROR.value else "WARNING"
             logger.log_system_event(
                 f"Command '{command_type}' {category} ({error_type}) on drones: {', '.join(drone_list[:10])}{'...' if len(drone_list) > 10 else ''}",
                 log_level, "command"

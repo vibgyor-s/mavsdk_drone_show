@@ -737,46 +737,46 @@ async def submit_command(request: Request):
                 # Note: This records the HTTP-level success/failure, not the actual ACK from drone
                 # The actual ACK with error codes comes from the drone's response
                 import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(tracker.mark_submitted(command_id))
 
-                    # Record initial results as ACKs with proper categorization
+                async def record_all_acks():
+                    """Async helper to record all ACKs in sequence."""
+                    await tracker.mark_submitted(command_id)
+
                     for drone_id, result in results.get('results', {}).items():
                         category = result.get('category', 'error')
                         if result.get('success'):
-                            loop.run_until_complete(tracker.record_ack(
-                                command_id, drone_id, 'accepted',
+                            await tracker.record_ack(
+                                command_id, drone_id,
                                 category='accepted',
                                 message='HTTP 200 received'
-                            ))
+                            )
                         elif category == 'offline':
                             # Drone unreachable - neutral, not an error
-                            loop.run_until_complete(tracker.record_ack(
-                                command_id, drone_id, 'offline',
+                            await tracker.record_ack(
+                                command_id, drone_id,
                                 category='offline',
                                 message=result.get('error', 'Drone unreachable'),
                                 error_code='E304'  # DRONE_OFFLINE
-                            ))
+                            )
                         elif category == 'rejected':
                             # Drone actively rejected
-                            loop.run_until_complete(tracker.record_ack(
-                                command_id, drone_id, 'rejected',
+                            await tracker.record_ack(
+                                command_id, drone_id,
                                 category='rejected',
                                 message=result.get('error', 'Drone rejected command'),
                                 error_code='E303'  # HTTP_ERROR
-                            ))
+                            )
                         else:
                             # Unexpected error
-                            loop.run_until_complete(tracker.record_ack(
-                                command_id, drone_id, 'error',
+                            await tracker.record_ack(
+                                command_id, drone_id,
                                 category='error',
                                 message=result.get('error', 'Unexpected error'),
                                 error_code='E500'  # INTERNAL_ERROR
-                            ))
-                finally:
-                    loop.close()
+                            )
+
+                # Use asyncio.run() - cleaner than manual loop management (Python 3.7+)
+                asyncio.run(record_all_acks())
 
             except Exception as e:
                 log_system_error(f"Error processing command: {e}", "command")
@@ -792,6 +792,7 @@ async def submit_command(request: Request):
             mission_name = f"MISSION_{mission_type}"
 
         return SubmitCommandResponse(
+            success=True,  # Command submitted successfully (tracking started)
             command_id=command_id,
             status="submitted",
             mission_type=mission_type_int,
