@@ -48,6 +48,7 @@ from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajec
 from functions.data_utils import safe_float, safe_get
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src.params import Params
+from src.enums import Mission, State, CommandErrorCode
 
 # Base directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,6 +106,27 @@ class DroneStateResponse(BaseModel):
     gps_fix_type: int
     satellites_visible: int
     ip: str
+
+
+class CommandAckResponse(BaseModel):
+    """
+    Detailed command acknowledgment response.
+
+    Returns acceptance/rejection status with error codes for debugging.
+    This replaces the simple {"status": "success"} response.
+    """
+    status: str = Field(..., description="'accepted' or 'rejected'")
+    command_id: Optional[str] = Field(None, description="Command tracking ID from GCS")
+    hw_id: str = Field(..., description="Hardware ID of this drone")
+    pos_id: int = Field(..., description="Position ID of this drone")
+    current_state: int = Field(..., description="Current drone state before command")
+    new_state: Optional[int] = Field(None, description="New state after command accepted")
+    mission_type: Optional[int] = Field(None, description="Parsed mission type")
+    trigger_time: Optional[int] = Field(None, description="Trigger time from command")
+    message: str = Field(..., description="Human-readable status message")
+    error_code: Optional[str] = Field(None, description="Error code (e.g., E100, E201)")
+    error_detail: Optional[str] = Field(None, description="Detailed error information")
+    timestamp: int = Field(..., description="Response timestamp in milliseconds")
 
 
 # ============================================================================
@@ -183,15 +205,126 @@ class DroneAPIServer:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"error_in_get_drone_state: {str(e)}")
 
-        @self.app.post(f"/{Params.send_drone_command_URI}")
-        async def send_drone_command(command: CommandRequest):
-            """Endpoint to send a command to the drone."""
+        @self.app.post(f"/{Params.send_drone_command_URI}", response_model=CommandAckResponse)
+        async def send_drone_command(command: CommandRequest) -> CommandAckResponse:
+            """
+            Endpoint to send a command to the drone.
+
+            Returns detailed acknowledgment with status and error codes.
+            No longer returns generic HTTP 500 - all errors return structured response.
+            """
+            timestamp = int(time.time() * 1000)
+            hw_id = str(self.drone_config.hw_id)
+            pos_id = int(self.drone_config.pos_id)
+            current_state = int(self.drone_config.state)
+
             try:
                 command_data = command.dict()
+                command_id = command_data.get('command_id')
+
+                # Validate command structure
+                validation_result = self._validate_command(command_data)
+                if not validation_result['valid']:
+                    logging.warning(f"Command rejected: {validation_result['message']}")
+                    return CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        message=validation_result['message'],
+                        error_code=validation_result['error_code'],
+                        error_detail=validation_result.get('detail'),
+                        timestamp=timestamp
+                    )
+
+                # Parse mission type for response
+                mission_type = int(command_data['missionType'])
+                trigger_time = int(command_data.get('triggerTime', 0))
+
+                # Check state preconditions
+                state_check = self._check_state_preconditions(mission_type)
+                if not state_check['valid']:
+                    logging.warning(f"Command rejected due to state: {state_check['message']}")
+                    return CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        message=state_check['message'],
+                        error_code=state_check['error_code'],
+                        error_detail=state_check.get('detail'),
+                        timestamp=timestamp
+                    )
+
+                # Store command_id for execution tracking
+                self.drone_config.current_command_id = command_id
+
+                # Process command
                 self.drone_communicator.process_command(command_data)
-                return {"status": "success", "message": "Command received"}
+
+                # Get mission name for message
+                try:
+                    mission_name = Mission(mission_type).name
+                except ValueError:
+                    mission_name = f"MISSION_{mission_type}"
+
+                logging.info(f"Command accepted: {mission_name} (trigger: {trigger_time})")
+                return CommandAckResponse(
+                    status="accepted",
+                    command_id=command_id,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    new_state=State.MISSION_READY.value,
+                    mission_type=mission_type,
+                    trigger_time=trigger_time,
+                    message=f"Command {mission_name} accepted, waiting for trigger",
+                    timestamp=timestamp
+                )
+
+            except KeyError as e:
+                logging.error(f"Missing field in command: {e}")
+                return CommandAckResponse(
+                    status="rejected",
+                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    message=f"Missing required field: {str(e)}",
+                    error_code=CommandErrorCode.MISSING_MISSION_TYPE.value,
+                    error_detail=str(e),
+                    timestamp=timestamp
+                )
+            except ValueError as e:
+                logging.error(f"Invalid value in command: {e}")
+                return CommandAckResponse(
+                    status="rejected",
+                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    message=f"Invalid value: {str(e)}",
+                    error_code=CommandErrorCode.INVALID_FORMAT.value,
+                    error_detail=str(e),
+                    timestamp=timestamp
+                )
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                logging.exception(f"Unexpected error processing command: {e}")
+                return CommandAckResponse(
+                    status="rejected",
+                    command_id=command_data.get('command_id') if 'command_data' in dir() else None,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    message=f"Internal error: {str(e)}",
+                    error_code=CommandErrorCode.INTERNAL_ERROR.value,
+                    error_detail=str(e),
+                    timestamp=timestamp
+                )
 
         @self.app.get('/get-home-pos')
         async def get_home_pos():
@@ -483,6 +616,135 @@ class DroneAPIServer:
                 if websocket in self.active_websockets:
                     self.active_websockets.remove(websocket)
                 logging.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+
+    # ========================================================================
+    # Command Validation Methods
+    # ========================================================================
+
+    def _validate_command(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate command structure and values.
+
+        Returns dict with 'valid', 'message', 'error_code', and optionally 'detail'.
+        """
+        # Check required field: missionType
+        if 'missionType' not in command_data:
+            return {
+                'valid': False,
+                'message': 'Missing required field: missionType',
+                'error_code': CommandErrorCode.MISSING_MISSION_TYPE.value
+            }
+
+        # Check required field: triggerTime
+        if 'triggerTime' not in command_data:
+            return {
+                'valid': False,
+                'message': 'Missing required field: triggerTime',
+                'error_code': CommandErrorCode.MISSING_TRIGGER_TIME.value
+            }
+
+        # Validate missionType format and value
+        try:
+            mission_type = int(command_data['missionType'])
+            if mission_type not in Mission._value2member_map_:
+                return {
+                    'valid': False,
+                    'message': f'Unknown mission type: {mission_type}',
+                    'error_code': CommandErrorCode.INVALID_MISSION_TYPE.value,
+                    'detail': f'Valid mission types: {list(Mission._value2member_map_.keys())}'
+                }
+        except (ValueError, TypeError) as e:
+            return {
+                'valid': False,
+                'message': f'Invalid missionType format: {command_data["missionType"]}',
+                'error_code': CommandErrorCode.INVALID_FORMAT.value,
+                'detail': str(e)
+            }
+
+        # Validate triggerTime format
+        try:
+            trigger_time = int(command_data['triggerTime'])
+            if trigger_time < 0:
+                return {
+                    'valid': False,
+                    'message': 'triggerTime must be non-negative',
+                    'error_code': CommandErrorCode.INVALID_TRIGGER_TIME.value
+                }
+        except (ValueError, TypeError) as e:
+            return {
+                'valid': False,
+                'message': f'Invalid triggerTime format: {command_data["triggerTime"]}',
+                'error_code': CommandErrorCode.INVALID_TRIGGER_TIME.value,
+                'detail': str(e)
+            }
+
+        # Validate takeoff_altitude if present (for TAKE_OFF command)
+        if 'takeoff_altitude' in command_data:
+            try:
+                altitude = float(command_data['takeoff_altitude'])
+                if altitude <= 0:
+                    return {
+                        'valid': False,
+                        'message': 'takeoff_altitude must be positive',
+                        'error_code': CommandErrorCode.INVALID_ALTITUDE.value
+                    }
+                if altitude > self.params.max_takeoff_alt:
+                    return {
+                        'valid': False,
+                        'message': f'takeoff_altitude exceeds maximum ({self.params.max_takeoff_alt}m)',
+                        'error_code': CommandErrorCode.INVALID_ALTITUDE.value,
+                        'detail': f'Requested: {altitude}m, Max: {self.params.max_takeoff_alt}m'
+                    }
+            except (ValueError, TypeError) as e:
+                return {
+                    'valid': False,
+                    'message': f'Invalid takeoff_altitude format: {command_data["takeoff_altitude"]}',
+                    'error_code': CommandErrorCode.INVALID_ALTITUDE.value,
+                    'detail': str(e)
+                }
+
+        return {'valid': True, 'message': 'Validation passed'}
+
+    def _check_state_preconditions(self, mission_type: int) -> Dict[str, Any]:
+        """
+        Check if drone state allows this command.
+
+        Returns dict with 'valid', 'message', 'error_code', and optionally 'detail'.
+        """
+        current_state = self.drone_config.state
+
+        # Emergency commands always allowed
+        if mission_type == Mission.KILL_TERMINATE.value:
+            return {'valid': True, 'message': 'Emergency command always allowed'}
+
+        # Check if already executing
+        if current_state == State.MISSION_EXECUTING.value:
+            # Only allow emergency and override commands during execution
+            allowed_during_execution = [
+                Mission.KILL_TERMINATE.value,
+                Mission.LAND.value,
+                Mission.HOLD.value,
+                Mission.RETURN_RTL.value
+            ]
+            if mission_type not in allowed_during_execution:
+                return {
+                    'valid': False,
+                    'message': 'Cannot start new mission while another is executing',
+                    'error_code': CommandErrorCode.ALREADY_EXECUTING.value,
+                    'detail': f'Current state: MISSION_EXECUTING, mission: {self.drone_config.mission}'
+                }
+
+        # For takeoff, check if ready to arm
+        if mission_type == Mission.TAKE_OFF.value:
+            if not self.drone_config.is_ready_to_arm:
+                return {
+                    'valid': False,
+                    'message': 'Drone is not ready to arm (pre-flight checks not passed)',
+                    'error_code': CommandErrorCode.NOT_READY_TO_ARM.value,
+                    'detail': 'Check GPS fix, battery level, and sensor health'
+                }
+
+        return {'valid': True, 'message': 'State preconditions met'}
 
     # ========================================================================
     # Helper Methods (preserved from Flask version)

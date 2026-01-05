@@ -490,3 +490,152 @@ class HeartbeatStreamMessage(WebSocketMessage):
     """WebSocket heartbeat stream message"""
     type: str = Field(default="heartbeat", description="Message type")
     data: List[HeartbeatData] = Field(..., description="Heartbeat data for all drones")
+
+
+# ============================================================================
+# Command Tracking Schemas
+# ============================================================================
+
+class CommandStatus(str, Enum):
+    """Command lifecycle status"""
+    CREATED = "created"
+    SUBMITTED = "submitted"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+
+class DroneAckDetail(BaseModel):
+    """Acknowledgment detail from a single drone"""
+    status: str = Field(..., description="'accepted' or 'rejected'")
+    message: Optional[str] = Field(None, description="Status message")
+    error_code: Optional[str] = Field(None, description="Error code if rejected")
+    timestamp: int = Field(..., description="ACK timestamp (Unix ms)")
+
+
+class DroneExecutionDetail(BaseModel):
+    """Execution detail from a single drone"""
+    success: bool = Field(..., description="Whether execution succeeded")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    exit_code: Optional[int] = Field(None, description="Script exit code")
+    duration_ms: Optional[int] = Field(None, description="Execution duration (ms)")
+    timestamp: int = Field(..., description="Execution timestamp (Unix ms)")
+
+
+class AckSummary(BaseModel):
+    """Summary of acknowledgments for a command"""
+    expected: int = Field(..., ge=0, description="Number of ACKs expected")
+    received: int = Field(..., ge=0, description="Number of ACKs received")
+    accepted: int = Field(..., ge=0, description="Number accepted")
+    rejected: int = Field(..., ge=0, description="Number rejected")
+    details: Dict[str, DroneAckDetail] = Field(default_factory=dict, description="Per-drone ACK details")
+
+
+class ExecutionSummary(BaseModel):
+    """Summary of executions for a command"""
+    expected: int = Field(..., ge=0, description="Number of executions expected")
+    received: int = Field(..., ge=0, description="Number of executions received")
+    succeeded: int = Field(..., ge=0, description="Number succeeded")
+    failed: int = Field(..., ge=0, description="Number failed")
+    details: Dict[str, DroneExecutionDetail] = Field(default_factory=dict, description="Per-drone execution details")
+
+
+class CommandStatusResponse(BaseModel):
+    """Detailed command status response"""
+    command_id: str = Field(..., description="Command UUID")
+    mission_type: int = Field(..., description="Mission type code")
+    mission_name: str = Field(..., description="Human-readable mission name")
+    target_drones: List[str] = Field(..., description="Target drone hardware IDs")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Command parameters")
+    status: CommandStatus = Field(..., description="Current command status")
+
+    # Timing
+    created_at: int = Field(..., description="Creation timestamp (Unix ms)")
+    submitted_at: Optional[int] = Field(None, description="Submission timestamp (Unix ms)")
+    completed_at: Optional[int] = Field(None, description="Completion timestamp (Unix ms)")
+    updated_at: int = Field(..., description="Last update timestamp (Unix ms)")
+
+    # Summaries
+    acks: AckSummary = Field(..., description="Acknowledgment summary")
+    executions: ExecutionSummary = Field(..., description="Execution summary")
+
+    error_summary: Optional[str] = Field(None, description="Error summary if failed/partial")
+
+
+class CommandListResponse(BaseModel):
+    """Response for command list endpoint"""
+    commands: List[CommandStatusResponse] = Field(..., description="List of commands")
+    total: int = Field(..., ge=0, description="Total commands returned")
+    timestamp: int = Field(..., description="Response timestamp (Unix ms)")
+
+
+class CommandStatisticsResponse(BaseModel):
+    """Response for command statistics endpoint"""
+    total_commands: int = Field(..., ge=0, description="Total commands ever tracked")
+    successful_commands: int = Field(..., ge=0, description="Number of successful commands")
+    failed_commands: int = Field(..., ge=0, description="Number of failed commands")
+    partial_commands: int = Field(..., ge=0, description="Number of partial success commands")
+    timeout_commands: int = Field(..., ge=0, description="Number of timed out commands")
+    cancelled_commands: int = Field(..., ge=0, description="Number of cancelled commands")
+    active_commands: int = Field(..., ge=0, description="Currently active commands")
+    tracked_commands: int = Field(..., ge=0, description="Commands in tracking history")
+    success_rate: float = Field(..., ge=0, le=100, description="Success rate percentage")
+    timestamp: int = Field(..., description="Response timestamp (Unix ms)")
+
+
+class SubmitCommandRequest(BaseModel):
+    """Request to submit a command to drones"""
+    model_config = ConfigDict(extra='allow')  # Allow additional fields
+
+    missionType: int = Field(..., description="Mission type code")
+    triggerTime: Optional[int] = Field(0, ge=0, description="Trigger time (Unix epoch seconds)")
+    pos_ids: Optional[List[int]] = Field(None, description="Target position IDs (None = all drones)")
+
+    # Optional fields depending on mission type
+    takeoff_altitude: Optional[float] = Field(None, gt=0, description="Takeoff altitude (m)")
+    origin_lat: Optional[float] = Field(None, ge=-90, le=90, description="Origin latitude")
+    origin_lon: Optional[float] = Field(None, ge=-180, le=180, description="Origin longitude")
+    trajectory_id: Optional[str] = Field(None, description="Trajectory file identifier")
+
+    # Control options
+    wait_for_ack: bool = Field(False, description="Wait for all drone ACKs before returning")
+    ack_timeout_ms: int = Field(5000, gt=0, description="ACK wait timeout (ms)")
+
+
+class SubmitCommandResponse(BaseModel):
+    """Response for command submission"""
+    command_id: str = Field(..., description="Command tracking UUID")
+    status: str = Field(..., description="Submission status ('submitted' or 'partial')")
+    mission_type: int = Field(..., description="Mission type code")
+    mission_name: str = Field(..., description="Human-readable mission name")
+    target_drones: List[str] = Field(..., description="Target drone hardware IDs")
+    submitted_count: int = Field(..., ge=0, description="Number of drones command was sent to")
+
+    # If wait_for_ack=true, these will be populated
+    ack_summary: Optional[AckSummary] = Field(None, description="ACK summary if wait_for_ack=true")
+
+    message: str = Field(..., description="Human-readable status message")
+    timestamp: int = Field(..., description="Response timestamp (Unix ms)")
+
+
+class ExecutionReportRequest(BaseModel):
+    """Request from drone reporting execution result"""
+    command_id: str = Field(..., description="Command UUID from GCS")
+    hw_id: str = Field(..., description="Reporting drone's hardware ID")
+    success: bool = Field(..., description="Whether execution succeeded")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    exit_code: Optional[int] = Field(None, description="Script exit code")
+    script_output: Optional[str] = Field(None, description="Script output/logs (truncated)")
+    duration_ms: Optional[int] = Field(None, ge=0, description="Execution duration (ms)")
+
+
+class ExecutionReportResponse(BaseModel):
+    """Response for execution report"""
+    received: bool = Field(..., description="Whether report was recorded")
+    command_id: str = Field(..., description="Command UUID")
+    command_status: CommandStatus = Field(..., description="Updated command status")
+    message: str = Field(..., description="Status message")
+    timestamp: int = Field(..., description="Response timestamp (Unix ms)")

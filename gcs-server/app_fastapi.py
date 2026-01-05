@@ -65,6 +65,7 @@ from origin import (
 from coordinate_utils import get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
+from command_tracker import get_command_tracker, init_command_tracker
 
 # Import swarm trajectory functions
 from functions.swarm_analyzer import analyze_swarm_structure
@@ -654,9 +655,14 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
 # Command Endpoints
 # ============================================================================
 
-@app.post("/submit_command", response_model=CommandResponse, tags=["Commands"])
+@app.post("/submit_command", response_model=SubmitCommandResponse, tags=["Commands"])
 async def submit_command(request: Request):
-    """Submit command to drones (asynchronous processing)"""
+    """
+    Submit command to drones with tracking.
+
+    Returns a command_id that can be used to track the command's progress via
+    GET /command/{command_id} endpoint.
+    """
     try:
         command_data = await request.json()
 
@@ -692,31 +698,256 @@ async def submit_command(request: Request):
         if not drones:
             raise HTTPException(status_code=500, detail="No drones found in configuration")
 
-        # Process command in background thread (to maintain compatibility with existing command module)
-        def process_command():
+        # Determine actual target drone list
+        if target_drones:
+            actual_targets = [d for d in drones if d['hw_id'] in target_drones or d['pos_id'] in target_drones]
+        else:
+            actual_targets = drones
+
+        target_hw_ids = [str(d['hw_id']) for d in actual_targets]
+
+        # Create tracked command
+        tracker = get_command_tracker()
+        try:
+            mission_type_int = int(mission_type) if mission_type != 'unknown' else 0
+        except (ValueError, TypeError):
+            mission_type_int = 0
+
+        command_id = await tracker.create_command(
+            mission_type=mission_type_int,
+            target_drones=target_hw_ids,
+            params={
+                'triggerTime': trigger_time,
+                **{k: v for k, v in command_data.items() if k not in ['missionType', 'triggerTime']}
+            }
+        )
+
+        # Add command_id to the data sent to drones so they can report back
+        command_data['command_id'] = command_id
+
+        # Process command in background thread with tracking
+        def process_command_with_tracking():
             try:
                 if target_drones:
-                    send_commands_to_selected(drones, command_data, target_drones)
+                    results = send_commands_to_selected(drones, command_data, target_drones)
                 else:
-                    send_commands_to_all(drones, command_data)
+                    results = send_commands_to_all(drones, command_data)
+
+                # Record ACKs based on HTTP response (immediate feedback)
+                # Note: This records the HTTP-level success/failure, not the actual ACK from drone
+                # The actual ACK with error codes comes from the drone's response
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(tracker.mark_submitted(command_id))
+
+                    # Record initial results as ACKs
+                    for drone_id, result in results.get('results', {}).items():
+                        if result.get('success'):
+                            loop.run_until_complete(tracker.record_ack(
+                                command_id, drone_id, 'accepted',
+                                message='HTTP 200 received'
+                            ))
+                        else:
+                            loop.run_until_complete(tracker.record_ack(
+                                command_id, drone_id, 'rejected',
+                                message=result.get('error', 'HTTP request failed'),
+                                error_code='E303'
+                            ))
+                finally:
+                    loop.close()
+
             except Exception as e:
                 log_system_error(f"Error processing command: {e}", "command")
 
-        thread = threading.Thread(target=process_command, daemon=True)
+        thread = threading.Thread(target=process_command_with_tracking, daemon=True)
         thread.start()
 
-        return CommandResponse(
-            success=True,
-            message="Command received and is being processed",
-            command=command_data.get('missionType', 'unknown'),
-            target_drones=target_drones or [d['pos_id'] for d in drones],
-            sent_count=len(target_drones) if target_drones else len(drones)
+        # Get mission name for response
+        from src.enums import Mission
+        try:
+            mission_name = Mission(mission_type_int).name
+        except ValueError:
+            mission_name = f"MISSION_{mission_type}"
+
+        return SubmitCommandResponse(
+            command_id=command_id,
+            status="submitted",
+            mission_type=mission_type_int,
+            mission_name=mission_name,
+            target_drones=target_hw_ids,
+            submitted_count=len(target_hw_ids),
+            message=f"Command {mission_name} submitted to {len(target_hw_ids)} drones",
+            timestamp=int(time.time() * 1000)
         )
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Command Tracking Endpoints
+# ============================================================================
+
+@app.get("/command/{command_id}", response_model=CommandStatusResponse, tags=["Commands"])
+async def get_command_status(command_id: str = PathParam(..., description="Command UUID")):
+    """
+    Get detailed status of a specific command.
+
+    Returns the command's current status including:
+    - ACK summary (accepted/rejected by each drone)
+    - Execution summary (success/failure by each drone)
+    - Timing information (created, submitted, completed)
+    - Error details if any
+    """
+    tracker = get_command_tracker()
+    status = await tracker.get_status(command_id)
+
+    if not status:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Command {command_id} not found"
+        )
+
+    return status
+
+
+@app.get("/commands/recent", response_model=CommandListResponse, tags=["Commands"])
+async def get_recent_commands(
+    limit: int = Query(50, ge=1, le=200, description="Maximum commands to return"),
+    status: Optional[str] = Query(None, description="Filter by status (e.g., 'completed', 'failed')"),
+    mission_type: Optional[int] = Query(None, description="Filter by mission type")
+):
+    """
+    Get recent commands with optional filtering.
+
+    Commands are returned newest first.
+    """
+    tracker = get_command_tracker()
+
+    # Parse status filter
+    status_filter = None
+    if status:
+        try:
+            status_filter = [CommandStatus(status)]
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    # Parse mission filter
+    mission_filter = [mission_type] if mission_type is not None else None
+
+    commands = await tracker.get_recent(
+        limit=limit,
+        status_filter=status_filter,
+        mission_filter=mission_filter
+    )
+
+    return CommandListResponse(
+        commands=commands,
+        total=len(commands),
+        timestamp=int(time.time() * 1000)
+    )
+
+
+@app.get("/commands/active", response_model=CommandListResponse, tags=["Commands"])
+async def get_active_commands():
+    """
+    Get all currently active (non-terminal) commands.
+
+    Returns commands in CREATED, SUBMITTED, or EXECUTING status.
+    """
+    tracker = get_command_tracker()
+    commands = await tracker.get_active_commands()
+
+    return CommandListResponse(
+        commands=commands,
+        total=len(commands),
+        timestamp=int(time.time() * 1000)
+    )
+
+
+@app.get("/commands/statistics", response_model=CommandStatisticsResponse, tags=["Commands"])
+async def get_command_statistics():
+    """
+    Get command execution statistics.
+
+    Returns overall success rates, counts by status, and active command count.
+    """
+    tracker = get_command_tracker()
+    stats = await tracker.get_statistics()
+
+    return CommandStatisticsResponse(
+        **stats,
+        timestamp=int(time.time() * 1000)
+    )
+
+
+@app.post("/command/{command_id}/cancel", tags=["Commands"])
+async def cancel_command(
+    command_id: str = PathParam(..., description="Command UUID"),
+    reason: str = Query("User cancelled", description="Cancellation reason")
+):
+    """
+    Cancel an active command.
+
+    Only commands in CREATED, SUBMITTED, or EXECUTING status can be cancelled.
+    """
+    tracker = get_command_tracker()
+    success = await tracker.cancel_command(command_id, reason)
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel command {command_id} (not found or already completed)"
+        )
+
+    return {
+        "success": True,
+        "command_id": command_id,
+        "message": f"Command cancelled: {reason}",
+        "timestamp": int(time.time() * 1000)
+    }
+
+
+@app.post("/command/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])
+async def report_execution_result(report: ExecutionReportRequest):
+    """
+    Endpoint for drones to report command execution results.
+
+    This is called by drones after completing (or failing) command execution.
+    """
+    tracker = get_command_tracker()
+
+    success = await tracker.record_execution(
+        command_id=report.command_id,
+        hw_id=report.hw_id,
+        success=report.success,
+        error_message=report.error_message,
+        exit_code=report.exit_code,
+        script_output=report.script_output,
+        duration_ms=report.duration_ms
+    )
+
+    if not success:
+        log_system_warning(
+            f"Execution report for unknown command {report.command_id} from {report.hw_id}",
+            "command"
+        )
+
+    # Get updated command status
+    status = await tracker.get_status(report.command_id)
+    command_status = CommandStatus(status['status']) if status else CommandStatus.FAILED
+
+    return ExecutionReportResponse(
+        received=success,
+        command_id=report.command_id,
+        command_status=command_status,
+        message="Execution result recorded" if success else "Command not found in tracker",
+        timestamp=int(time.time() * 1000)
+    )
 
 
 # ============================================================================

@@ -1,0 +1,612 @@
+# gcs-server/command_tracker.py
+"""
+Command Tracker - Enterprise-Grade Command Lifecycle Management
+===============================================================
+
+Thread-safe command tracking from submission through execution.
+
+Features:
+- UUID-based command identification
+- Per-drone acknowledgment tracking
+- Execution result recording
+- Command history with configurable retention
+- Statistics and metrics
+- Thread-safe operations using asyncio locks
+
+Command Lifecycle:
+1. CREATED   - Command created, pending drone ACKs
+2. SUBMITTED - Sent to drones, collecting acknowledgments
+3. EXECUTING - All drones acknowledged, execution in progress
+4. COMPLETED - All drones reported execution success
+5. PARTIAL   - Some drones succeeded, some failed
+6. FAILED    - All drones failed or timeout occurred
+7. CANCELLED - Command was cancelled
+
+Usage:
+    tracker = CommandTracker()
+
+    # Create a new command
+    command_id = tracker.create_command(
+        mission_type=10,  # TAKE_OFF
+        target_drones=[1, 2, 3],
+        params={'takeoff_altitude': 10}
+    )
+
+    # Record acknowledgments from drones
+    tracker.record_ack(command_id, hw_id='1', status='accepted')
+    tracker.record_ack(command_id, hw_id='2', status='rejected', error_code='E202')
+
+    # Record execution results
+    tracker.record_execution(command_id, hw_id='1', success=True)
+
+    # Query status
+    status = tracker.get_status(command_id)
+"""
+
+import asyncio
+import logging
+import time
+import uuid
+from collections import OrderedDict
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class CommandStatus(str, Enum):
+    """Command lifecycle status"""
+    CREATED = "created"
+    SUBMITTED = "submitted"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+
+@dataclass
+class DroneAck:
+    """Acknowledgment from a single drone"""
+    hw_id: str
+    status: str  # 'accepted' or 'rejected'
+    message: Optional[str] = None
+    error_code: Optional[str] = None
+    error_detail: Optional[str] = None
+    timestamp: int = field(default_factory=lambda: int(time.time() * 1000))
+
+
+@dataclass
+class DroneExecution:
+    """Execution result from a single drone"""
+    hw_id: str
+    success: bool
+    error_message: Optional[str] = None
+    exit_code: Optional[int] = None
+    script_output: Optional[str] = None
+    duration_ms: Optional[int] = None
+    timestamp: int = field(default_factory=lambda: int(time.time() * 1000))
+
+
+@dataclass
+class TrackedCommand:
+    """Complete command tracking record"""
+    command_id: str
+    mission_type: int
+    mission_name: str
+    target_drones: List[str]
+    params: Dict[str, Any]
+    status: CommandStatus
+    created_at: int
+    updated_at: int
+
+    # Acknowledgment tracking
+    acks: Dict[str, DroneAck] = field(default_factory=dict)
+    acks_expected: int = 0
+    acks_received: int = 0
+    acks_accepted: int = 0
+    acks_rejected: int = 0
+
+    # Execution tracking
+    executions: Dict[str, DroneExecution] = field(default_factory=dict)
+    executions_expected: int = 0
+    executions_received: int = 0
+    executions_succeeded: int = 0
+    executions_failed: int = 0
+
+    # Timing
+    submitted_at: Optional[int] = None
+    completed_at: Optional[int] = None
+    timeout_at: Optional[int] = None
+
+    # Error summary
+    error_summary: Optional[str] = None
+
+
+class CommandTracker:
+    """
+    Thread-safe command lifecycle tracker.
+
+    Maintains command history with configurable maximum size.
+    Older commands are automatically removed when limit is reached.
+    """
+
+    def __init__(
+        self,
+        max_commands: int = 1000,
+        default_timeout_ms: int = 60000,
+        mission_enum: Optional[type] = None
+    ):
+        """
+        Initialize command tracker.
+
+        Args:
+            max_commands: Maximum number of commands to retain
+            default_timeout_ms: Default command timeout in milliseconds
+            mission_enum: Mission enum for name resolution (optional)
+        """
+        self.max_commands = max_commands
+        self.default_timeout_ms = default_timeout_ms
+        self.mission_enum = mission_enum
+
+        # Thread-safe storage using OrderedDict for FIFO eviction
+        self._commands: OrderedDict[str, TrackedCommand] = OrderedDict()
+        self._lock = asyncio.Lock()
+
+        # Statistics
+        self._stats = {
+            'total_commands': 0,
+            'successful_commands': 0,
+            'failed_commands': 0,
+            'partial_commands': 0,
+            'timeout_commands': 0,
+            'cancelled_commands': 0
+        }
+
+        logger.info(f"CommandTracker initialized (max_commands={max_commands})")
+
+    def _get_mission_name(self, mission_type: int) -> str:
+        """Get human-readable mission name"""
+        if self.mission_enum:
+            try:
+                return self.mission_enum(mission_type).name
+            except ValueError:
+                pass
+        return f"MISSION_{mission_type}"
+
+    async def create_command(
+        self,
+        mission_type: int,
+        target_drones: List[str],
+        params: Optional[Dict[str, Any]] = None,
+        timeout_ms: Optional[int] = None
+    ) -> str:
+        """
+        Create a new tracked command.
+
+        Args:
+            mission_type: Mission type code
+            target_drones: List of hardware IDs to receive command
+            params: Command parameters (trigger_time, altitude, etc.)
+            timeout_ms: Command timeout in milliseconds
+
+        Returns:
+            Command ID (UUID)
+        """
+        command_id = str(uuid.uuid4())
+        timestamp = int(time.time() * 1000)
+        timeout = timeout_ms or self.default_timeout_ms
+
+        command = TrackedCommand(
+            command_id=command_id,
+            mission_type=mission_type,
+            mission_name=self._get_mission_name(mission_type),
+            target_drones=list(target_drones),
+            params=params or {},
+            status=CommandStatus.CREATED,
+            created_at=timestamp,
+            updated_at=timestamp,
+            acks_expected=len(target_drones),
+            executions_expected=len(target_drones),
+            timeout_at=timestamp + timeout
+        )
+
+        async with self._lock:
+            # Evict oldest if at capacity
+            while len(self._commands) >= self.max_commands:
+                oldest_id = next(iter(self._commands))
+                del self._commands[oldest_id]
+                logger.debug(f"Evicted old command: {oldest_id}")
+
+            self._commands[command_id] = command
+            self._stats['total_commands'] += 1
+
+        logger.info(
+            f"Command created: {command_id[:8]}... "
+            f"({command.mission_name}, {len(target_drones)} drones)"
+        )
+
+        return command_id
+
+    async def mark_submitted(self, command_id: str) -> bool:
+        """Mark command as submitted to drones"""
+        async with self._lock:
+            if command_id not in self._commands:
+                logger.warning(f"Unknown command ID: {command_id}")
+                return False
+
+            command = self._commands[command_id]
+            command.status = CommandStatus.SUBMITTED
+            command.submitted_at = int(time.time() * 1000)
+            command.updated_at = command.submitted_at
+
+        logger.info(f"Command submitted: {command_id[:8]}...")
+        return True
+
+    async def record_ack(
+        self,
+        command_id: str,
+        hw_id: str,
+        status: str,
+        message: Optional[str] = None,
+        error_code: Optional[str] = None,
+        error_detail: Optional[str] = None
+    ) -> bool:
+        """
+        Record drone acknowledgment for a command.
+
+        Args:
+            command_id: Command UUID
+            hw_id: Drone hardware ID
+            status: 'accepted' or 'rejected'
+            message: Optional status message
+            error_code: Error code if rejected
+            error_detail: Detailed error information
+
+        Returns:
+            True if recorded successfully
+        """
+        async with self._lock:
+            if command_id not in self._commands:
+                logger.warning(f"ACK for unknown command: {command_id}")
+                return False
+
+            command = self._commands[command_id]
+            timestamp = int(time.time() * 1000)
+
+            # Don't record duplicate ACKs
+            if hw_id in command.acks:
+                logger.debug(f"Duplicate ACK from {hw_id} for {command_id[:8]}")
+                return True
+
+            ack = DroneAck(
+                hw_id=hw_id,
+                status=status,
+                message=message,
+                error_code=error_code,
+                error_detail=error_detail,
+                timestamp=timestamp
+            )
+
+            command.acks[hw_id] = ack
+            command.acks_received += 1
+            command.updated_at = timestamp
+
+            if status == 'accepted':
+                command.acks_accepted += 1
+            else:
+                command.acks_rejected += 1
+
+            # Update command status if all ACKs received
+            if command.acks_received >= command.acks_expected:
+                if command.acks_rejected == 0:
+                    command.status = CommandStatus.EXECUTING
+                elif command.acks_accepted == 0:
+                    command.status = CommandStatus.FAILED
+                    command.completed_at = timestamp
+                    command.error_summary = f"All {command.acks_rejected} drones rejected command"
+                    self._stats['failed_commands'] += 1
+                else:
+                    command.status = CommandStatus.EXECUTING
+                    command.error_summary = (
+                        f"{command.acks_rejected}/{command.acks_expected} drones rejected"
+                    )
+
+        logger.info(
+            f"ACK recorded: {hw_id} -> {status} for {command_id[:8]}... "
+            f"({command.acks_received}/{command.acks_expected})"
+        )
+
+        return True
+
+    async def record_execution(
+        self,
+        command_id: str,
+        hw_id: str,
+        success: bool,
+        error_message: Optional[str] = None,
+        exit_code: Optional[int] = None,
+        script_output: Optional[str] = None,
+        duration_ms: Optional[int] = None
+    ) -> bool:
+        """
+        Record drone execution result for a command.
+
+        Args:
+            command_id: Command UUID
+            hw_id: Drone hardware ID
+            success: Whether execution succeeded
+            error_message: Error message if failed
+            exit_code: Script exit code
+            script_output: Script output/logs
+            duration_ms: Execution duration
+
+        Returns:
+            True if recorded successfully
+        """
+        async with self._lock:
+            if command_id not in self._commands:
+                logger.warning(f"Execution result for unknown command: {command_id}")
+                return False
+
+            command = self._commands[command_id]
+            timestamp = int(time.time() * 1000)
+
+            # Don't record duplicate results
+            if hw_id in command.executions:
+                logger.debug(f"Duplicate execution from {hw_id} for {command_id[:8]}")
+                return True
+
+            execution = DroneExecution(
+                hw_id=hw_id,
+                success=success,
+                error_message=error_message,
+                exit_code=exit_code,
+                script_output=script_output,
+                duration_ms=duration_ms,
+                timestamp=timestamp
+            )
+
+            command.executions[hw_id] = execution
+            command.executions_received += 1
+            command.updated_at = timestamp
+
+            if success:
+                command.executions_succeeded += 1
+            else:
+                command.executions_failed += 1
+
+            # Update command status if all executions received
+            # Only count drones that accepted the command
+            expected_executions = command.acks_accepted
+            if command.executions_received >= expected_executions and expected_executions > 0:
+                if command.executions_failed == 0:
+                    command.status = CommandStatus.COMPLETED
+                    self._stats['successful_commands'] += 1
+                elif command.executions_succeeded == 0:
+                    command.status = CommandStatus.FAILED
+                    command.error_summary = (
+                        f"All {command.executions_failed} executions failed"
+                    )
+                    self._stats['failed_commands'] += 1
+                else:
+                    command.status = CommandStatus.PARTIAL
+                    command.error_summary = (
+                        f"{command.executions_failed}/{expected_executions} executions failed"
+                    )
+                    self._stats['partial_commands'] += 1
+
+                command.completed_at = timestamp
+
+        logger.info(
+            f"Execution recorded: {hw_id} -> {'success' if success else 'failed'} "
+            f"for {command_id[:8]}... ({command.executions_received}/{command.acks_accepted})"
+        )
+
+        return True
+
+    async def cancel_command(self, command_id: str, reason: str = "User cancelled") -> bool:
+        """Cancel a command"""
+        async with self._lock:
+            if command_id not in self._commands:
+                return False
+
+            command = self._commands[command_id]
+            if command.status in [CommandStatus.COMPLETED, CommandStatus.FAILED]:
+                return False
+
+            command.status = CommandStatus.CANCELLED
+            command.error_summary = reason
+            command.completed_at = int(time.time() * 1000)
+            command.updated_at = command.completed_at
+            self._stats['cancelled_commands'] += 1
+
+        logger.info(f"Command cancelled: {command_id[:8]}... ({reason})")
+        return True
+
+    async def check_timeouts(self) -> List[str]:
+        """
+        Check for timed out commands.
+
+        Returns:
+            List of command IDs that timed out
+        """
+        timed_out = []
+        timestamp = int(time.time() * 1000)
+
+        async with self._lock:
+            for command_id, command in self._commands.items():
+                if command.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
+                                      CommandStatus.EXECUTING]:
+                    if command.timeout_at and timestamp > command.timeout_at:
+                        command.status = CommandStatus.TIMEOUT
+                        command.completed_at = timestamp
+                        command.updated_at = timestamp
+                        command.error_summary = (
+                            f"Timeout after {(timestamp - command.created_at) / 1000:.1f}s "
+                            f"(ACKs: {command.acks_received}/{command.acks_expected}, "
+                            f"Exec: {command.executions_received}/{command.acks_accepted})"
+                        )
+                        self._stats['timeout_commands'] += 1
+                        timed_out.append(command_id)
+
+        for cid in timed_out:
+            logger.warning(f"Command timed out: {cid[:8]}...")
+
+        return timed_out
+
+    async def get_status(self, command_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed status of a command.
+
+        Returns:
+            Command status dict or None if not found
+        """
+        async with self._lock:
+            if command_id not in self._commands:
+                return None
+
+            command = self._commands[command_id]
+            return self._command_to_dict(command)
+
+    async def get_recent(
+        self,
+        limit: int = 50,
+        status_filter: Optional[List[CommandStatus]] = None,
+        mission_filter: Optional[List[int]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get recent commands with optional filtering.
+
+        Args:
+            limit: Maximum number of commands to return
+            status_filter: Only include these statuses
+            mission_filter: Only include these mission types
+
+        Returns:
+            List of command status dicts (newest first)
+        """
+        async with self._lock:
+            commands = list(self._commands.values())
+
+        # Apply filters
+        if status_filter:
+            commands = [c for c in commands if c.status in status_filter]
+        if mission_filter:
+            commands = [c for c in commands if c.mission_type in mission_filter]
+
+        # Sort by creation time (newest first) and limit
+        commands.sort(key=lambda c: c.created_at, reverse=True)
+        commands = commands[:limit]
+
+        return [self._command_to_dict(c) for c in commands]
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """Get command statistics"""
+        async with self._lock:
+            stats = dict(self._stats)
+            stats['active_commands'] = len([
+                c for c in self._commands.values()
+                if c.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
+                               CommandStatus.EXECUTING]
+            ])
+            stats['tracked_commands'] = len(self._commands)
+
+            # Calculate success rate
+            completed = stats['successful_commands'] + stats['failed_commands'] + \
+                       stats['partial_commands'] + stats['timeout_commands']
+            if completed > 0:
+                stats['success_rate'] = round(
+                    stats['successful_commands'] / completed * 100, 1
+                )
+            else:
+                stats['success_rate'] = 0.0
+
+        return stats
+
+    async def get_active_commands(self) -> List[Dict[str, Any]]:
+        """Get all currently active (non-terminal) commands"""
+        async with self._lock:
+            active = [
+                c for c in self._commands.values()
+                if c.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
+                               CommandStatus.EXECUTING]
+            ]
+
+        return [self._command_to_dict(c) for c in active]
+
+    def _command_to_dict(self, command: TrackedCommand) -> Dict[str, Any]:
+        """Convert TrackedCommand to dictionary"""
+        return {
+            'command_id': command.command_id,
+            'mission_type': command.mission_type,
+            'mission_name': command.mission_name,
+            'target_drones': command.target_drones,
+            'params': command.params,
+            'status': command.status.value,
+
+            # Timing
+            'created_at': command.created_at,
+            'submitted_at': command.submitted_at,
+            'completed_at': command.completed_at,
+            'updated_at': command.updated_at,
+
+            # ACK summary
+            'acks': {
+                'expected': command.acks_expected,
+                'received': command.acks_received,
+                'accepted': command.acks_accepted,
+                'rejected': command.acks_rejected,
+                'details': {
+                    hw_id: {
+                        'status': ack.status,
+                        'message': ack.message,
+                        'error_code': ack.error_code,
+                        'timestamp': ack.timestamp
+                    }
+                    for hw_id, ack in command.acks.items()
+                }
+            },
+
+            # Execution summary
+            'executions': {
+                'expected': command.acks_accepted,  # Only those that accepted
+                'received': command.executions_received,
+                'succeeded': command.executions_succeeded,
+                'failed': command.executions_failed,
+                'details': {
+                    hw_id: {
+                        'success': exe.success,
+                        'error': exe.error_message,
+                        'exit_code': exe.exit_code,
+                        'duration_ms': exe.duration_ms,
+                        'timestamp': exe.timestamp
+                    }
+                    for hw_id, exe in command.executions.items()
+                }
+            },
+
+            'error_summary': command.error_summary
+        }
+
+
+# Singleton instance for global access
+_tracker_instance: Optional[CommandTracker] = None
+
+
+def get_command_tracker() -> CommandTracker:
+    """Get or create the global CommandTracker instance"""
+    global _tracker_instance
+    if _tracker_instance is None:
+        _tracker_instance = CommandTracker()
+    return _tracker_instance
+
+
+def init_command_tracker(mission_enum: Optional[type] = None, **kwargs) -> CommandTracker:
+    """Initialize the global CommandTracker with configuration"""
+    global _tracker_instance
+    _tracker_instance = CommandTracker(mission_enum=mission_enum, **kwargs)
+    return _tracker_instance

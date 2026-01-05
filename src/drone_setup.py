@@ -8,6 +8,9 @@ import subprocess
 import time
 import os
 from enum import Enum
+from typing import Optional
+
+import aiohttp
 
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
@@ -219,12 +222,15 @@ class DroneSetup:
         """
         Monitors the lifetime of the subprocess for a given script.
         Cleans up upon completion, sets mission state accordingly.
+        Reports execution result to GCS if command_id is available.
         """
+        start_time = time.time()
         try:
             stdout, stderr = await process.communicate()
             return_code = process.returncode
             stdout_str = stdout.decode().strip() if stdout else ""
             stderr_str = stderr.decode().strip() if stderr else ""
+            duration_ms = int((time.time() - start_time) * 1000)
 
             async with self.process_lock:
                 if script_name in self.running_processes:
@@ -233,12 +239,27 @@ class DroneSetup:
             if return_code == 0:
                 logger.info(f"Mission script '{script_name}' completed successfully. Output: {stdout_str}")
                 self._reset_mission_state(success=True)
+                # Report success to GCS
+                await self._report_execution_to_gcs(
+                    success=True,
+                    exit_code=return_code,
+                    script_output=stdout_str[:500],  # Truncate output
+                    duration_ms=duration_ms
+                )
             else:
                 logger.error(
                     f"Mission script '{script_name}' failed with return code {return_code}. "
                     f"Stderr: {stderr_str}"
                 )
                 self._reset_mission_state(success=False)
+                # Report failure to GCS
+                await self._report_execution_to_gcs(
+                    success=False,
+                    error_message=stderr_str[:200] or f"Script failed with code {return_code}",
+                    exit_code=return_code,
+                    script_output=stderr_str[:500],
+                    duration_ms=duration_ms
+                )
 
         except Exception as e:
             logger.error(f"Exception in _monitor_script_process for '{script_name}': {e}", exc_info=True)
@@ -246,6 +267,71 @@ class DroneSetup:
             async with self.process_lock:
                 if script_name in self.running_processes:
                     del self.running_processes[script_name]
+            # Report exception to GCS
+            await self._report_execution_to_gcs(
+                success=False,
+                error_message=f"Exception: {str(e)[:200]}",
+                duration_ms=int((time.time() - start_time) * 1000)
+            )
+
+    async def _report_execution_to_gcs(
+        self,
+        success: bool,
+        error_message: Optional[str] = None,
+        exit_code: Optional[int] = None,
+        script_output: Optional[str] = None,
+        duration_ms: Optional[int] = None
+    ):
+        """
+        Report command execution result to the GCS command tracker.
+
+        This allows the GCS to track whether the mission script actually
+        completed successfully, not just whether the command was received.
+        """
+        # Check if we have a command_id to report back
+        command_id = getattr(self.drone_config, 'current_command_id', None)
+        if not command_id:
+            logger.debug("No command_id available for execution report")
+            return
+
+        try:
+            gcs_ip = self.params.GCS_IP
+            gcs_port = self.params.gcs_api_port
+
+            if not gcs_ip:
+                logger.warning("GCS_IP not configured, cannot report execution result")
+                return
+
+            report_data = {
+                'command_id': command_id,
+                'hw_id': str(self.drone_config.hw_id),
+                'success': success,
+                'error_message': error_message,
+                'exit_code': exit_code,
+                'script_output': script_output,
+                'duration_ms': duration_ms
+            }
+
+            url = f"http://{gcs_ip}:{gcs_port}/command/execution-result"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=report_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                    if response.status == 200:
+                        logger.info(f"Execution result reported to GCS for command {command_id[:8]}...")
+                    else:
+                        logger.warning(
+                            f"Failed to report execution to GCS: HTTP {response.status}"
+                        )
+
+        except asyncio.TimeoutError:
+            logger.warning("Timeout reporting execution result to GCS")
+        except aiohttp.ClientError as e:
+            logger.warning(f"Error reporting execution to GCS: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error reporting execution to GCS: {e}", exc_info=True)
+        finally:
+            # Clear the command_id after reporting
+            self.drone_config.current_command_id = None
 
     def _reset_mission_state(self, success: bool):
         """
