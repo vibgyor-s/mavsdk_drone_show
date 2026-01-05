@@ -435,18 +435,27 @@ class TestCommandEndpoints:
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.load_config')
     def test_submit_command(self, mock_load, mock_send, test_client, mock_config):
-        """Test POST /submit_command"""
+        """Test POST /submit_command - new SubmitCommandResponse format"""
         mock_load.return_value = mock_config
+        mock_send.return_value = {'success': 2, 'failed': 0, 'results': {}}
 
+        # New format requires missionType and triggerTime
         command_data = {
-            'action': 'arm',
-            'params': {}
+            'missionType': 10,  # TAKE_OFF
+            'triggerTime': 0
         }
 
         response = test_client.post("/submit_command", json=command_data)
         assert response.status_code == 200
         data = response.json()
-        assert data['success'] == True
+
+        # New response format
+        assert 'command_id' in data
+        assert data['status'] == 'submitted'
+        assert data['mission_type'] == 10
+        assert 'mission_name' in data
+        assert 'target_drones' in data
+        assert 'submitted_count' in data
 
 
 # ============================================================================

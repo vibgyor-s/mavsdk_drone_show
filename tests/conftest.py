@@ -175,12 +175,14 @@ def mock_drone_config():
     }
 
     config.hw_id = '1'
+    config.pos_id = 0  # Add explicit pos_id for validation
     config.state = MissionState.IDLE
     config.mission = Mission.NONE
     config.last_mission = Mission.NONE
     config.trigger_time = 0
     config.is_armed = False
     config.is_ready_to_arm = True
+    config.current_command_id = None  # For command tracking
 
     return config
 

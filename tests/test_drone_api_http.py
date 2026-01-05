@@ -58,14 +58,19 @@ class TestCommands:
     """Test command endpoint"""
 
     def test_send_command_success(self, test_client, sample_command, mock_drone_communicator):
-        """Test sending command to drone"""
+        """Test sending command to drone - new CommandAckResponse format"""
         response = test_client.post("/api/send-command", json=sample_command)
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data['status'] == 'success'
-        assert data['message'] == 'Command received'
+        # New response format uses CommandAckResponse
+        assert data['status'] == 'accepted'
+        assert 'message' in data
+        assert 'hw_id' in data
+        assert 'pos_id' in data
+        assert 'mission_type' in data
+        assert data['mission_type'] == 10  # TAKE_OFF
 
         # Verify command was processed
         mock_drone_communicator.process_command.assert_called_once()
@@ -74,15 +79,20 @@ class TestCommands:
         assert call_args['missionType'] == '10'
 
     def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
-        """Test different mission types"""
-        mission_types = ['ARM', 'DISARM', 'TAKEOFF', 'LAND', 'RTL', 'HOLD']
+        """Test different mission types with new response format"""
+        # Use valid mission type codes that exist in the Mission enum
+        mission_types = [10, 101, 102, 104, 105]  # TAKE_OFF, LAND, HOLD, RETURN_RTL, KILL_TERMINATE
 
         for mission_type in mission_types:
-            command = {"missionType": mission_type, "triggerTime": "0"}
+            mock_drone_communicator.process_command.reset_mock()
+            command = {"missionType": str(mission_type), "triggerTime": "0"}
             response = test_client.post("/api/send-command", json=command)
 
             assert response.status_code == 200
-            assert response.json()['status'] == 'success'
+            data = response.json()
+            # New format returns 'accepted' status
+            assert data['status'] == 'accepted'
+            assert data['mission_type'] == mission_type
 
 
 class TestPositionData:
