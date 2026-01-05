@@ -31,6 +31,24 @@ class State(Enum):
     UNKNOWN = 999
 
 
+class CommandResultCategory(str, Enum):
+    """
+    Categorization of command results for UX-friendly feedback.
+
+    Used to distinguish between different types of command outcomes:
+    - ACCEPTED: Drone successfully accepted the command
+    - OFFLINE: Drone is unreachable (timeout/connection refused) - NOT an error
+    - REJECTED: Drone actively rejected the command
+    - ERROR: An unexpected error occurred
+    - PENDING: Awaiting response
+    """
+    ACCEPTED = "accepted"   # Command accepted by drone
+    OFFLINE = "offline"     # Drone unreachable (neutral - not an error)
+    REJECTED = "rejected"   # Drone actively rejected command
+    ERROR = "error"         # Unexpected error occurred
+    PENDING = "pending"     # Awaiting response
+
+
 class CommandErrorCode(str, Enum):
     """
     Standardized error codes for command processing.
@@ -65,6 +83,8 @@ class CommandErrorCode(str, Enum):
     CONNECTION_REFUSED = "E301"
     NETWORK_ERROR = "E302"
     HTTP_ERROR = "E303"
+    DRONE_OFFLINE = "E304"       # Drone unreachable (not an error - informational)
+    DRONE_UNREACHABLE = "E305"   # Alternative code for unreachable drone
 
     # Execution errors (4xx)
     MAVSDK_ERROR = "E400"
@@ -101,6 +121,8 @@ class CommandErrorCode(str, Enum):
             "E301": "Connection refused by drone",
             "E302": "Network error",
             "E303": "HTTP error response",
+            "E304": "Drone offline/unreachable",
+            "E305": "Drone unreachable (alternative)",
             "E400": "MAVSDK communication error",
             "E401": "Pre-flight checks failed",
             "E402": "Failed to arm drone",

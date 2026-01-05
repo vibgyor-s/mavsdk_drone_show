@@ -510,9 +510,13 @@ class CommandStatus(str, Enum):
 
 class DroneAckDetail(BaseModel):
     """Acknowledgment detail from a single drone"""
-    status: str = Field(..., description="'accepted' or 'rejected'")
+    status: str = Field(..., description="'accepted', 'offline', 'rejected', or 'error'")
+    category: str = Field(
+        "accepted",
+        description="Result category: 'accepted' (success), 'offline' (unreachable - neutral), 'rejected' (drone refused), 'error' (unexpected)"
+    )
     message: Optional[str] = Field(None, description="Status message")
-    error_code: Optional[str] = Field(None, description="Error code if rejected")
+    error_code: Optional[str] = Field(None, description="Error code if rejected/error")
     timestamp: int = Field(..., description="ACK timestamp (Unix ms)")
 
 
@@ -530,7 +534,10 @@ class AckSummary(BaseModel):
     expected: int = Field(..., ge=0, description="Number of ACKs expected")
     received: int = Field(..., ge=0, description="Number of ACKs received")
     accepted: int = Field(..., ge=0, description="Number accepted")
-    rejected: int = Field(..., ge=0, description="Number rejected")
+    offline: int = Field(0, ge=0, description="Number offline (unreachable - neutral, not an error)")
+    rejected: int = Field(0, ge=0, description="Number rejected (drone refused command)")
+    errors: int = Field(0, ge=0, description="Number with unexpected errors")
+    result_summary: Optional[str] = Field(None, description="Human-readable result summary (e.g., '1 accepted, 4 offline')")
     details: Dict[str, DroneAckDetail] = Field(default_factory=dict, description="Per-drone ACK details")
 
 
@@ -608,11 +615,17 @@ class SubmitCommandRequest(BaseModel):
 class SubmitCommandResponse(BaseModel):
     """Response for command submission"""
     command_id: str = Field(..., description="Command tracking UUID")
-    status: str = Field(..., description="Submission status ('submitted' or 'partial')")
+    status: str = Field(..., description="Submission status ('submitted', 'partial', 'offline', or 'failed')")
     mission_type: int = Field(..., description="Mission type code")
     mission_name: str = Field(..., description="Human-readable mission name")
     target_drones: List[str] = Field(..., description="Target drone hardware IDs")
     submitted_count: int = Field(..., ge=0, description="Number of drones command was sent to")
+
+    # Immediate categorized results (always populated)
+    results_summary: Optional[Dict[str, int]] = Field(
+        None,
+        description="Categorized results: {'accepted': N, 'offline': N, 'rejected': N, 'errors': N}"
+    )
 
     # If wait_for_ack=true, these will be populated
     ack_summary: Optional[AckSummary] = Field(None, description="ACK summary if wait_for_ack=true")

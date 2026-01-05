@@ -72,7 +72,8 @@ class CommandStatus(str, Enum):
 class DroneAck:
     """Acknowledgment from a single drone"""
     hw_id: str
-    status: str  # 'accepted' or 'rejected'
+    status: str  # 'accepted', 'offline', 'rejected', or 'error'
+    category: str = "accepted"  # Result category for UI styling
     message: Optional[str] = None
     error_code: Optional[str] = None
     error_detail: Optional[str] = None
@@ -108,7 +109,9 @@ class TrackedCommand:
     acks_expected: int = 0
     acks_received: int = 0
     acks_accepted: int = 0
-    acks_rejected: int = 0
+    acks_offline: int = 0  # Drones that were unreachable (neutral - not an error)
+    acks_rejected: int = 0  # Drones that actively refused
+    acks_errors: int = 0  # Unexpected errors
 
     # Execution tracking
     executions: Dict[str, DroneExecution] = field(default_factory=dict)
@@ -251,6 +254,7 @@ class CommandTracker:
         command_id: str,
         hw_id: str,
         status: str,
+        category: str = "accepted",
         message: Optional[str] = None,
         error_code: Optional[str] = None,
         error_detail: Optional[str] = None
@@ -261,9 +265,10 @@ class CommandTracker:
         Args:
             command_id: Command UUID
             hw_id: Drone hardware ID
-            status: 'accepted' or 'rejected'
+            status: 'accepted', 'offline', 'rejected', or 'error'
+            category: Result category for UI ('accepted', 'offline', 'rejected', 'error')
             message: Optional status message
-            error_code: Error code if rejected
+            error_code: Error code if rejected/error
             error_detail: Detailed error information
 
         Returns:
@@ -285,6 +290,7 @@ class CommandTracker:
             ack = DroneAck(
                 hw_id=hw_id,
                 status=status,
+                category=category,
                 message=message,
                 error_code=error_code,
                 error_detail=error_detail,
@@ -295,28 +301,52 @@ class CommandTracker:
             command.acks_received += 1
             command.updated_at = timestamp
 
-            if status == 'accepted':
+            # Track by category
+            if category == 'accepted':
                 command.acks_accepted += 1
-            else:
+            elif category == 'offline':
+                command.acks_offline += 1
+            elif category == 'rejected':
                 command.acks_rejected += 1
+            else:  # 'error' or unknown
+                command.acks_errors += 1
 
             # Update command status if all ACKs received
             if command.acks_received >= command.acks_expected:
-                if command.acks_rejected == 0:
+                # Calculate actual problems (rejected + errors, NOT offline)
+                actual_problems = command.acks_rejected + command.acks_errors
+
+                if actual_problems == 0 and command.acks_accepted > 0:
+                    # All reachable drones accepted (some may be offline - that's OK)
                     command.status = CommandStatus.EXECUTING
-                elif command.acks_accepted == 0:
+                elif command.acks_accepted == 0 and actual_problems == 0:
+                    # All drones offline - this is informational, not a failure
                     command.status = CommandStatus.FAILED
                     command.completed_at = timestamp
-                    command.error_summary = f"All {command.acks_rejected} drones rejected command"
+                    command.error_summary = f"All {command.acks_offline} drones offline"
+                    self._stats['failed_commands'] += 1
+                elif command.acks_accepted == 0:
+                    # All drones rejected/errored
+                    command.status = CommandStatus.FAILED
+                    command.completed_at = timestamp
+                    command.error_summary = f"All reachable drones failed ({command.acks_rejected} rejected, {command.acks_errors} errors)"
                     self._stats['failed_commands'] += 1
                 else:
+                    # Partial - some accepted, some had issues
                     command.status = CommandStatus.EXECUTING
-                    command.error_summary = (
-                        f"{command.acks_rejected}/{command.acks_expected} drones rejected"
-                    )
+                    parts = []
+                    if command.acks_accepted > 0:
+                        parts.append(f"{command.acks_accepted} accepted")
+                    if command.acks_offline > 0:
+                        parts.append(f"{command.acks_offline} offline")
+                    if command.acks_rejected > 0:
+                        parts.append(f"{command.acks_rejected} rejected")
+                    if command.acks_errors > 0:
+                        parts.append(f"{command.acks_errors} errors")
+                    command.error_summary = ", ".join(parts)
 
         logger.info(
-            f"ACK recorded: {hw_id} -> {status} for {command_id[:8]}... "
+            f"ACK recorded: {hw_id} -> {category} for {command_id[:8]}... "
             f"({command.acks_received}/{command.acks_expected})"
         )
 
@@ -538,6 +568,19 @@ class CommandTracker:
 
         return [self._command_to_dict(c) for c in active]
 
+    def _build_result_summary(self, command: TrackedCommand) -> str:
+        """Build human-readable result summary like '1 accepted, 4 offline'"""
+        parts = []
+        if command.acks_accepted > 0:
+            parts.append(f"{command.acks_accepted} accepted")
+        if command.acks_offline > 0:
+            parts.append(f"{command.acks_offline} offline")
+        if command.acks_rejected > 0:
+            parts.append(f"{command.acks_rejected} rejected")
+        if command.acks_errors > 0:
+            parts.append(f"{command.acks_errors} errors")
+        return ", ".join(parts) if parts else "pending"
+
     def _command_to_dict(self, command: TrackedCommand) -> Dict[str, Any]:
         """Convert TrackedCommand to dictionary"""
         return {
@@ -559,10 +602,14 @@ class CommandTracker:
                 'expected': command.acks_expected,
                 'received': command.acks_received,
                 'accepted': command.acks_accepted,
+                'offline': command.acks_offline,
                 'rejected': command.acks_rejected,
+                'errors': command.acks_errors,
+                'result_summary': self._build_result_summary(command),
                 'details': {
                     hw_id: {
                         'status': ack.status,
+                        'category': ack.category,
                         'message': ack.message,
                         'error_code': ack.error_code,
                         'timestamp': ack.timestamp

@@ -742,18 +742,38 @@ async def submit_command(request: Request):
                 try:
                     loop.run_until_complete(tracker.mark_submitted(command_id))
 
-                    # Record initial results as ACKs
+                    # Record initial results as ACKs with proper categorization
                     for drone_id, result in results.get('results', {}).items():
+                        category = result.get('category', 'error')
                         if result.get('success'):
                             loop.run_until_complete(tracker.record_ack(
                                 command_id, drone_id, 'accepted',
+                                category='accepted',
                                 message='HTTP 200 received'
                             ))
-                        else:
+                        elif category == 'offline':
+                            # Drone unreachable - neutral, not an error
+                            loop.run_until_complete(tracker.record_ack(
+                                command_id, drone_id, 'offline',
+                                category='offline',
+                                message=result.get('error', 'Drone unreachable'),
+                                error_code='E304'  # DRONE_OFFLINE
+                            ))
+                        elif category == 'rejected':
+                            # Drone actively rejected
                             loop.run_until_complete(tracker.record_ack(
                                 command_id, drone_id, 'rejected',
-                                message=result.get('error', 'HTTP request failed'),
-                                error_code='E303'
+                                category='rejected',
+                                message=result.get('error', 'Drone rejected command'),
+                                error_code='E303'  # HTTP_ERROR
+                            ))
+                        else:
+                            # Unexpected error
+                            loop.run_until_complete(tracker.record_ack(
+                                command_id, drone_id, 'error',
+                                category='error',
+                                message=result.get('error', 'Unexpected error'),
+                                error_code='E500'  # INTERNAL_ERROR
                             ))
                 finally:
                     loop.close()

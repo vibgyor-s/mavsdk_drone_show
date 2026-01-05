@@ -152,10 +152,12 @@ class TestCommandTracker:
         # Both drones reject
         await tracker.record_ack(
             command_id, hw_id='1', status='rejected',
+            category='rejected',  # Required for categorization
             error_code='E202', message='Not ready to arm'
         )
         await tracker.record_ack(
             command_id, hw_id='2', status='rejected',
+            category='rejected',  # Required for categorization
             error_code='E202'
         )
 
@@ -254,7 +256,7 @@ class TestCommandTracker:
 
         # Create a failed command
         cmd2 = await tracker.create_command(mission_type=10, target_drones=['2'])
-        await tracker.record_ack(cmd2, '2', 'rejected', error_code='E200')
+        await tracker.record_ack(cmd2, '2', 'rejected', category='rejected', error_code='E200')
 
         stats = await tracker.get_statistics()
         assert stats['total_commands'] == 2
