@@ -427,5 +427,91 @@ class TestBackwardCompatibility:
                             assert config.is_armed is True
 
 
+class TestTakeoffAltitudeSetter:
+    """Test takeoff_altitude runtime override functionality"""
+
+    def test_setter_updates_runtime_altitude(self):
+        """Test that setting takeoff_altitude updates the runtime value"""
+        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+            with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
+                with patch.object(ConfigLoader, 'read_swarm', return_value=None):
+                    with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
+                        with patch('src.drone_config.Params') as mock_params:
+                            mock_params.default_takeoff_alt = 10.0
+
+                            config = DroneConfig(drones={}, hw_id='1')
+
+                            # Initially returns default
+                            assert config.takeoff_altitude == 10.0
+
+                            # Set runtime override
+                            config.takeoff_altitude = 25.0
+                            assert config.takeoff_altitude == 25.0
+
+    def test_runtime_altitude_cleared_restores_default(self):
+        """Test that clearing runtime altitude restores the default"""
+        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+            with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
+                with patch.object(ConfigLoader, 'read_swarm', return_value=None):
+                    with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
+                        with patch('src.drone_config.Params') as mock_params:
+                            mock_params.default_takeoff_alt = 10.0
+
+                            config = DroneConfig(drones={}, hw_id='1')
+
+                            # Set and then clear
+                            config.takeoff_altitude = 25.0
+                            config.runtime_takeoff_altitude = None
+
+                            # Should return default again
+                            assert config.takeoff_altitude == 10.0
+
+
+class TestDroneConfigUpdate:
+    """Test DroneConfig.update() method for telemetry updates"""
+
+    def test_update_mutable_fields(self):
+        """Test updating mutable telemetry fields"""
+        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+            with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
+                with patch.object(ConfigLoader, 'read_swarm', return_value=None):
+                    with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
+                        with patch('src.drone_config.Params') as mock_params:
+                            mock_params.default_takeoff_alt = 10.0
+
+                            config = DroneConfig(drones={}, hw_id='1')
+
+                            config.update(
+                                state=1,
+                                mission=10,
+                                battery_voltage=12.5,
+                                yaw=90.0
+                            )
+
+                            assert config.state == 1
+                            assert config.mission == 10
+                            assert config.battery == 12.5
+                            assert config.yaw == 90.0
+
+    def test_update_ignores_unknown_fields(self):
+        """Test that unknown fields are ignored"""
+        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+            with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
+                with patch.object(ConfigLoader, 'read_swarm', return_value=None):
+                    with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
+                        with patch('src.drone_config.Params') as mock_params:
+                            mock_params.default_takeoff_alt = 10.0
+
+                            config = DroneConfig(drones={}, hw_id='1')
+
+                            # Should not raise exception for unknown fields
+                            config.update(
+                                unknown_field='some_value',
+                                state=1
+                            )
+
+                            assert config.state == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
