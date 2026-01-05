@@ -69,6 +69,7 @@ UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 # ===========================================
 DEPLOYMENT_MODE="$DEFAULT_MODE"
 FORCE_REBUILD=false
+CHECK_ONLY=false
 RUN_GCS_SERVER=true
 RUN_GUI_APP=true
 USE_TMUX=true
@@ -76,6 +77,7 @@ COMBINED_VIEW=true
 USE_SITL=false
 USE_REAL=false
 OVERWRITE_IP=""
+SKIP_DEPENDENCY_CHECK=false
 # Repository Configuration: Environment Variable Support (MDS v3.1+)
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
@@ -93,6 +95,199 @@ log_info() { echo "[INFO] $1"; }
 log_warn() { echo "[WARN] $1"; }
 log_error() { echo "[ERROR] $1" >&2; }
 log_success() { echo "[SUCCESS] $1"; }
+log_header() { echo -e "\n=== $1 ==="; }
+
+# ===========================================
+# STATUS AND DIAGNOSTIC FUNCTIONS
+# ===========================================
+get_current_drone_mode() {
+    if [[ -f "$REAL_MODE_FILE" ]]; then
+        echo "REAL (Hardware)"
+    else
+        echo "SITL (Simulation)"
+    fi
+}
+
+show_current_status() {
+    cat << EOF
+
+===============================================
+  DRONE SERVICES - CURRENT STATUS
+===============================================
+Drone Mode:       $(get_current_drone_mode)
+Real Mode File:   $([[ -f "$REAL_MODE_FILE" ]] && echo "EXISTS" || echo "NOT PRESENT")
+Backend:          $GCS_BACKEND
+Virtual Env:      $([[ -d "$VENV_PATH" ]] && echo "OK ($VENV_PATH)" || echo "MISSING")
+React Build:      $([[ -d "$BUILD_DIR" ]] && echo "EXISTS" || echo "NOT BUILT")
+.env File:        $([[ -f "$ENV_FILE_PATH" ]] && echo "EXISTS" || echo "MISSING")
+
+PATHS:
+  GCS Server:     $GCS_SERVER_DIR
+  React App:      $REACT_APP_DIR
+  Build Dir:      $BUILD_DIR
+
+PORTS:
+  GCS Server:     $DEV_GCS_PORT
+  React App:      $DEV_REACT_PORT
+
+To change mode:
+  SITL mode:      $0 --sitl
+  Real mode:      $0 --real
+===============================================
+EOF
+}
+
+check_python_dependencies() {
+    if [[ "$SKIP_DEPENDENCY_CHECK" == "true" ]]; then
+        log_info "Skipping Python dependency check (--skip-deps)"
+        return 0
+    fi
+
+    local requirements_file="$PARENT_DIR/requirements.txt"
+    local venv_marker="$VENV_PATH/.deps_installed"
+
+    if [[ ! -f "$requirements_file" ]]; then
+        log_warn "requirements.txt not found, skipping dependency check"
+        return 0
+    fi
+
+    # Check if requirements changed since last install
+    if [[ -f "$venv_marker" ]]; then
+        if [[ "$requirements_file" -nt "$venv_marker" ]]; then
+            log_info "requirements.txt changed, updating dependencies..."
+            pip install -r "$requirements_file" --quiet
+            touch "$venv_marker"
+            log_success "Python dependencies updated"
+        else
+            log_info "Python dependencies are up-to-date"
+        fi
+    else
+        log_info "Installing Python dependencies..."
+        pip install -r "$requirements_file" --quiet
+        touch "$venv_marker"
+        log_success "Python dependencies installed"
+    fi
+}
+
+run_health_check() {
+    log_header "HEALTH CHECK"
+    local all_ok=true
+
+    # Check GCS Server
+    if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+        log_info "Checking GCS Server on port $DEV_GCS_PORT..."
+        sleep 2  # Give server time to start
+        for i in {1..5}; do
+            if curl -s "http://localhost:$DEV_GCS_PORT/health" > /dev/null 2>&1; then
+                log_success "GCS Server is responding"
+                break
+            elif curl -s "http://localhost:$DEV_GCS_PORT/" > /dev/null 2>&1; then
+                log_success "GCS Server is responding (no /health endpoint)"
+                break
+            fi
+            if [[ $i -eq 5 ]]; then
+                log_warn "GCS Server not responding yet (may still be starting)"
+                all_ok=false
+            fi
+            sleep 1
+        done
+    fi
+
+    # Check React App
+    if [[ "$RUN_GUI_APP" == "true" ]]; then
+        log_info "Checking React App on port $DEV_REACT_PORT..."
+        for i in {1..5}; do
+            if curl -s "http://localhost:$DEV_REACT_PORT/" > /dev/null 2>&1; then
+                log_success "React App is responding"
+                break
+            fi
+            if [[ $i -eq 5 ]]; then
+                log_warn "React App not responding yet (may still be starting)"
+                all_ok=false
+            fi
+            sleep 1
+        done
+    fi
+
+    if [[ "$all_ok" == "true" ]]; then
+        log_success "All services healthy!"
+    else
+        log_warn "Some services may still be starting - check tmux session"
+    fi
+}
+
+run_configuration_check() {
+    log_header "CONFIGURATION CHECK"
+    local all_ok=true
+
+    # Check virtual environment
+    if [[ -d "$VENV_PATH" ]]; then
+        log_success "Virtual environment: OK"
+    else
+        log_error "Virtual environment: MISSING at $VENV_PATH"
+        all_ok=false
+    fi
+
+    # Check GCS server directory
+    if [[ -d "$GCS_SERVER_DIR" ]]; then
+        log_success "GCS Server directory: OK"
+    else
+        log_error "GCS Server directory: MISSING at $GCS_SERVER_DIR"
+        all_ok=false
+    fi
+
+    # Check React app
+    if [[ -f "$REACT_APP_DIR/package.json" ]]; then
+        log_success "React app: OK"
+    else
+        log_error "React app: MISSING package.json"
+        all_ok=false
+    fi
+
+    # Check .env file
+    if [[ -f "$ENV_FILE_PATH" ]]; then
+        log_success ".env file: OK"
+        local server_url=$(grep "REACT_APP_SERVER_URL" "$ENV_FILE_PATH" 2>/dev/null || echo "")
+        if [[ -n "$server_url" ]]; then
+            log_info "  Server URL: $server_url"
+        fi
+    else
+        log_warn ".env file: MISSING (will be created on first run)"
+    fi
+
+    # Check current drone mode
+    log_info "Current drone mode: $(get_current_drone_mode)"
+
+    # Check tmux
+    if command -v tmux &> /dev/null; then
+        log_success "tmux: INSTALLED"
+    else
+        log_warn "tmux: NOT INSTALLED (will be installed on first run)"
+    fi
+
+    # Check Python dependencies
+    if [[ -d "$VENV_PATH" ]]; then
+        source "$VENV_PATH/bin/activate" 2>/dev/null
+        if python -c "import fastapi" 2>/dev/null; then
+            log_success "FastAPI: INSTALLED"
+        else
+            log_warn "FastAPI: NOT INSTALLED (will be installed on first run)"
+        fi
+    fi
+
+    log_header "CHECK COMPLETE"
+    if [[ "$all_ok" == "true" ]]; then
+        log_success "All checks passed! Ready to start."
+        echo ""
+        echo "Quick start commands:"
+        echo "  SITL mode:  $0 --sitl"
+        echo "  Real mode:  $0 --real"
+        echo "  Production: $0 --prod --real"
+    else
+        log_error "Some checks failed. Please fix the issues above."
+        exit 1
+    fi
+}
 
 # ===========================================
 # UTILITY FUNCTIONS
@@ -104,9 +299,18 @@ Production-Ready Drone Services Launcher
 USAGE: $0 [OPTIONS]
 
 MODE OPTIONS:
-  --prod                : Production mode (optimized builds, WSGI server)
-  --dev                 : Development mode (hot reload, debug server)
-  --force-rebuild       : Force rebuild even if no changes detected
+  --prod, --production  : Production mode (optimized builds, WSGI server)
+  --dev, --development  : Development mode (hot reload, debug server)
+
+BUILD OPTIONS:
+  --rebuild             : Force rebuild all components (React + dependencies)
+  --force-rebuild       : Same as --rebuild (alias)
+  --skip-deps           : Skip Python dependency check (faster startup)
+
+DRONE MODE OPTIONS:
+  --sitl                : Switch to simulation mode (SITL)
+  --real                : Switch to real drone/hardware mode
+  (If neither specified, current mode is preserved)
 
 SERVICE OPTIONS:
   -g                    : Do NOT run GCS Server (default: enabled)
@@ -114,23 +318,26 @@ SERVICE OPTIONS:
   -n                    : Do NOT use tmux (default: uses tmux)
   -s                    : Run components in separate windows (default: combined)
 
-DRONE MODE OPTIONS:
-  --sitl                : Switch to simulation mode
-  --real                : Switch to real drone mode
+DIAGNOSTICS:
+  --check               : Check configuration and dependencies without starting
+  --status              : Show current mode (SITL/Real) and configuration
 
 NETWORK OPTIONS:
   --overwrite-ip <IP>   : Override server IP in environment
 
 REPOSITORY OPTIONS:
-  -b <branch>           : Specify git branch (default: from MDS_BRANCH env var or main-candidate)
+  -b <branch>           : Specify git branch (default: from MDS_BRANCH env var)
 
 HELP:
-  -h                    : Display this help message
+  -h, --help            : Display this help message
 
 EXAMPLES:
+  Quick start (SITL):    $0 --sitl
+  Quick start (Real):    $0 --real
   Production deploy:     $0 --prod --real
-  Development with SITL: $0 --dev --sitl --force-rebuild
-  Custom IP production:  $0 --prod --overwrite-ip 192.168.1.100
+  Dev with rebuild:      $0 --dev --sitl --rebuild
+  Check config only:     $0 --check
+  Show current status:   $0 --status
 EOF
 }
 
@@ -139,7 +346,10 @@ parse_arguments() {
         case "$1" in
             --prod|--production) DEPLOYMENT_MODE="production"; shift ;;
             --dev|--development) DEPLOYMENT_MODE="development"; shift ;;
-            --force-rebuild) FORCE_REBUILD=true; shift ;;
+            --rebuild|--force-rebuild) FORCE_REBUILD=true; shift ;;
+            --skip-deps) SKIP_DEPENDENCY_CHECK=true; shift ;;
+            --check) CHECK_ONLY=true; shift ;;
+            --status) show_current_status; exit 0 ;;
             --sitl)
                 if [[ "$USE_REAL" == "true" ]]; then
                     log_error "Cannot use --sitl and --real simultaneously."
@@ -168,7 +378,7 @@ parse_arguments() {
             -u) RUN_GUI_APP=false; shift ;;
             -n) USE_TMUX=false; shift ;;
             -s) COMBINED_VIEW=false; shift ;;
-            -h) display_usage; exit 0 ;;
+            -h|--help) display_usage; exit 0 ;;
             *) log_error "Unknown option: $1"; display_usage; exit 1 ;;
         esac
     done
@@ -418,10 +628,6 @@ get_gcs_server_command() {
     fi
 }
 
-# Legacy alias for backward compatibility
-get_flask_command() {
-    get_gcs_server_command
-}
 
 get_react_command() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
@@ -453,7 +659,7 @@ start_services_in_tmux() {
     local react_cmd=""
     
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-        gcs_cmd=$(get_flask_command)
+        gcs_cmd=$(get_gcs_server_command)
     fi
     
     if [[ "$RUN_GUI_APP" == "true" ]]; then
@@ -505,9 +711,9 @@ start_services_in_tmux() {
 
 start_services_no_tmux() {
     log_info "Starting services without tmux in $DEPLOYMENT_MODE mode..."
-    
+
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-        local gcs_cmd=$(get_flask_command)
+        local gcs_cmd=$(get_gcs_server_command)
         gnome-terminal -- bash -c "echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
     fi
     
@@ -544,14 +750,14 @@ EOF
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         cat << EOF
   - React: Serving optimized build files
-  - Flask: Running with gunicorn WSGI server
-  - Working Dir: $GCS_SERVER_DIR (FIXED for imports)
+  - GCS Server: $GCS_BACKEND with gunicorn WSGI server
+  - Working Dir: $GCS_SERVER_DIR
   - Logging: Production logging enabled
 EOF
     else
         cat << EOF
   - React: Hot reload enabled on port $DEV_REACT_PORT
-  - Flask: Debug mode with auto-restart
+  - GCS Server: $GCS_BACKEND with auto-restart
   - Logging: Verbose debug logging enabled
 EOF
     fi
@@ -597,9 +803,11 @@ EOF
     fi
 
     if [[ "$USE_REAL" == "true" ]]; then
-        echo "Drone Mode: Real Hardware"
+        echo "Drone Mode: REAL (Hardware) [switching]"
     elif [[ "$USE_SITL" == "true" ]]; then
-        echo "Drone Mode: Simulation (SITL)"
+        echo "Drone Mode: SITL (Simulation) [switching]"
+    else
+        echo "Drone Mode: $(get_current_drone_mode) [current]"
     fi
 
     if [[ -n "$OVERWRITE_IP" ]]; then
@@ -630,6 +838,12 @@ EOF
 # Parse arguments and initialize
 parse_arguments "$@"
 
+# Handle --check option (run checks only, don't start services)
+if [[ "$CHECK_ONLY" == "true" ]]; then
+    run_configuration_check
+    exit 0
+fi
+
 log_info "Initializing Drone Services System..."
 display_config_summary
 
@@ -641,7 +855,8 @@ check_command_installed "lsof" "lsof"
 handle_real_mode_file
 update_repository
 load_virtualenv
-handle_env_file  
+check_python_dependencies  # Smart dependency check
+handle_env_file
 setup_production_environment
 
 # Port management
@@ -667,11 +882,16 @@ else
 fi
 
 log_success "Drone Services System Started Successfully!"
-log_info "All services running in $(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]') mode"
+log_info "Mode: $(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]') | Backend: $GCS_BACKEND | Drone: $(get_current_drone_mode)"
 
 if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
     log_info "Production optimizations active"
-    log_info "Flask working directory: $GCS_SERVER_DIR (FIXED)"
 else
     log_info "Development mode with hot reloading active"
 fi
+
+echo ""
+echo "Quick Commands:"
+echo "  Check health:  curl http://localhost:$DEV_GCS_PORT/health"
+echo "  View status:   $0 --status"
+echo "  Stop services: tmux kill-session -t $SESSION_NAME"
