@@ -311,6 +311,19 @@ class DroneAPIServer:
                     error_detail=str(e),
                     timestamp=timestamp
                 )
+            except AttributeError as e:
+                logging.error(f"Configuration attribute error: {e}")
+                return CommandAckResponse(
+                    status="rejected",
+                    command_id=command_data.get('command_id') if command_data else None,
+                    hw_id=hw_id,
+                    pos_id=pos_id,
+                    current_state=current_state,
+                    message=f"Configuration error: {str(e)}",
+                    error_code=CommandErrorCode.INTERNAL_ERROR.value,
+                    error_detail=f"AttributeError: {str(e)} - Check drone configuration",
+                    timestamp=timestamp
+                )
             except Exception as e:
                 logging.exception(f"Unexpected error processing command: {e}")
                 return CommandAckResponse(

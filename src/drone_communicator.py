@@ -155,11 +155,12 @@ class DroneCommunicator:
             except Exception as e:
                 logging.error(f"Failed to save command origin: {e}")
 
-        hw_id = command_data.get("hw_id", self.drone_config.hw_id)
-        pos_id = command_data.get("pos_id", self.drone_config.pos_id)
-        state = command_data.get("state", self.drone_config.state)
-        state = 1 #for now hardcoded to armed (received command)
-        self._update_drone_config(hw_id, pos_id, state, trigger_time)
+        # hw_id and pos_id are immutable - use the drone's configured values
+        hw_id = self.drone_config.hw_id
+
+        # Update mutable state: set to 1 (command received/armed)
+        state = 1  # Command received state
+        self._update_drone_state(state, trigger_time)
 
         # Phase 2: Store flags in drone_config (None means use Params defaults later)
         self.drone_config.auto_global_origin = command_data.get('auto_global_origin', None)
@@ -178,10 +179,13 @@ class DroneCommunicator:
         self._log_updated_configuration()
         self.drones[hw_id] = self.drone_config
 
-    def _update_drone_config(self, hw_id: str, pos_id: str, state: int, trigger_time: int) -> None:
-        """Update drone configuration with new values."""
-        self.drone_config.hw_id = hw_id
-        self.drone_config.pos_id = pos_id
+    def _update_drone_state(self, state: int, trigger_time: int) -> None:
+        """Update mutable drone state values.
+
+        Note: hw_id and pos_id are immutable configuration values loaded from
+        the drone's .hwID file and config.csv. They cannot be changed at runtime.
+        Only state and trigger_time are mutable runtime values.
+        """
         self.drone_config.state = state
         self.drone_config.trigger_time = trigger_time
 
