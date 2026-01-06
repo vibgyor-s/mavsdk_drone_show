@@ -2093,5 +2093,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         reload=is_dev,  # Only use auto-reload in development
-        log_level="info" if is_dev else "warning"  # Less verbose in production
+        log_level="info" if is_dev else "warning",  # Less verbose in production
+        access_log=is_dev  # Disable access logs in production (reduces noise)
     )

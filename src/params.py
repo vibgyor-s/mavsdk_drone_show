@@ -160,8 +160,9 @@ class Params:
     
     enable_connectivity_check  = True # Enable Connectivity check Thread to ping GCS
 
-    # Environment Mode
-    env_mode = 'development'  # Change to 'production' for production mode
+    # Environment Mode - controls logging verbosity
+    # Set ENV_MODE environment variable to 'production' for cleaner logs
+    env_mode = os.getenv('ENV_MODE', 'production')  # Default to production (less verbose)
 
     # UDP Telemetry Configuration
     enable_udp_telemetry = False         # Enable/disable UDP telemetry

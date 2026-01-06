@@ -56,6 +56,7 @@ log_filename = os.path.join(LOG_DIR, f'{current_time}.log')
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logger.propagate = False  # Prevent duplicate logs to root logger
 
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
@@ -116,21 +117,48 @@ def schedule_missions_thread(drone_setup_instance):
 async def schedule_missions_async(drone_setup_instance):
     """
     Asynchronous function that continuously schedules missions.
-    Notifies the systemd watchdog and logs scheduling details.
+    Notifies the systemd watchdog and logs state changes (not every tick).
     """
+    # Track last state to implement change-based logging
+    last_mission = None
+    last_state = None
+    last_trigger_time = None
+    last_summary_time = 0
+    SUMMARY_INTERVAL = 60  # Log status summary every 60 seconds
+
     while True:
         notifier.notify("WATCHDOG=1")
-        logger.info(
-            f"Checking Scheduler: Mission Code: {drone_config.mission}, "
-            f"State: {drone_config.state}, "
-            f"Trigger Time: {drone_config.trigger_time}, "
-            f"Current Time: {int(time.time())}"
-        )
+        current_time = int(time.time())
 
-        # Optionally, check if a new command has arrived and terminate old processes:
-        # if some_condition_for_new_command:
-        #     await drone_setup_instance.terminate_all_running_processes()
-        # Then, start the new command.
+        # Detect changes
+        mission_changed = drone_config.mission != last_mission
+        state_changed = drone_config.state != last_state
+        trigger_changed = drone_config.trigger_time != last_trigger_time
+
+        # Log only on state changes (INFO level - visible)
+        if mission_changed or state_changed or trigger_changed:
+            changes = []
+            if mission_changed:
+                changes.append(f"Mission: {last_mission} → {drone_config.mission}")
+            if state_changed:
+                changes.append(f"State: {last_state} → {drone_config.state}")
+            if trigger_changed:
+                changes.append(f"Trigger: {last_trigger_time} → {drone_config.trigger_time}")
+
+            logger.info(f"Scheduler state change: {', '.join(changes)}")
+
+            # Update tracked values
+            last_mission = drone_config.mission
+            last_state = drone_config.state
+            last_trigger_time = drone_config.trigger_time
+
+        # Periodic summary (every SUMMARY_INTERVAL seconds) - helps confirm system is alive
+        elif current_time - last_summary_time >= SUMMARY_INTERVAL:
+            logger.debug(
+                f"Scheduler status: Mission={drone_config.mission}, "
+                f"State={drone_config.state}, Trigger={drone_config.trigger_time}"
+            )
+            last_summary_time = current_time
 
         await drone_setup_instance.schedule_mission()
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)

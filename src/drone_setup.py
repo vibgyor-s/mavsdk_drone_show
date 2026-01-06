@@ -489,18 +489,22 @@ class DroneSetup:
             logger.error(f"Error calculating trigger time: {e}")
             return
 
-        logger.info(
-            f"Checking Scheduler: "
-            f"Mission Code: {self.drone_config.mission}, "
-            f"State: {self.drone_config.state}, "
-            f"Trigger Time: {trigger_time}, "
-            f"Current Time: {current_time}"
+        # DEBUG level for routine scheduler checks (file only, not console)
+        # State changes are logged at INFO level by coordinator.py
+        logger.debug(
+            f"Scheduler tick: Mission={self.drone_config.mission}, "
+            f"State={self.drone_config.state}, Trigger={trigger_time}, Now={current_time}"
         )
 
         try:
             handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
             success, message = await handler(current_time, earlier_trigger_time)
-            logger.info(f"Mission Execution Result: success={success}, message='{message}'")
+            # Only log at INFO level when something actually happened
+            if success:
+                logger.info(f"Mission executed: {message}")
+            else:
+                # Routine "no mission" cases logged at DEBUG (file only)
+                logger.debug(f"Mission check: {message}")
         except Exception as e:
             logger.error(f"Exception in schedule_mission: {e}", exc_info=True)
 
