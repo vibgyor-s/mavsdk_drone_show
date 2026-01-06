@@ -4,6 +4,9 @@ After=network-online.target git_sync_mds.service mavlink-router.service
 Wants=network-online.target mavlink-router.service git_sync_mds.service
 # Note: Using Wants instead of Requires for graceful degradation
 # Coordinator can run even if git_sync or mavlink-router aren't available
+# Restart limits (must be in [Unit] for systemd 249+)
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -13,12 +16,12 @@ User=droneshow
 Group=droneshow
 Environment="HOME=/home/droneshow"
 Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
 
-# Restart policy with limits to prevent restart storms
+# Restart policy
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=600
-StartLimitBurst=5
+TimeoutStartSec=300
 
 # Resource limits for enterprise deployment
 LimitNOFILE=65536

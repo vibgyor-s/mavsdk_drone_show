@@ -140,7 +140,8 @@ class LEDColors:
     NETWORK_READY = (0, 0, 255)         # Blue
     GIT_SYNCING = (0, 255, 255)         # Cyan
     GIT_SUCCESS = (0, 255, 0)           # Green
-    GIT_FAILED = (255, 255, 0)          # Yellow
+    GIT_FAILED_CONTINUING = (255, 255, 0)  # Yellow (matches LEDState enum)
+    GIT_FAILED = GIT_FAILED_CONTINUING  # Alias for backward compatibility
     SERVICES_UPDATING = (255, 165, 0)   # Orange
     STARTUP_COMPLETE = (255, 255, 255)  # White
     READY = (255, 255, 255)             # White (alias)

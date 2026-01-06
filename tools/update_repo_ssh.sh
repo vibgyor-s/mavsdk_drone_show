@@ -91,7 +91,7 @@ log_error_and_exit() {
     local exit_code="${3:-1}"
     
     log_error "$component" "$message"
-    set_led_status "red"
+    set_led_status "ERROR_CRITICAL"
     cleanup_on_exit
     exit "$exit_code"
 }
@@ -139,13 +139,23 @@ check_service_updates() {
                 ;;
         esac
 
-        if [[ -f "$repo_file" ]] && ! cmp -s "$src_file" "$repo_file" 2>/dev/null; then
-            log_info "$component" "Service file changed: $service"
-            if sudo cp "$repo_file" "$src_file" 2>/dev/null; then
-                log_info "$component" "Updated $service service file"
-                changed=true
+        # Atomic service file update (avoids TOCTOU race condition)
+        if [[ -f "$repo_file" ]]; then
+            local temp_file
+            temp_file=$(mktemp) || continue
+            cp "$repo_file" "$temp_file" 2>/dev/null || { rm -f "$temp_file"; continue; }
+
+            if ! cmp -s "$src_file" "$temp_file" 2>/dev/null; then
+                log_info "$component" "Service file changed: $service"
+                if sudo mv "$temp_file" "$src_file" 2>/dev/null; then
+                    log_info "$component" "Updated $service service file"
+                    changed=true
+                else
+                    log_warn "$component" "Failed to update $service service file (sudo may not be available)"
+                    rm -f "$temp_file"
+                fi
             else
-                log_warn "$component" "Failed to update $service service file (sudo may not be available)"
+                rm -f "$temp_file"
             fi
         fi
     done
@@ -283,8 +293,8 @@ retry_with_backoff() {
             
             # Add jitter to prevent thundering herd in swarm operations
             if [[ "$ENABLE_JITTER" == "true" ]]; then
-                # FIXED: Use MAX_JITTER_SECONDS instead of hardcoded 5
-                local jitter=$((RANDOM % MAX_JITTER_SECONDS))
+                # Use /dev/urandom for better randomness across 1000s of drones
+                local jitter=$(( $(od -An -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) % MAX_JITTER_SECONDS ))
                 delay=$((delay + jitter))
             fi
         else
@@ -308,7 +318,8 @@ check_network_connectivity() {
     
     # Add jitter for swarm operations to prevent simultaneous network tests
     if [[ "$SWARM_OPERATION" == "true" && "$ENABLE_JITTER" == "true" ]]; then
-        local jitter=$((RANDOM % MAX_JITTER_SECONDS))
+        # Use /dev/urandom for better randomness across 1000s of drones
+        local jitter=$(( $(od -An -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) % MAX_JITTER_SECONDS ))
         log_debug "$component" "Adding ${jitter}s jitter for swarm operation"
         sleep "$jitter"
     fi
@@ -339,7 +350,8 @@ cleanup_git_locks() {
     local lock_files=(".git/index.lock" ".git/refs/heads/*.lock" ".git/packed-refs.lock")
     
     for pattern in "${lock_files[@]}"; do
-        for lock_file in $repo_dir/$pattern; do
+        # Note: glob expansion needs unquoted pattern but quoted base path
+        for lock_file in "$repo_dir"/$pattern; do
             if [[ -f "$lock_file" ]]; then
                 # Check if any git processes are running
                 if pgrep -f "git" >/dev/null 2>&1; then
@@ -385,7 +397,7 @@ check_git_integrity() {
 repair_git_repository() {
     local component="GIT-REPAIR"
     log_warn "$component" "Attempting repository repair..."
-    set_led_status "yellow"
+    set_led_status "ERROR_RECOVERABLE"
     
     # First, try to fix common issues
     if git stash clear 2>/dev/null; then

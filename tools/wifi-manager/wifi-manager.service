@@ -4,6 +4,9 @@ Description=MDS WiFi Manager for Drone Show
 After=basic.target
 Before=network-online.target
 # Removed: Wants=network-online.target (contradictory - we run BEFORE it)
+# Restart limits (must be in [Unit] for systemd 249+)
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -13,13 +16,18 @@ WorkingDirectory=/home/droneshow/mavsdk_drone_show/tools/wifi-manager
 # Keep as root for WiFi management (nmcli requires elevated privileges)
 User=root
 
-# Timeout to prevent boot hang if WiFi takes too long
-TimeoutStartSec=60
+# Environment variables for root user
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=/root"
+
+# Timeout to prevent boot hang if WiFi takes too long (increased for slow networks)
+TimeoutStartSec=180
 
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
+
+# Security hardening (limited - root needed for nmcli)
+PrivateTmp=yes
 
 StandardOutput=journal
 StandardError=journal

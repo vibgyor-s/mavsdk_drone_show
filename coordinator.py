@@ -282,9 +282,7 @@ def main_loop():
 
     try:
         logger.info("Starting the main loop...")
-
-        # Set initial LED color to Cyan to indicate startup
-        
+        # Note: LED already set to IDLE_CONNECTED in main() before entering loop
 
         # Synchronize time if enabled
         if params.online_sync_time:

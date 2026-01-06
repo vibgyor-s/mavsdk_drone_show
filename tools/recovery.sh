@@ -12,11 +12,13 @@
 #   ./recovery.sh health      - Full health check
 #
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 LED_CMD="$REPO_DIR/venv/bin/python $REPO_DIR/led_indicator.py"
+# Droneshow user home for cleanup operations
+DRONESHOW_HOME="/home/droneshow"
 
 # Colors for output
 RED='\033[0;31m'
@@ -115,7 +117,8 @@ reset_network() {
     print_header
     echo ""
     echo "Resetting network failure counter..."
-    rm -f ~/.mds/network_failures
+    # Use explicit path for droneshow user (not current user's home)
+    rm -f "$DRONESHOW_HOME/.mds/network_failures"
     echo "Restarting wifi-manager..."
     sudo systemctl restart wifi-manager
     echo -e "${GREEN}Network reset complete${NC}"
@@ -126,7 +129,23 @@ test_led() {
     echo ""
     echo "Testing LED colors..."
 
-    local states=("BOOT_STARTED" "NETWORK_INIT" "GIT_SYNCING" "GIT_SUCCESS" "GIT_FAILED_CONTINUING" "IDLE_CONNECTED" "IDLE_DISCONNECTED" "ERROR_CRITICAL")
+    # Comprehensive LED state test covering all major operational states
+    local states=(
+        "BOOT_STARTED"           # Red - boot
+        "NETWORK_INIT"           # Blue pulse - network
+        "NETWORK_READY"          # Blue solid
+        "GIT_SYNCING"            # Cyan pulse - sync
+        "GIT_SUCCESS"            # Green flash
+        "GIT_FAILED_CONTINUING"  # Yellow solid
+        "SERVICES_UPDATING"      # Orange pulse
+        "STARTUP_COMPLETE"       # White flash
+        "IDLE_CONNECTED"         # Green solid - ready
+        "IDLE_DISCONNECTED"      # Purple solid - offline
+        "MISSION_ARMED"          # Orange solid - armed
+        "MISSION_ACTIVE"         # Cyan pulse - executing
+        "ERROR_RECOVERABLE"      # Red slow blink
+        "ERROR_CRITICAL"         # Red fast blink
+    )
 
     for state in "${states[@]}"; do
         echo "  Testing: $state"

@@ -36,6 +36,16 @@ if _local_env_path.exists():
     except Exception as e:
         logger.warning(f"Failed to load local config from {_local_env_path}: {e}")
 
+
+def _safe_int(value: str, default: int) -> int:
+    """Safely convert string to int with fallback to default."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid integer value '{value}', using default {default}")
+        return default
+
+
 class Params:
     """
     Params class manages configuration settings for the drone system,
@@ -112,9 +122,9 @@ class Params:
     else:
         GCS_IP = os.environ.get('MDS_GCS_IP', "100.96.32.75")  # Real mode: default GCS IP
 
-    gcs_api_port = int(os.environ.get('MDS_GCS_API_PORT', '5000'))
+    gcs_api_port = _safe_int(os.environ.get('MDS_GCS_API_PORT', '5000'), 5000)
     connectivity_check_ip = os.environ.get('MDS_CONNECTIVITY_IP', GCS_IP)
-    connectivity_check_port = int(os.environ.get('MDS_CONNECTIVITY_PORT', str(gcs_api_port)))
+    connectivity_check_port = _safe_int(os.environ.get('MDS_CONNECTIVITY_PORT', str(gcs_api_port)), gcs_api_port)
     connectivity_check_interval = 10       # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
