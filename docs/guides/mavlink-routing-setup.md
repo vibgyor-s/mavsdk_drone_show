@@ -6,28 +6,59 @@ mavsdk_drone_show requires **external MAVLink routing** via mavlink-anywhere or 
 
 ## Architecture
 
+### SITL/Docker Mode
+
+In SITL mode, PX4 automatically streams MAVLink on two ports. MAVSDK connects directly to PX4, while other consumers receive data via the router:
+
 ```
-                        Flight Controller (Pixhawk/PX4)
+                         PX4 SITL
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+          ▼                                 ▼
+    Port 14540                        Port 14550
+    (MAVSDK direct)                   (GCS output)
+          │                                 │
+          ▼                                 ▼
+    ┌─────────────┐                 ┌───────────────┐
+    │   MAVSDK    │                 │mavlink-routerd│
+    │ coordinator │                 └───────┬───────┘
+    └─────────────┘                         │
+                           ┌────────────────┼────────────────┐
+                           │                │                │
+                           ▼                ▼                ▼
+                    ┌───────────┐    ┌───────────┐    ┌───────────┐
+                    │LocalMavlink│   │mavlink2rest│   │Remote GCS │
+                    │  :12550   │    │  :14569   │    │  :24550   │
+                    │(pymavlink)│    │(REST API) │    │   (QGC)   │
+                    └───────────┘    └───────────┘    └───────────┘
+```
+
+### Real Hardware Mode
+
+For real hardware, all MAVLink traffic flows through the router from the serial port:
+
+```
+                    Flight Controller (Pixhawk/PX4)
                               │
-           ┌──────────────────┴──────────────────┐
-           │         mavlink-routerd             │
-           │   (mavlink-anywhere or manual)      │
-           └──────────────────┬──────────────────┘
+                         Serial UART
+                              │
+                    ┌─────────┴─────────┐
+                    │  mavlink-routerd  │
+                    └─────────┬─────────┘
                               │
      ┌────────────────────────┼────────────────────────┐
      │                        │                        │
      ▼                        ▼                        ▼
 ┌─────────────┐      ┌─────────────────┐      ┌─────────────┐
 │   MAVSDK    │      │  mavlink2rest   │      │     GCS     │
-│ :14540/UDP  │      │   :14569/UDP    │      │ :14550/UDP  │
-│ coordinator │      │    REST API     │      │     QGC     │
+│ :14540/UDP  │      │   :14569/UDP    │      │ :24550/UDP  │
 └─────────────┘      └─────────────────┘      └─────────────┘
      │
      ▼
 ┌─────────────────────┐
 │LocalMavlinkController│
 │    :12550/UDP       │
-│  (pymavlink telem)  │
 └─────────────────────┘
 ```
 
@@ -35,10 +66,12 @@ mavsdk_drone_show requires **external MAVLink routing** via mavlink-anywhere or 
 
 | Port  | Service               | Direction | Description                          |
 |-------|-----------------------|-----------|--------------------------------------|
-| 14540 | MAVSDK                | Local     | coordinator.py SDK connection        |
+| 14540 | MAVSDK                | Local     | Direct PX4 connection (SITL) or routed (real HW) |
+| 14550 | PX4 GCS Output        | Local     | PX4 SITL default GCS port (router input) |
 | 12550 | LocalMavlinkController| Local     | pymavlink telemetry monitoring       |
 | 14569 | mavlink2rest          | Local     | REST API bridge for web interfaces   |
-| 14550 | GCS                   | Network   | QGroundControl or other GCS          |
+| 24550 | Remote GCS            | Network   | QGroundControl over VPN/WAN          |
+| 34550 | Router Listen         | Network   | Legacy server-side listen port       |
 
 ## Setup Options
 
@@ -46,7 +79,11 @@ mavsdk_drone_show requires **external MAVLink routing** via mavlink-anywhere or 
 
 For SITL containers, MAVLink routing is handled automatically by `startup_sitl.sh` which calls `tools/run_mavlink_router.sh`. No manual setup is required.
 
-The script reads `GCS_IP` from `Params.GCS_IP` to route MAVLink to your ground control station.
+**Key points for SITL:**
+- PX4 SITL automatically streams to ports 14540 and 14550
+- MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)
+- Router takes port 14550 and distributes to: 12550, 14569, and GCS_IP:24550
+- Remote GCS connects on port **24550** (not 14550)
 
 ### Option B: Real Hardware (Raspberry Pi) - Manual Setup
 
@@ -89,18 +126,18 @@ sudo ./configure_mavlink_router.sh
 When prompted, enter:
 - **UART device**: `/dev/ttyS0` (Pi Zero/3/4) or `/dev/ttyAMA0` (older Pi)
 - **Baud rate**: `57600` (must match Pixhawk TELEM port setting)
-- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 YOUR_GCS_IP:14550`
+- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 YOUR_GCS_IP:24550`
 
-**Example for GCS at 192.168.1.100**:
+**Example for remote GCS at 192.168.1.100**:
 ```
-UDP endpoints: 127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:14550
+UDP endpoints: 127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:24550
 ```
 
 **Important**: Include all four endpoints:
 - `127.0.0.1:14540` - MAVSDK (coordinator.py)
 - `127.0.0.1:14569` - mavlink2rest
 - `127.0.0.1:12550` - LocalMavlinkController (pymavlink telemetry)
-- `GCS_IP:14550` - Ground Control Station
+- `GCS_IP:24550` - Remote Ground Control Station (QGC connects on this port)
 
 #### Step 4: Enable and Start Service
 
@@ -151,10 +188,10 @@ Port=14569
 [UdpEndpoint gcs]
 Mode=normal
 Address=192.168.1.100
-Port=14550
+Port=24550
 ```
 
-Replace `192.168.1.100` with your actual GCS IP address.
+Replace `192.168.1.100` with your actual GCS IP address. QGC should be configured to listen on port **24550**.
 
 ## Troubleshooting
 
@@ -184,7 +221,7 @@ mavlink-routerd --conf /etc/mavlink-router/main.conf
 
 Check for conflicting processes:
 ```bash
-sudo netstat -tulpn | grep -E "14540|14550|14569|12550"
+sudo netstat -tulpn | grep -E "14540|14550|14569|12550|24550"
 ```
 
 ### coordinator.py Can't Connect to MAVSDK
