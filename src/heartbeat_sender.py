@@ -15,6 +15,9 @@ class HeartbeatSender:
     Periodically sends a POST request (heartbeat) to GCS with
     timestamp, hw_id, pos_id,detected_pos_id, and discovered Netbird IP.
     """
+    # Class-level flags to prevent log spam for expected SITL failures
+    _network_info_error_logged = False
+    _netbird_error_logged = False
 
     def __init__(self, drone_config: DroneConfig):
         self.drone_config = drone_config
@@ -119,9 +122,16 @@ class HeartbeatSender:
                     ip_addr = addr_info.get('addr', '')
                     if ip_addr.startswith(netbird_prefix):
                         return ip_addr
+            # No netbird IP found - this is expected in SITL/Docker
             return None
         except Exception as e:
-            logging.error(f"Failed to retrieve Netbird IP: {e}", exc_info=True)
+            # Log once to avoid spam, use appropriate level for SITL
+            if not HeartbeatSender._netbird_error_logged:
+                HeartbeatSender._netbird_error_logged = True
+                if Params.sim_mode:
+                    logging.debug(f"Netbird IP not available (expected in SITL): {e}")
+                else:
+                    logging.warning(f"Failed to retrieve Netbird IP: {e}")
             return None
 
     def _get_network_info(self):
@@ -186,19 +196,27 @@ class HeartbeatSender:
 
             return network_info
 
-        except subprocess.CalledProcessError as e:
-            logging.warning(f"Failed to get network info for heartbeat: {e}")
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+            # nmcli not available - expected in SITL/Docker environments
+            # Log once to avoid spam
+            if not HeartbeatSender._network_info_error_logged:
+                HeartbeatSender._network_info_error_logged = True
+                if Params.sim_mode:
+                    logging.debug(f"nmcli not available (expected in SITL): {e}")
+                else:
+                    logging.warning(f"Network info unavailable: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,
-                "timestamp": int(time.time() * 1000),
-                "error": f"Command failed: {e}"
+                "timestamp": int(time.time() * 1000)
             }
         except Exception as e:
-            logging.error(f"Unexpected error getting network info for heartbeat: {e}")
+            # Unexpected errors still logged, but only once
+            if not HeartbeatSender._network_info_error_logged:
+                HeartbeatSender._network_info_error_logged = True
+                logging.warning(f"Unexpected error getting network info: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,
-                "timestamp": int(time.time() * 1000),
-                "error": f"Unexpected error: {e}"
+                "timestamp": int(time.time() * 1000)
             }

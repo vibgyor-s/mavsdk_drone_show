@@ -143,6 +143,9 @@ class DroneAPIServer:
     - Same routes and behavior as Flask version
     - WebSocket support for real-time telemetry streaming
     """
+    # Class-level flags to prevent log spam for expected SITL failures
+    _network_info_error_logged = False
+    _origin_fetch_error_logged = False
 
     def __init__(self, params: Params, drone_config: DroneConfig):
         """
@@ -781,12 +784,17 @@ class DroneAPIServer:
             if response.status_code == 200:
                 data = response.json()
                 if 'lat' in data and 'lon' in data:
+                    # Reset error flag on success
+                    DroneAPIServer._origin_fetch_error_logged = False
                     return {'lat': float(data['lat']), 'lon': float(data['lon'])}
             else:
-                logging.error(f"GCS responded with status code {response.status_code}")
+                logging.warning(f"GCS responded with status code {response.status_code}")
             return None
         except requests.RequestException as e:
-            logging.error(f"Error fetching origin from GCS: {e}")
+            # Log once to avoid spam - GCS might not be running yet
+            if not DroneAPIServer._origin_fetch_error_logged:
+                DroneAPIServer._origin_fetch_error_logged = True
+                logging.warning(f"Origin fetch from GCS failed (will retry): {e}")
             return None
 
     def _execute_git_command(self, command):
@@ -856,22 +864,30 @@ class DroneAPIServer:
 
             return network_info
 
-        except subprocess.CalledProcessError as e:
-            network_info = {
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+            # nmcli not available - expected in SITL/Docker environments
+            # Log once to avoid spam
+            if not DroneAPIServer._network_info_error_logged:
+                DroneAPIServer._network_info_error_logged = True
+                if Params.sim_mode:
+                    logging.debug(f"nmcli not available (expected in SITL): {e}")
+                else:
+                    logging.warning(f"Network info unavailable: {e}")
+            return {
                 "wifi": None,
                 "ethernet": None,
-                "timestamp": int(time.time() * 1000),
-                "error": f"Command failed: {e}"
+                "timestamp": int(time.time() * 1000)
             }
-            return network_info
         except Exception as e:
-            network_info = {
+            # Unexpected errors still logged, but only once
+            if not DroneAPIServer._network_info_error_logged:
+                DroneAPIServer._network_info_error_logged = True
+                logging.warning(f"Unexpected error getting network info: {e}")
+            return {
                 "wifi": None,
                 "ethernet": None,
-                "timestamp": int(time.time() * 1000),
-                "error": f"Unexpected error: {e}"
+                "timestamp": int(time.time() * 1000)
             }
-            return network_info
 
     def run(self):
         """

@@ -69,12 +69,14 @@ class ConnectivityChecker:
                 result = self.check_connectivity(ip)
                 if result:
                     # Connection successful, set LED to green
-                    self.led_controller.set_color(0, 255, 0)  # Green
-                    logger.debug("Connectivity check successful. LED set to green.")
+                    if self.led_controller is not None:
+                        self.led_controller.set_color(0, 255, 0)  # Green
+                    logger.debug("Connectivity check successful.")
                 else:
                     # Connection failed, set LED to purple
-                    self.led_controller.set_color(255, 0, 255)  # purple
-                    logger.warning("Connectivity check failed. LED set to purple.")
+                    if self.led_controller is not None:
+                        self.led_controller.set_color(255, 0, 255)  # purple
+                    logger.warning("Connectivity check failed.")
             except Exception as e:
                 logger.error(f"Error in connectivity check: {e}")
             # Wait for the specified interval or until stop_event is set

@@ -135,7 +135,17 @@ def wait_for_port(port, host='localhost', timeout=10.0):
 async def log_mavsdk_output(mavsdk_server):
     """
     Asynchronously reads MAVSDK server's stdout/stderr for logging.
+    Filters known cleanup messages that appear during normal server shutdown.
     """
+    # Known non-error messages that appear during normal MAVSDK cleanup
+    CLEANUP_PATTERNS = [
+        "Socket closed",
+        "connection reset",
+        "Broken pipe",
+        "Connection refused",
+        "EOF",
+    ]
+
     loop = asyncio.get_event_loop()
     try:
         while True:
@@ -151,7 +161,12 @@ async def log_mavsdk_output(mavsdk_server):
             line = await loop.run_in_executor(None, mavsdk_server.stderr.readline)
             if not line:
                 break
-            logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
+            msg = line.decode().strip()
+            # Check if this is a known cleanup message (not a real error)
+            if any(pattern.lower() in msg.lower() for pattern in CLEANUP_PATTERNS):
+                logger.debug(f"MAVSDK cleanup: {msg}")
+            else:
+                logger.error(f"MAVSDK Server Error: {msg}")
     except Exception:
         logger.exception("Error reading MAVSDK server stderr")
 
