@@ -1,19 +1,25 @@
 [Unit]
-Description=Git Sync Service
+Description=MDS Git Synchronization Service
 After=wifi-manager.service network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 ExecStart=/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh
 User=droneshow
-Restart=on-failure
-RestartSec=60s
+Group=droneshow
+TimeoutStartSec=600
+Environment="HOME=/home/droneshow"
+Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
-[Unit]
-StartLimitIntervalSec=300
-StartLimitBurst=5
+# Restart limits (moved to [Service] section for systemd 249+)
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=git-sync-mds
 
 [Install]
 WantedBy=multi-user.target
-

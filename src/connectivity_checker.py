@@ -2,6 +2,7 @@ import logging
 import threading
 import requests  # Make sure requests is installed
 from src.params import Params
+from src.led_colors import LEDColors
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +69,14 @@ class ConnectivityChecker:
             try:
                 result = self.check_connectivity(ip)
                 if result:
-                    # Connection successful, set LED to green
+                    # Connection successful, set LED to green (connected)
                     if self.led_controller is not None:
-                        self.led_controller.set_color(0, 255, 0)  # Green
+                        self.led_controller.set_color(*LEDColors.IDLE_CONNECTED)
                     logger.debug("Connectivity check successful.")
                 else:
-                    # Connection failed, set LED to purple
+                    # Connection failed, set LED to purple (disconnected)
                     if self.led_controller is not None:
-                        self.led_controller.set_color(255, 0, 255)  # purple
+                        self.led_controller.set_color(*LEDColors.IDLE_DISCONNECTED)
                     logger.warning("Connectivity check failed.")
             except Exception as e:
                 logger.error(f"Error in connectivity check: {e}")

@@ -1,15 +1,24 @@
 [Unit]
-Description=LED Indicator for Drone System
-Before=network-online.target
-DefaultDependencies=no
+Description=LED Indicator for Drone System Boot
+# Run early in boot to indicate system is starting
+After=sysinit.target
+Before=basic.target
 
 [Service]
-ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color red
-Restart=no
+Type=oneshot
+RemainAfterExit=no
+# Use --state for semantic state (BOOT_STARTED = red)
+ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --state BOOT_STARTED
 User=droneshow
 Group=droneshow
+
+# GPIO access for LED control
 CapabilityBoundingSet=CAP_SYS_RAWIO
 AmbientCapabilities=CAP_SYS_RAWIO
 
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=led-indicator
+
 [Install]
-WantedBy=multi-user.target
+WantedBy=sysinit.target

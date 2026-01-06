@@ -1,29 +1,44 @@
 [Unit]
-Description=Drone Swarm System Coordinator
-After=network-online.target git_sync_mds.service
-Wants=network-online.target git_sync_mds.service
+Description=MDS Drone Swarm Coordinator
+After=network-online.target git_sync_mds.service mavlink-router.service
+Wants=network-online.target mavlink-router.service git_sync_mds.service
+# Note: Using Wants instead of Requires for graceful degradation
+# Coordinator can run even if git_sync or mavlink-router aren't available
 
 [Service]
+Type=simple
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
 User=droneshow
 Group=droneshow
-Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=/home/droneshow"
+Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
-Restart=always
-RestartSec=5s
+# Restart policy with limits to prevent restart storms
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
+# Resource limits for enterprise deployment
+LimitNOFILE=65536
+MemoryMax=512M
+
+# Capabilities - reduced to minimum required
+# CAP_NET_ADMIN: Network configuration for MAVLink
+# CAP_NET_BIND_SERVICE: Bind to privileged ports if needed
+# CAP_SYS_RAWIO: GPIO/LED hardware access
+# Removed: CAP_SYS_TIME, CAP_SYS_BOOT (use NTP and systemd instead)
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO
+
+# Security hardening
+PrivateTmp=yes
+NoNewPrivileges=yes
 
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=coordinator
-
-# Optional pre-start/post-start hooks
-# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
-# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
-# ExecStartPost=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color green
 
 [Install]
 WantedBy=multi-user.target

@@ -100,9 +100,106 @@ log_error_and_exit() {
 # Status and Notification Functions
 # ----------------------------------
 set_led_status() {
-    local color="$1"
+    local color_or_state="$1"
     if [[ "${LED_ENABLED:-true}" == "true" ]]; then
-        $LED_CMD --color "$color" 2>/dev/null || true
+        # Try --state first (for semantic states), fallback to --color
+        $LED_CMD --state "$color_or_state" 2>/dev/null || \
+        $LED_CMD --color "$color_or_state" 2>/dev/null || true
+    fi
+}
+
+# ----------------------------------
+# Service Update Detection (runs after git pull)
+# ----------------------------------
+check_service_updates() {
+    local component="SERVICE-UPDATE"
+    local changed=false
+    local services=("coordinator" "git_sync_mds" "wifi-manager" "led_indicator")
+
+    log_info "$component" "Checking for service file changes..."
+
+    for service in "${services[@]}"; do
+        local src_file repo_file
+        case $service in
+            coordinator)
+                src_file="/etc/systemd/system/coordinator.service"
+                repo_file="$REPO_DIR/tools/coordinator.service"
+                ;;
+            git_sync_mds)
+                src_file="/etc/systemd/system/git_sync_mds.service"
+                repo_file="$REPO_DIR/tools/git_sync_mds/git_sync_mds.service"
+                ;;
+            wifi-manager)
+                src_file="/etc/systemd/system/wifi-manager.service"
+                repo_file="$REPO_DIR/tools/wifi-manager/wifi-manager.service"
+                ;;
+            led_indicator)
+                src_file="/etc/systemd/system/led_indicator.service"
+                repo_file="$REPO_DIR/tools/led_indicator/led_indicator.service"
+                ;;
+        esac
+
+        if [[ -f "$repo_file" ]] && ! cmp -s "$src_file" "$repo_file" 2>/dev/null; then
+            log_info "$component" "Service file changed: $service"
+            if sudo cp "$repo_file" "$src_file" 2>/dev/null; then
+                log_info "$component" "Updated $service service file"
+                changed=true
+            else
+                log_warn "$component" "Failed to update $service service file (sudo may not be available)"
+            fi
+        fi
+    done
+
+    if $changed; then
+        log_info "$component" "Reloading systemd daemon..."
+        sudo systemctl daemon-reload 2>/dev/null || log_warn "$component" "Failed to reload systemd daemon"
+    fi
+}
+
+# ----------------------------------
+# Requirements Update Check (runs after git pull)
+# ----------------------------------
+check_requirements_update() {
+    local component="PIP-UPDATE"
+    local mds_dir="${HOME}/.mds"
+    local req_hash_file="${mds_dir}/requirements.sha256"
+
+    # Ensure .mds directory exists
+    mkdir -p "$mds_dir" 2>/dev/null || true
+
+    if [[ ! -f "$REPO_DIR/requirements.txt" ]]; then
+        log_debug "$component" "No requirements.txt found, skipping"
+        return 0
+    fi
+
+    local current_hash
+    current_hash=$(sha256sum "$REPO_DIR/requirements.txt" 2>/dev/null | cut -d' ' -f1)
+
+    if [[ -f "$req_hash_file" ]]; then
+        local stored_hash
+        stored_hash=$(cat "$req_hash_file" 2>/dev/null)
+
+        if [[ "$current_hash" != "$stored_hash" ]]; then
+            log_info "$component" "requirements.txt changed, updating venv..."
+            set_led_status "SERVICES_UPDATING"
+
+            if [[ -x "$REPO_DIR/venv/bin/pip" ]]; then
+                if "$REPO_DIR/venv/bin/pip" install -r "$REPO_DIR/requirements.txt" --quiet 2>/dev/null; then
+                    log_info "$component" "Python requirements updated successfully"
+                    echo "$current_hash" > "$req_hash_file"
+                else
+                    log_warn "$component" "Failed to update Python requirements"
+                fi
+            else
+                log_warn "$component" "venv pip not found at $REPO_DIR/venv/bin/pip"
+            fi
+        else
+            log_debug "$component" "requirements.txt unchanged"
+        fi
+    else
+        # First run - store current hash
+        log_info "$component" "Storing initial requirements hash"
+        echo "$current_hash" > "$req_hash_file"
     fi
 }
 
@@ -186,7 +283,8 @@ retry_with_backoff() {
             
             # Add jitter to prevent thundering herd in swarm operations
             if [[ "$ENABLE_JITTER" == "true" ]]; then
-                local jitter=$((RANDOM % 5))
+                # FIXED: Use MAX_JITTER_SECONDS instead of hardcoded 5
+                local jitter=$((RANDOM % MAX_JITTER_SECONDS))
                 delay=$((delay + jitter))
             fi
         else
@@ -336,12 +434,18 @@ handle_repository_corruption() {
     # Apply recovery strategy
     case "$RECOVERY_STRATEGY" in
         "aggressive")
-            log_warn "$component" "Aggressive recovery: rebooting system..."
-            sudo reboot || log_error_and_exit "$component" "Reboot command failed"
-            exit 0
+            # WARNING: Aggressive strategy removed for fleet safety
+            # Rebooting 1000s of drones due to git issues could be catastrophic
+            # Instead, we log the error and continue with cached code
+            log_error "$component" "Repository corruption could not be repaired"
+            log_warn "$component" "Aggressive reboot disabled for fleet safety - continuing with cached code"
+            log_warn "$component" "Manual intervention may be required on this drone"
+            set_led_status "ERROR_RECOVERABLE"
+            return 1
             ;;
         "graceful")
             log_error "$component" "Repository corruption could not be repaired"
+            log_warn "$component" "Continuing with cached code - manual intervention may be required"
             return 1
             ;;
         *)
@@ -547,8 +651,8 @@ main() {
     # Acquire exclusive lock
     acquire_lock 60
     
-    # Set initial status
-    set_led_status "blue"
+    # Set initial status - GIT_SYNCING (cyan)
+    set_led_status "GIT_SYNCING"
     
     # Validate repository directory
     if [[ ! -d "$REPO_DIR" ]]; then
@@ -590,7 +694,7 @@ main() {
     if ! perform_git_fetch "$git_url"; then
         if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
-            set_led_status "yellow"
+            set_led_status "GIT_FAILED_CONTINUING"  # Yellow - indicates cached code being used
             exit 0
         else
             log_error_and_exit "GIT-FETCH" "Git fetch failed and recovery strategy is aggressive"
@@ -621,7 +725,12 @@ main() {
     if ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
         log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
     fi
-    
+
+    # Post-sync checks: service files and requirements
+    set_led_status "GIT_SUCCESS"
+    check_service_updates
+    check_requirements_update
+
     # Get commit information for logging
     local commit_hash
     local commit_message
@@ -642,9 +751,10 @@ main() {
     log_info "SUCCESS" "Commit: $commit_hash - $commit_message"
     log_info "SUCCESS" "Duration: ${duration}s"
     log_info "SUCCESS" "=========================================="
-    
-    set_led_status "green"
-    
+
+    # Final LED state: Startup complete (white flash), then coordinator will take over
+    set_led_status "STARTUP_COMPLETE"
+
     exit 0
 }
 

@@ -1,17 +1,26 @@
 [Unit]
-Description=Robust Wi-Fi Manager for Drone Show
-After=network-online.target
-Wants=network-online.target
+Description=MDS WiFi Manager for Drone Show
+# WiFi manager ESTABLISHES network, so it runs before network-online
+After=basic.target
+Before=network-online.target
+# Removed: Wants=network-online.target (contradictory - we run BEFORE it)
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/wifi-manager.sh
-WorkingDirectory=/usr/local/bin
+ExecStart=/home/droneshow/mavsdk_drone_show/tools/wifi-manager/wifi-manager.sh
+WorkingDirectory=/home/droneshow/mavsdk_drone_show/tools/wifi-manager
+
+# Keep as root for WiFi management (nmcli requires elevated privileges)
 User=root
-Restart=always
-RestartSec=5
-StartLimitIntervalSec=60
+
+# Timeout to prevent boot hang if WiFi takes too long
+TimeoutStartSec=60
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
 StartLimitBurst=5
+
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=wifi-manager

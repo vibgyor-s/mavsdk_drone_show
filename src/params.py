@@ -4,8 +4,37 @@ import logging
 import os
 import struct
 from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# ===================================================================================
+# LOCAL CONFIGURATION LOADING
+# ===================================================================================
+# Load local overrides from /etc/mds/local.env if it exists.
+# This allows per-drone configuration without modifying the repository.
+#
+# Priority: local.env settings > environment variables > hardcoded defaults
+#
+# See tools/local.env.template for available settings.
+# ===================================================================================
+_local_env_path = Path('/etc/mds/local.env')
+if _local_env_path.exists():
+    try:
+        with open(_local_env_path) as f:
+            for line in f:
+                line = line.strip()
+                # Skip comments and empty lines
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    # Only set if not already set (allows env vars to override)
+                    if key not in os.environ:
+                        os.environ[key] = value
+        logger.debug(f"Loaded local config from {_local_env_path}")
+    except Exception as e:
+        logger.warning(f"Failed to load local config from {_local_env_path}: {e}")
 
 class Params:
     """
@@ -75,15 +104,17 @@ class Params:
     # Mode-specific GCS IP configuration:
     #   - SITL: Uses Docker gateway (172.18.0.1)
     #   - Real: Uses Tailscale/physical network IP
+    #
+    # Override via MDS_GCS_IP environment variable or /etc/mds/local.env
     # ===================================================================================
     if sim_mode:
-        GCS_IP = "172.18.0.1"              # SITL: Docker gateway IP
+        GCS_IP = os.environ.get('MDS_GCS_IP', "172.18.0.1")  # SITL: Docker gateway IP
     else:
-        GCS_IP = "100.96.32.75"            # Real mode: GCS IP (★ CHANGE THIS FOR YOUR SETUP ★)
+        GCS_IP = os.environ.get('MDS_GCS_IP', "100.96.32.75")  # Real mode: default GCS IP
 
-    gcs_api_port = 5000                    # GCS server API port
-    connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
-    connectivity_check_port = gcs_api_port
+    gcs_api_port = int(os.environ.get('MDS_GCS_API_PORT', '5000'))
+    connectivity_check_ip = os.environ.get('MDS_CONNECTIVITY_IP', GCS_IP)
+    connectivity_check_port = int(os.environ.get('MDS_CONNECTIVITY_PORT', str(gcs_api_port)))
     connectivity_check_interval = 10       # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
