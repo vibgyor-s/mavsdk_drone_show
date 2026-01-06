@@ -5,7 +5,7 @@
 #
 # Project: Drone Show GCS Server
 # Version: Production Final
-# 
+#
 # CRITICAL FIXES APPLIED:
 # - Flask WSGI module-level app object created
 # - Absolute path resolution for any execution directory
@@ -15,6 +15,25 @@
 #
 # Usage: ./linux_dashboard_start.sh [OPTIONS]
 #########################################
+
+# =============================================================================
+# IMPORTANT: MAVLink Routing (External)
+# =============================================================================
+# This application expects MAVLink routing to be handled EXTERNALLY.
+#
+# For Raspberry Pi (Real Hardware):
+#   1. Install mavlink-anywhere: git clone https://github.com/alireza787b/mavlink-anywhere
+#   2. Run: cd mavlink-anywhere && sudo ./install_mavlink_router.sh
+#   3. Configure: sudo ./configure_mavlink_router.sh
+#      - Input: /dev/ttyS0:57600 (your serial port and baudrate)
+#      - Outputs: 127.0.0.1:14540, 127.0.0.1:12550, 127.0.0.1:14569, GCS_IP:14550
+#   4. Enable: sudo systemctl enable mavlink-router
+#   5. Start: sudo systemctl start mavlink-router
+#
+# For SITL: Routing is handled automatically by startup_sitl.sh
+#
+# See docs/guides/mavlink-routing-setup.md for detailed instructions.
+# =============================================================================
 
 set -euo pipefail  # Strict error handling
 

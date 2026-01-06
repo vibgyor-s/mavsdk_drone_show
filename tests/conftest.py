@@ -117,8 +117,7 @@ def mock_params():
     params.gcs_api_port = 5000
     params.config_csv_name = "config_sitl.csv"
     params.swarm_csv_name = "swarm_sitl.csv"
-    params.serial_mavlink = False
-    params.sitl_port = 14550
+    # serial_mavlink and sitl_port REMOVED - MAVLink routing is now external
     params.mavsdk_port = 14540
     params.trigger_sooner_seconds = 4
     params.schedule_mission_frequency = 2
@@ -426,15 +425,8 @@ def mock_mavlink_router():
 # Coordinator Mock Fixtures
 # ============================================================================
 
-@pytest.fixture
-def mock_mavlink_manager():
-    """Mock MavlinkManager"""
-    manager = Mock()
-    manager.start = Mock()
-    manager.stop = Mock()
-    manager.is_running = True
-    return manager
-
+# mock_mavlink_manager REMOVED - MAVLink routing is now external
+# See docs/guides/mavlink-routing-setup.md
 
 @pytest.fixture
 def mock_local_mavlink_controller():

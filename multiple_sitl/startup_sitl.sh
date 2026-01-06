@@ -78,6 +78,10 @@ PX4_DIR="$HOME/PX4-Autopilot"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
+# MAVLink Router for SITL (external routing - replaces internal MavlinkManager)
+MAVLINK_ROUTER_SCRIPT="$BASE_DIR/tools/run_mavlink_router.sh"
+MAVLINK_ROUTER_LOG="$BASE_DIR/logs/mavlink_router.log"
+
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
 
@@ -287,10 +291,44 @@ update_repository() {
     log_message "Repository updated successfully."
 }
 
+# Function to run MAVLink router for SITL (external routing)
+# This replaces the internal MavlinkManager and provides MAVLink routing
+# to MAVSDK (14540), mavlink2rest (14569), and GCS (14550)
+run_mavlink_router() {
+    log_message "Starting MAVLink router for SITL..."
+
+    # Ensure the logs directory exists
+    mkdir -p "$(dirname "$MAVLINK_ROUTER_LOG")"
+
+    # Export GCS_IP for mavlink router (reads from params via Python)
+    # Falls back to Docker gateway if params not available
+    cd "$BASE_DIR"
+    export GCS_IP=$(python3 -c "from src.params import Params; print(Params.GCS_IP)" 2>/dev/null || echo "172.18.0.1")
+    log_message "GCS IP for MAVLink routing: $GCS_IP"
+
+    # Check if mavlink-routerd is installed
+    if ! command -v mavlink-routerd &> /dev/null; then
+        log_message "WARNING: mavlink-routerd not installed. MAVLink routing will be handled by internal fallback."
+        log_message "To install: git clone https://github.com/alireza787b/mavlink-anywhere && cd mavlink-anywhere && sudo ./install_mavlink_router.sh"
+        return 1
+    fi
+
+    # Run mavlink router in the background
+    if [ -x "$MAVLINK_ROUTER_SCRIPT" ]; then
+        $MAVLINK_ROUTER_SCRIPT &> "$MAVLINK_ROUTER_LOG" &
+        mavlink_router_pid=$!
+        log_message "MAVLink router started with PID: $mavlink_router_pid. Logs: $MAVLINK_ROUTER_LOG"
+        sleep 2  # Wait for router to initialize before starting other services
+    else
+        log_message "WARNING: MAVLink router script not found or not executable: $MAVLINK_ROUTER_SCRIPT"
+        return 1
+    fi
+}
+
 # Function to run mavlink2rest in the background
 run_mavlink2rest() {
     log_message "Starting mavlink2rest in the background..."
-    
+
     # Ensure the logs directory exists
     mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
 
@@ -551,6 +589,10 @@ determine_simulation_command
 # Start SITL simulation
 start_simulation
 
+# Start MAVLink router for external routing (replaces internal MavlinkManager)
+# This routes MAVLink from SITL to MAVSDK (14540), mavlink2rest (14569), and GCS
+run_mavlink_router
+
 # Start coordinator.py
 run_coordinator
 
@@ -571,9 +613,17 @@ if [ "$VERBOSE_MODE" = false ]; then
     wait "$coordinator_pid"
 fi
 
-# Wait for mavlink2rest process to complete
-log_message "Waiting for mavlink2rest process to complete..."
-wait "$mavlink2rest_pid"
+# Wait for mavlink2rest process to complete (if it was started)
+if [ -n "$mavlink2rest_pid" ]; then
+    log_message "Waiting for mavlink2rest process to complete..."
+    wait "$mavlink2rest_pid" 2>/dev/null || true
+fi
+
+# Wait for mavlink router process to complete (if it was started)
+if [ -n "$mavlink_router_pid" ]; then
+    log_message "Waiting for mavlink router process to complete..."
+    wait "$mavlink_router_pid" 2>/dev/null || true
+fi
 
 # Exit successfully
 exit 0

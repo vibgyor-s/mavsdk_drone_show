@@ -172,22 +172,24 @@ class Params:
     extra_swarm_telem = []               # Extra swarm telemetry IPs
     income_packet_check_interval = 0.1   # Interval for checking incoming packets
 
-    # MAVLink Connection Configuration
-    serial_mavlink = True              # Use serial connection for MAVLink
-    serial_mavlink_port = '/dev/ttyS0' # Serial port for Raspberry Pi Zero TTL
-    serial_baudrate = 57600            # Serial connection baudrate
-    sitl_port = 14550                  # SITL port
-    hw_udp_port = 14550
-    gcs_mavlink_port = 34550           # Port for sending MAVLink messages to GCS
-    mavsdk_port = 14540                # MAVSDK port
-    local_mavlink_port = 12550         # Local MAVLink port
-    local_mavlink2rest_port = 14569
-    shared_gcs_port = True             # Shared GCS port
-    extra_devices = [
-        f"127.0.0.1:{local_mavlink_port}",
-        f"127.0.0.1:{local_mavlink2rest_port}",
-        "100.96.64.247:14550", # GCS PC
-    ]  # Extra devices for MAVLink routing
+    # -------------------------------------------------------------------------
+    # MAVLink Ports Configuration
+    # -------------------------------------------------------------------------
+    # MAVLink routing is EXTERNAL (not managed by this application):
+    #   - SITL: tools/run_mavlink_router.sh (started by startup_sitl.sh)
+    #   - Real hardware: mavlink-anywhere systemd service
+    # See docs/guides/mavlink-routing-setup.md for setup instructions.
+    #
+    # These ports must match the external router configuration:
+    mavsdk_port = 14540                # MAVSDK SDK connection
+    local_mavlink_port = 12550         # LocalMavlinkController (pymavlink telemetry)
+    local_mavlink2rest_port = 14569    # mavlink2rest REST API bridge
+    gcs_mavlink_port = 14550           # Ground Control Station (QGC)
+
+    # Serial port defaults (used as fallback in drone_config if not specified in config.csv)
+    # These are reference values for mavlink-anywhere configuration on real hardware
+    serial_mavlink_port = '/dev/ttyS0' # Default serial port (Raspberry Pi UART)
+    serial_baudrate = 57600            # Default serial baudrate
 
     hard_reboot_command_enabled = True  # Allow hard reboot commands (ensure root privileges)
     force_reboot = True

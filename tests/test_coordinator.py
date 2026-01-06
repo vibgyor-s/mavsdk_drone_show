@@ -160,27 +160,29 @@ class TestComponentInitialization:
 class TestCoordinatorStartupSequence:
     """Test the coordinator startup sequence"""
 
-    @patch('src.mavlink_manager.MavlinkManager')
     @patch('src.local_mavlink_controller.LocalMavlinkController')
     @patch('src.drone_communicator.DroneCommunicator')
     @patch('src.drone_api_server.DroneAPIServer')
     @patch('src.heartbeat_sender.HeartbeatSender')
     @patch('src.drone_setup.DroneSetup')
-    def test_startup_order_mavlink_first(
+    def test_startup_initializes_components(
         self,
         mock_drone_setup,
         mock_heartbeat,
         mock_api_server,
         mock_communicator,
-        mock_local_mavlink,
-        mock_mavlink_manager
+        mock_local_mavlink
     ):
-        """Test that MAVLink manager is initialized first"""
+        """Test that coordinator initializes required components
+
+        Note: MAVLink routing is now EXTERNAL (via mavlink-anywhere or run_mavlink_router.sh).
+        This test verifies that the coordinator initializes local components correctly,
+        assuming external MAVLink routing is already running.
+        """
         from src.params import Params
         from src.drone_config import DroneConfig
 
         # Setup mocks
-        mock_mavlink_manager.return_value.initialize = Mock()
         mock_api_server.return_value.set_drone_communicator = Mock()
         mock_communicator.return_value.set_api_server = Mock()
         mock_communicator.return_value.start_communication = Mock()
@@ -190,13 +192,11 @@ class TestCoordinatorStartupSequence:
         params = Params()
         drone_config = create_mock_drone_config()
 
-        # Step 1: MAVLink Manager
-        mavlink_manager = mock_mavlink_manager(params, drone_config)
-        mavlink_manager.initialize()
+        # Step 1: LocalMavlinkController (expects external routing to be running)
+        local_controller = mock_local_mavlink(drone_config, params, False)
 
-        # Verify MAVLink manager was called
-        mock_mavlink_manager.assert_called_once()
-        mavlink_manager.initialize.assert_called_once()
+        # Verify LocalMavlinkController was called
+        mock_local_mavlink.assert_called_once()
 
     @patch('src.drone_api_server.DroneAPIServer')
     @patch('src.drone_communicator.DroneCommunicator')
@@ -509,15 +509,8 @@ class TestGracefulShutdown:
 
         mock_checker.stop.assert_called_once()
 
-    def test_shutdown_terminates_mavlink_manager(self):
-        """Test shutdown terminates MAVLink manager"""
-        mock_mavlink = Mock()
-
-        # Shutdown sequence
-        if mock_mavlink:
-            mock_mavlink.terminate()
-
-        mock_mavlink.terminate.assert_called_once()
+    # test_shutdown_terminates_mavlink_manager REMOVED
+    # MAVLink routing is now external (mavlink-anywhere or run_mavlink_router.sh)
 
     def test_shutdown_stops_drone_communication(self):
         """Test shutdown stops drone communication"""
@@ -550,11 +543,14 @@ class TestGracefulShutdown:
         mock_detector.stop.assert_called_once()
 
     def test_full_shutdown_sequence(self):
-        """Test complete shutdown sequence"""
+        """Test complete shutdown sequence
+
+        Note: mavlink_manager is no longer part of shutdown - MAVLink routing
+        is now external (via mavlink-anywhere or run_mavlink_router.sh).
+        """
         # Create all mock components
         mock_checker = Mock()
         mock_checker.is_running = True
-        mock_mavlink = Mock()
         mock_comms = Mock()
         mock_heartbeat = Mock()
         mock_detector = Mock()
@@ -566,9 +562,7 @@ class TestGracefulShutdown:
             mock_checker.stop()
             shutdown_order.append('connectivity_checker')
 
-        if mock_mavlink:
-            mock_mavlink.terminate()
-            shutdown_order.append('mavlink_manager')
+        # mavlink_manager termination REMOVED - routing is external
 
         if mock_comms:
             mock_comms.stop_communication()
@@ -582,10 +576,9 @@ class TestGracefulShutdown:
             mock_detector.stop()
             shutdown_order.append('pos_id_detector')
 
-        # Verify all components were stopped
-        assert len(shutdown_order) == 5
+        # Verify all components were stopped (4 components, not 5)
+        assert len(shutdown_order) == 4
         mock_checker.stop.assert_called_once()
-        mock_mavlink.terminate.assert_called_once()
         mock_comms.stop_communication.assert_called_once()
         mock_heartbeat.stop.assert_called_once()
         mock_detector.stop.assert_called_once()

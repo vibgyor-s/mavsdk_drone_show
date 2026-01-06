@@ -31,7 +31,9 @@ from src.local_mavlink_controller import LocalMavlinkController
 from src.drone_communicator import DroneCommunicator
 from src.drone_setup import DroneSetup
 from src.params import Params
-from src.mavlink_manager import MavlinkManager
+# MavlinkManager REMOVED - MAVLink routing is now EXTERNAL:
+#   - SITL: run_mavlink_router.sh started by startup_sitl.sh
+#   - Real: mavlink-anywhere systemd service (user must configure)
 from src.drone_api_server import DroneAPIServer
 from src.led_controller import LEDController
 from src.connectivity_checker import ConnectivityChecker
@@ -76,7 +78,7 @@ logger.addHandler(file_handler)
 # Global Variables and Component Initialization
 # -----------------------------------------------------------------------------
 
-mavlink_manager = None
+# mavlink_manager REMOVED - external routing via mavlink-anywhere/run_mavlink_router.sh
 global_telemetry = {}
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
@@ -173,7 +175,7 @@ def main_loop():
     Monitors drone state changes, updates LED status via ConnectivityChecker,
     sends watchdog notifications, and manages thread cleanup on exit.
     """
-    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, api_server
+    global drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, api_server
 
     try:
         logger.info("Starting the main loop...")
@@ -262,9 +264,7 @@ def main_loop():
         if connectivity_checker and connectivity_checker.is_running:
             connectivity_checker.stop()
             logger.info("Connectivity checker stopped.")
-        if mavlink_manager:
-            mavlink_manager.terminate()
-            logger.info("MAVLink manager terminated.")
+        # mavlink_manager termination REMOVED - routing is external
         if drone_comms:
             drone_comms.stop_communication()
             logger.info("Drone communication stopped.")
@@ -284,15 +284,15 @@ def main():
     Main entry point for the coordinator application.
     Initializes all necessary components and starts the main loop.
     """
-    global drone_comms, drone_setup, mavlink_manager, heartbeat_sender
+    global drone_comms, drone_setup, heartbeat_sender
 
     logger.info("Starting the coordinator application...")
 
-    # Initialize MAVLink manager and wait briefly to ensure proper startup
-    mavlink_manager = MavlinkManager(params, drone_config)
-    logger.info("Initializing MAVLink...")
-    mavlink_manager.initialize()
-    time.sleep(2)
+    # MAVLink routing is now EXTERNAL:
+    #   - SITL: run_mavlink_router.sh started by startup_sitl.sh
+    #   - Real: mavlink-anywhere systemd service (user must configure)
+    # See docs/guides/mavlink-routing-setup.md for configuration
+    logger.info("MAVLink routing expected from external source (mavlink-anywhere or run_mavlink_router.sh)")
 
     # Initialize local MAVLink controller for local operations
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
