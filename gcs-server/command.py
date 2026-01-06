@@ -290,6 +290,9 @@ def send_commands_to_selected(drones: List[Dict[str, str]], command_data: Dict[s
     Returns:
         Dict with execution results
     """
+    # Normalize drone IDs to strings (frontend may send integers)
+    target_drone_ids = [str(id) for id in target_drone_ids] if target_drone_ids else []
+
     if not target_drone_ids:
         log_system_warning("No target drones specified for selective command", "command")
         return {
