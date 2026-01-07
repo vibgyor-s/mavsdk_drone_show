@@ -154,6 +154,87 @@ def get_logger(component_name: str) -> logging.Logger:
     return logging.getLogger(component_name)
 
 
+# ============================================================================
+# GCS Server Logging Helpers
+# ============================================================================
+# These functions provide structured logging for drone telemetry and system events
+
+# Logger instance for GCS components (lazy initialization)
+_gcs_logger = None
+
+
+def _get_gcs_logger() -> logging.Logger:
+    """Get or create the GCS logger instance."""
+    global _gcs_logger
+    if _gcs_logger is None:
+        _gcs_logger = get_logger('gcs')
+        # If not configured, set up basic logging
+        if not _gcs_logger.handlers:
+            _gcs_logger = setup_logging('gcs')
+    return _gcs_logger
+
+
+def log_drone_telemetry(drone_id: int, success: bool, data: dict = None) -> None:
+    """
+    Log drone telemetry events with structured data.
+
+    Args:
+        drone_id: Hardware ID of the drone
+        success: Whether telemetry fetch was successful
+        data: Optional dict with telemetry details (position, battery, etc.)
+    """
+    logger = _get_gcs_logger()
+    if data is None:
+        data = {}
+
+    if success:
+        msg = data.get('message', 'Telemetry received')
+        details = []
+        if 'position' in data:
+            pos = data['position']
+            details.append(f"pos=({pos[0]:.6f},{pos[1]:.6f},{pos[2]:.1f})")
+        if 'battery' in data:
+            details.append(f"bat={data['battery']:.2f}V")
+        if 'mission' in data:
+            details.append(f"mission={data['mission']}")
+        if 'status' in data:
+            details.append(f"status={data['status']}")
+
+        detail_str = ' '.join(details) if details else ''
+        logger.debug(f"[Drone {drone_id}] {msg} {detail_str}".strip())
+    else:
+        error_msg = data.get('error', 'Telemetry fetch failed')
+        logger.warning(f"[Drone {drone_id}] {error_msg}")
+
+
+def log_system_error(message: str, component: str = 'system') -> None:
+    """
+    Log system-level errors.
+
+    Args:
+        message: Error message
+        component: Component name for context
+    """
+    logger = _get_gcs_logger()
+    logger.error(f"[{component}] {message}")
+
+
+def log_system_warning(message: str, component: str = 'system') -> None:
+    """
+    Log system-level warnings.
+
+    Args:
+        message: Warning message
+        component: Component name for context
+    """
+    logger = _get_gcs_logger()
+    logger.warning(f"[{component}] {message}")
+
+
+# ============================================================================
+# Script Utilities
+# ============================================================================
+
 # Convenience function for scripts
 def configure_script_logging(script_name: str) -> logging.Logger:
     """
