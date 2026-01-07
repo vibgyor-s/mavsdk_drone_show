@@ -21,8 +21,29 @@ Environment Variables:
 import logging
 import os
 import sys
+from enum import Enum
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Optional
+
+
+# ============================================================================
+# Enums for GCS Server Compatibility
+# ============================================================================
+
+class LogLevel(Enum):
+    """Log verbosity levels for GCS server."""
+    QUIET = 'QUIET'      # Minimal output
+    NORMAL = 'NORMAL'    # Standard output
+    VERBOSE = 'VERBOSE'  # Detailed output
+    DEBUG = 'DEBUG'      # Full debug output
+
+
+class DisplayMode(Enum):
+    """Display modes for GCS server output."""
+    DASHBOARD = 'DASHBOARD'  # Compact dashboard view
+    STREAM = 'STREAM'        # Streaming log output
+    HYBRID = 'HYBRID'        # Combined view
 
 
 # Default configuration
@@ -229,6 +250,139 @@ def log_system_warning(message: str, component: str = 'system') -> None:
     """
     logger = _get_gcs_logger()
     logger.warning(f"[{component}] {message}")
+
+
+def log_drone_command(drone_id: int, command: str, success: bool, details: str = '') -> None:
+    """
+    Log drone command events.
+
+    Args:
+        drone_id: Hardware ID of the drone
+        command: Command name/type
+        success: Whether command was successful
+        details: Optional details about the result
+    """
+    logger = _get_gcs_logger()
+    status = "OK" if success else "FAILED"
+    msg = f"[Drone {drone_id}] CMD {command}: {status}"
+    if details:
+        msg += f" - {details}"
+    if success:
+        logger.info(msg)
+    else:
+        logger.warning(msg)
+
+
+def log_system_event(message: str, level: str = 'INFO', component: str = 'system') -> None:
+    """
+    Log general system events.
+
+    Args:
+        message: Event message
+        level: Log level (DEBUG, INFO, WARNING, ERROR)
+        component: Component name for context
+    """
+    logger = _get_gcs_logger()
+    log_msg = f"[{component}] {message}"
+    level_upper = level.upper()
+    if level_upper == 'DEBUG':
+        logger.debug(log_msg)
+    elif level_upper == 'WARNING':
+        logger.warning(log_msg)
+    elif level_upper == 'ERROR':
+        logger.error(log_msg)
+    else:
+        logger.info(log_msg)
+
+
+def log_system_startup(component: str, version: str = '', details: str = '') -> None:
+    """
+    Log system startup events.
+
+    Args:
+        component: Component name
+        version: Optional version string
+        details: Optional startup details
+    """
+    logger = _get_gcs_logger()
+    msg = f"[{component}] Starting"
+    if version:
+        msg += f" v{version}"
+    if details:
+        msg += f" - {details}"
+    logger.info(msg)
+
+
+def initialize_logging(
+    log_level: LogLevel = LogLevel.NORMAL,
+    display_mode: DisplayMode = DisplayMode.STREAM,
+    component: str = 'gcs'
+) -> logging.Logger:
+    """
+    Initialize the GCS logging system.
+
+    Args:
+        log_level: Verbosity level
+        display_mode: Output display mode
+        component: Component name
+
+    Returns:
+        Configured logger instance
+    """
+    # Map LogLevel to Python logging level
+    level_map = {
+        LogLevel.QUIET: logging.WARNING,
+        LogLevel.NORMAL: logging.INFO,
+        LogLevel.VERBOSE: logging.DEBUG,
+        LogLevel.DEBUG: logging.DEBUG,
+    }
+    python_level = level_map.get(log_level, logging.INFO)
+
+    # Set environment for other modules
+    os.environ['MDS_LOG_LEVEL'] = logging.getLevelName(python_level)
+
+    # Setup the logger
+    logger = setup_logging(component)
+    logger.setLevel(python_level)
+
+    # Update handlers
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setLevel(python_level)
+
+    return logger
+
+
+def configure_from_environment() -> tuple:
+    """
+    Configure logging from environment variables.
+
+    Returns:
+        Tuple of (LogLevel, DisplayMode)
+    """
+    # Get log level from environment
+    level_str = os.environ.get('MDS_LOG_LEVEL', 'INFO').upper()
+    level_map = {
+        'DEBUG': LogLevel.DEBUG,
+        'INFO': LogLevel.NORMAL,
+        'WARNING': LogLevel.QUIET,
+        'ERROR': LogLevel.QUIET,
+        'VERBOSE': LogLevel.VERBOSE,
+        'NORMAL': LogLevel.NORMAL,
+        'QUIET': LogLevel.QUIET,
+    }
+    log_level = level_map.get(level_str, LogLevel.NORMAL)
+
+    # Get display mode from environment
+    display_str = os.environ.get('MDS_DISPLAY_MODE', 'STREAM').upper()
+    display_map = {
+        'DASHBOARD': DisplayMode.DASHBOARD,
+        'STREAM': DisplayMode.STREAM,
+        'HYBRID': DisplayMode.HYBRID,
+    }
+    display_mode = display_map.get(display_str, DisplayMode.STREAM)
+
+    return log_level, display_mode
 
 
 # ============================================================================
