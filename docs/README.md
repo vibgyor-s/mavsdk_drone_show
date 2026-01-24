@@ -131,11 +131,34 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 
 ---
 
+## 🖥️ GCS Server Setup
+
+### Ground Control Station
+
+| Guide | Description |
+|-------|-------------|
+| **[GCS Setup Guide](guides/gcs-setup.md)** | Complete GCS server installation and configuration |
+
+Quick start for VPS/Ubuntu:
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
+```
+
+Manual setup:
+```bash
+sudo ./tools/mds_gcs_init.sh
+```
+
+---
+
 ## 🔌 API & Integration
 
 ### Available APIs
 
-- **Flask Backend** - REST API for configuration and control
+- **FastAPI Backend** (recommended) - High-performance REST API
+  - Health check: `/health`
+  - See [GCS Setup Guide](guides/gcs-setup.md) for configuration
+- **Flask Backend** (legacy) - REST API for configuration and control
   - Endpoint documentation: *(TBD)*
 - **MAVLink2REST** - REST API for MAVLink messages
   - [Official Documentation](https://github.com/mavlink/mavlink2rest)

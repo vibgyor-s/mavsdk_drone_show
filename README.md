@@ -169,6 +169,24 @@ For custom repositories, production SITL deployments, or advanced scenarios:
 
 **For real hardware deployment assistance, see the [Contact](#contact--contributions) section.**
 
+### GCS Server Setup (VPS/Ubuntu)
+
+For setting up a Ground Control Station on a VPS or Ubuntu server:
+
+**One-Line Installation:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
+```
+
+**Manual Installation:**
+```bash
+git clone https://github.com/alireza787b/mavsdk_drone_show.git
+cd mavsdk_drone_show
+sudo ./tools/mds_gcs_init.sh
+```
+
+See [GCS Setup Guide](docs/guides/gcs-setup.md) for detailed instructions, CLI options, and troubleshooting.
+
 ### Hardware Setup (Raspberry Pi)
 
 For Raspberry Pi deployment, use the enterprise-grade initialization script:

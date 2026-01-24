@@ -108,6 +108,24 @@ BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
 GCS_BACKEND="${GCS_BACKEND:-fastapi}"
 
 # ===========================================
+# SYSTEM CONFIGURATION (MDS GCS Init Integration)
+# ===========================================
+GCS_SYSTEM_CONFIG="/etc/mds/gcs.env"
+
+load_gcs_system_config() {
+    if [[ -f "$GCS_SYSTEM_CONFIG" ]]; then
+        # shellcheck source=/dev/null
+        source "$GCS_SYSTEM_CONFIG"
+
+        # Apply config values (respect CLI overrides)
+        [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
+        [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
+        return 0
+    fi
+    return 1
+}
+
+# ===========================================
 # LOGGING FUNCTIONS
 # ===========================================
 log_info() { echo "[INFO] $1"; }
@@ -308,6 +326,23 @@ run_configuration_check() {
     else
         log_error "Some checks failed. Please fix the issues above."
         exit 1
+    fi
+}
+
+# ===========================================
+# GCS INITIALIZATION CHECK
+# ===========================================
+check_gcs_initialized() {
+    if [[ ! -f "/etc/mds/gcs.env" ]] && [[ ! -d "$VENV_PATH" ]]; then
+        log_warn "GCS may not be fully initialized"
+        echo ""
+        echo "If this is a fresh installation, run:"
+        echo "  sudo ./tools/mds_gcs_init.sh"
+        echo ""
+        if [[ "${SKIP_INIT_CHECK:-false}" != "true" ]]; then
+            read -p "Continue anyway? [y/N]: " confirm
+            [[ "${confirm,,}" != "y" ]] && exit 1
+        fi
     fi
 }
 
@@ -597,17 +632,27 @@ build_react_app() {
 
 verify_react_setup() {
     log_info "Verifying React setup..."
-    
+
     if [[ ! -f "$REACT_APP_DIR/package.json" ]]; then
         log_error "package.json not found at: $REACT_APP_DIR"
         exit 1
     fi
-    
+
+    # Verify node_modules exists (MDS GCS Init integration)
     if [[ ! -d "$REACT_APP_DIR/node_modules" ]]; then
-        log_info "Installing missing dependencies..."
-        cd "$REACT_APP_DIR" && npm install
+        log_warn "Node modules not installed at $REACT_APP_DIR"
+        log_info "Installing npm dependencies..."
+        (cd "$REACT_APP_DIR" && npm ci) || {
+            log_warn "npm ci failed, trying npm install..."
+            (cd "$REACT_APP_DIR" && npm install) || {
+                log_error "Failed to install npm dependencies"
+                log_info "Run: cd $REACT_APP_DIR && npm install"
+                exit 1
+            }
+        }
+        log_success "npm dependencies installed"
     fi
-    
+
     log_success "React setup verified."
 }
 
@@ -884,6 +929,11 @@ EOF
 # Parse arguments and initialize
 parse_arguments "$@"
 
+# Load GCS system configuration if available (MDS GCS Init integration)
+if load_gcs_system_config; then
+    log_info "Loaded system configuration from $GCS_SYSTEM_CONFIG"
+fi
+
 # Handle --check option (run checks only, don't start services)
 if [[ "$CHECK_ONLY" == "true" ]]; then
     run_configuration_check
@@ -896,6 +946,9 @@ display_config_summary
 # System checks
 check_command_installed "tmux" "tmux"
 check_command_installed "lsof" "lsof"
+
+# GCS initialization check (MDS GCS Init integration)
+check_gcs_initialized
 
 # Execute setup sequence
 handle_real_mode_file

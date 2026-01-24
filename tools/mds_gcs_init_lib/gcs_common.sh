@@ -1,0 +1,360 @@
+#!/bin/bash
+# =============================================================================
+# MDS GCS Initialization Library: Common Utilities
+# =============================================================================
+# Version: 1.0.0
+# Description: GCS-specific constants and utilities (extends mds_init_lib/common.sh)
+# Author: MDS Team
+# =============================================================================
+
+# Prevent double-sourcing
+[[ -n "${_MDS_GCS_COMMON_LOADED:-}" ]] && return 0
+_MDS_GCS_COMMON_LOADED=1
+
+# =============================================================================
+# SOURCE BASE COMMON LIBRARY
+# =============================================================================
+
+# Determine script directory
+GCS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MDS_INIT_LIB_DIR="${GCS_SCRIPT_DIR}/../mds_init_lib"
+
+# Source base common.sh if available
+if [[ -f "${MDS_INIT_LIB_DIR}/common.sh" ]]; then
+    source "${MDS_INIT_LIB_DIR}/common.sh"
+else
+    echo "ERROR: Cannot find mds_init_lib/common.sh" >&2
+    exit 1
+fi
+
+# =============================================================================
+# GCS-SPECIFIC CONSTANTS (Override base constants)
+# =============================================================================
+
+readonly GCS_VERSION="1.0.0"
+readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
+readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
+readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
+
+# GCS Phases
+readonly -a GCS_PHASES=(
+    "prereqs"
+    "python"
+    "nodejs"
+    "repository"
+    "firewall"
+    "python_env"
+    "nodejs_env"
+    "env_config"
+    "verify"
+)
+
+# GCS Required Ports
+declare -A GCS_PORTS=(
+    ["22/tcp"]="SSH access"
+    ["5000/tcp"]="GCS API Server (FastAPI)"
+    ["3030/tcp"]="React Dashboard"
+    ["14550/udp"]="GCS MAVLink (from drones)"
+    ["24550/udp"]="Additional MAVLink (multi-GCS)"
+    ["34550/udp"]="Additional MAVLink (multi-GCS)"
+    ["14540/udp"]="MAVSDK SDK (for SITL)"
+    ["12550/udp"]="Local MAVLink telemetry"
+    ["14569/udp"]="mavlink2rest API"
+)
+
+# Python requirements - critical packages to verify
+readonly -a GCS_PYTHON_PACKAGES=(
+    "fastapi"
+    "uvicorn"
+    "flask"
+    "gunicorn"
+    "aiohttp"
+    "mavsdk"
+)
+
+# Node.js minimum version
+readonly GCS_NODE_MIN_VERSION="16"
+readonly GCS_NODE_TARGET_VERSION="18"
+
+# Python minimum version
+readonly GCS_PYTHON_MIN_VERSION="3.11"
+
+# Default repository settings
+readonly GCS_DEFAULT_REPO="https://github.com/alireza787b/mavsdk_drone_show.git"
+readonly GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
+readonly GCS_DEFAULT_BRANCH="main-candidate"
+
+# =============================================================================
+# GCS-SPECIFIC LOGGING
+# =============================================================================
+
+# Initialize GCS logging (uses GCS_LOG_FILE)
+gcs_init_logging() {
+    mkdir -p "${MDS_LOG_DIR}" 2>/dev/null || true
+    touch "${GCS_LOG_FILE}" 2>/dev/null || true
+    chmod 644 "${GCS_LOG_FILE}" 2>/dev/null || true
+}
+
+# GCS-specific internal log function (logs to GCS log file)
+_gcs_log() {
+    local level="$1"
+    local message="$2"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    # Write to GCS log file
+    echo "[$timestamp] [$level] $message" >> "${GCS_LOG_FILE}" 2>/dev/null || true
+
+    # Also write to syslog if available
+    if command -v logger &>/dev/null; then
+        logger -t "mds_gcs_init" -p "user.${level,,}" "$message" 2>/dev/null || true
+    fi
+}
+
+# Override logging functions to use GCS log file
+log_info() {
+    local message="$1"
+    _gcs_log "INFO" "$message"
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        echo -e "  ${INFO} ${message}"
+    fi
+    return 0
+}
+
+log_success() {
+    local message="$1"
+    _gcs_log "INFO" "$message"
+    echo -e "  ${CHECK} ${message}"
+}
+
+log_warn() {
+    local message="$1"
+    _gcs_log "WARN" "$message"
+    echo -e "  ${WARN} ${YELLOW}${message}${NC}"
+}
+
+log_error() {
+    local message="$1"
+    _gcs_log "ERROR" "$message"
+    echo -e "  ${CROSS} ${RED}${message}${NC}"
+}
+
+log_debug() {
+    local message="$1"
+    _gcs_log "DEBUG" "$message"
+    if [[ "${DEBUG:-false}" == "true" ]]; then
+        echo -e "  ${DIM}[DEBUG] ${message}${NC}"
+    fi
+    return 0
+}
+
+log_step() {
+    local message="$1"
+    _gcs_log "INFO" "Step: $message"
+    echo -e "  ${ARROW} ${message}"
+}
+
+# =============================================================================
+# GCS BRANDING
+# =============================================================================
+
+print_gcs_banner() {
+    echo -e "${CYAN}"
+    cat << 'EOF'
++==============================================================================+
+|                                                                              |
+|    __  __   ___   _____ ___  _  __   ___  ___ ___                            |
+|   |  \/  | /_\ \ / / __|   \| |/ /  / __|/ __/ __|                           |
+|   | |\/| |/ _ \ V /\__ \ |) | ' <  | (_ | (__\__ \                           |
+|   |_|  |_/_/ \_\_/ |___/___/|_|\_\  \___|\___|___/                           |
+|                                                                              |
+|                  Ground Control Station Setup                                |
+|                                                                              |
++==============================================================================+
+EOF
+    echo -e "${NC}"
+    echo -e "${WHITE}           GCS Initialization Script v${GCS_VERSION}${NC}"
+    echo -e "${DIM}              Enterprise Drone Swarm Platform${NC}"
+    echo ""
+}
+
+# =============================================================================
+# GCS STATE MANAGEMENT
+# =============================================================================
+
+# Initialize GCS state file
+gcs_state_init() {
+    mkdir -p "${MDS_STATE_DIR}" 2>/dev/null || true
+
+    # Check if state file exists and validate JSON
+    if [[ -f "${GCS_STATE_FILE}" ]] && [[ "${FORCE:-false}" != "true" ]]; then
+        if command -v jq &>/dev/null; then
+            if jq empty "${GCS_STATE_FILE}" 2>/dev/null; then
+                log_debug "GCS state file valid: ${GCS_STATE_FILE}"
+                return 0
+            else
+                local backup="${GCS_STATE_FILE}.corrupt.$(date +%Y%m%d_%H%M%S)"
+                mv "${GCS_STATE_FILE}" "$backup"
+                log_warn "GCS state file was corrupt, backed up to: $backup"
+            fi
+        fi
+    fi
+
+    # Create new state file if needed
+    if [[ ! -f "${GCS_STATE_FILE}" ]] || [[ "${FORCE:-false}" == "true" ]]; then
+        cat > "${GCS_STATE_FILE}" << EOF
+{
+  "version": "${GCS_VERSION}",
+  "mode": "gcs",
+  "started_at": "$(date -Iseconds)",
+  "install_dir": "${GCS_INSTALL_DIR:-$(pwd)}",
+  "user": "$(whoami)",
+  "phases": {},
+  "values": {}
+}
+EOF
+        chmod 600 "${GCS_STATE_FILE}"  # Owner-only for security
+        log_debug "Initialized GCS state file: ${GCS_STATE_FILE}"
+    fi
+}
+
+# Get phase status from GCS state
+gcs_state_get_phase() {
+    local phase="$1"
+    if [[ -f "${GCS_STATE_FILE}" ]] && command -v jq &>/dev/null; then
+        jq -r ".phases.${phase}.status // \"pending\"" "${GCS_STATE_FILE}" 2>/dev/null || echo "pending"
+    else
+        echo "pending"
+    fi
+}
+
+# Update phase status in GCS state
+gcs_state_set_phase() {
+    local phase="$1"
+    local status="$2"
+
+    if [[ -f "${GCS_STATE_FILE}" ]] && command -v jq &>/dev/null; then
+        local timestamp
+        timestamp=$(date -Iseconds)
+        local tmp_file="${GCS_STATE_FILE}.tmp"
+
+        jq ".phases.${phase} = {\"status\": \"${status}\", \"timestamp\": \"${timestamp}\"}" \
+            "${GCS_STATE_FILE}" > "${tmp_file}" && mv "${tmp_file}" "${GCS_STATE_FILE}"
+
+        log_debug "GCS State: ${phase} -> ${status}"
+    fi
+}
+
+# Store a value in GCS state
+gcs_state_set_value() {
+    local key="$1"
+    local value="$2"
+
+    if [[ -f "${GCS_STATE_FILE}" ]] && command -v jq &>/dev/null; then
+        local tmp_file="${GCS_STATE_FILE}.tmp"
+        jq ".values.${key} = \"${value}\"" "${GCS_STATE_FILE}" > "${tmp_file}" && \
+            mv "${tmp_file}" "${GCS_STATE_FILE}"
+    fi
+}
+
+# Get a value from GCS state
+gcs_state_get_value() {
+    local key="$1"
+    local default="${2:-}"
+
+    if [[ -f "${GCS_STATE_FILE}" ]] && command -v jq &>/dev/null; then
+        local value
+        value=$(jq -r ".values.${key} // \"\"" "${GCS_STATE_FILE}" 2>/dev/null)
+        [[ -n "$value" ]] && echo "$value" || echo "$default"
+    else
+        echo "$default"
+    fi
+}
+
+# Reset GCS state for fresh start
+gcs_state_reset() {
+    rm -f "${GCS_STATE_FILE}"
+    gcs_state_init
+    log_info "GCS state reset complete"
+}
+
+# =============================================================================
+# GCS UTILITY FUNCTIONS
+# =============================================================================
+
+# Check OS version and distribution
+get_os_info() {
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        echo "${ID}:${VERSION_ID}"
+    else
+        echo "unknown:unknown"
+    fi
+}
+
+# Get Ubuntu version number
+get_ubuntu_version() {
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        if [[ "$ID" == "ubuntu" ]]; then
+            echo "${VERSION_ID}"
+            return 0
+        fi
+    fi
+    echo ""
+}
+
+# Check minimum disk space (in GB)
+check_disk_space() {
+    local required_gb="${1:-5}"
+    local path="${2:-/}"
+    local available_mb
+    available_mb=$(get_disk_space_mb "$path")
+    local required_mb=$((required_gb * 1024))
+
+    [[ $available_mb -ge $required_mb ]]
+}
+
+# Get Python version
+get_python_version() {
+    local python_cmd="${1:-python3}"
+    if command_exists "$python_cmd"; then
+        "$python_cmd" --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo ""
+    else
+        echo ""
+    fi
+}
+
+# Compare version strings (returns 0 if $1 >= $2)
+version_gte() {
+    local version1="$1"
+    local version2="$2"
+
+    printf '%s\n%s\n' "$version2" "$version1" | sort -V -C
+}
+
+# Get Node.js version
+get_node_version() {
+    if command_exists node; then
+        node --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo ""
+    else
+        echo ""
+    fi
+}
+
+# Get npm version
+get_npm_version() {
+    if command_exists npm; then
+        npm --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo ""
+    else
+        echo ""
+    fi
+}
+
+# =============================================================================
+# EXPORT FOR SUBSHELLS
+# =============================================================================
+
+export GCS_VERSION GCS_STATE_FILE GCS_CONFIG_FILE GCS_LOG_FILE
+export GCS_DEFAULT_REPO GCS_DEFAULT_REPO_SSH GCS_DEFAULT_BRANCH
+export GCS_NODE_MIN_VERSION GCS_NODE_TARGET_VERSION GCS_PYTHON_MIN_VERSION
