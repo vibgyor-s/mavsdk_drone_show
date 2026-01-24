@@ -169,6 +169,21 @@ For custom repositories, production SITL deployments, or advanced scenarios:
 
 **For real hardware deployment assistance, see the [Contact](#contact--contributions) section.**
 
+### Hardware Setup (Raspberry Pi)
+
+For Raspberry Pi deployment, use the enterprise-grade initialization script:
+
+```bash
+# Clone the repository and run the initialization
+sudo ./tools/mds_init.sh -d <DRONE_ID> -y
+```
+
+📖 **Hardware Setup Guides:**
+- **[MDS Init Setup Guide](docs/guides/mds-init-setup.md)** - Complete Raspberry Pi initialization
+- **[CLI Reference](docs/guides/mds-init-cli-reference.md)** - All command-line options
+- **[Headless Automation](docs/guides/headless-automation.md)** - Fleet provisioning and CI/CD
+- **[Troubleshooting](docs/guides/mds-init-troubleshooting.md)** - Common issues and solutions
+
 ---
 
 ## Documentation

@@ -109,12 +109,22 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 - NVIDIA Jetson series
 - Any Linux-based companion computer
 
-### Hardware-Specific Guides
+### Hardware Setup Guides (Raspberry Pi)
+
+| Guide | Description |
+|-------|-------------|
+| **[MDS Init Setup](guides/mds-init-setup.md)** | Complete step-by-step Raspberry Pi initialization |
+| **[CLI Reference](guides/mds-init-cli-reference.md)** | All CLI arguments, environment variables, examples |
+| **[Headless Automation](guides/headless-automation.md)** | Fleet provisioning, CI/CD, batch deployment |
+| **[Troubleshooting](guides/mds-init-troubleshooting.md)** | Common issues, recovery procedures, FAQ |
+| **[Service Architecture](guides/raspberry-pi-services.md)** | Systemd services, boot order, configuration |
+
+### Hardware-Specific Configuration
 
 | Platform | Serial Port | Baudrate | Guide Status |
 |----------|-------------|----------|--------------|
-| Raspberry Pi 4 | `/dev/ttyS0` | 57600 / 921600 | *(Documentation TBD)* |
-| Raspberry Pi 5 | `/dev/ttyAMA0` | 57600 / 921600 | *(Documentation TBD)* |
+| Raspberry Pi 4 | `/dev/ttyS0` | 57600 / 921600 | [MDS Init Setup](guides/mds-init-setup.md) |
+| Raspberry Pi 5 | `/dev/ttyAMA0` | 57600 / 921600 | [MDS Init Setup](guides/mds-init-setup.md) |
 | Jetson (Orin/Xavier) | `/dev/ttyTHS1` | 57600 / 921600 | *(Documentation TBD)* |
 
 **Note:** Real hardware deployment requires professional expertise. See [Contact](../README.md#contact--contributions) for assistance.

@@ -1,0 +1,262 @@
+# MDS Raspberry Pi Setup Guide
+
+Complete step-by-step guide for initializing a Raspberry Pi for the MDS drone swarm platform.
+
+## Overview
+
+The `mds_init.sh` script is an enterprise-grade initialization system that configures a fresh Raspberry Pi for use in MDS drone swarm operations. It handles:
+
+- System prerequisites and validation
+- Repository cloning with SSH/HTTPS support
+- Hardware identity configuration
+- Python virtual environment setup
+- MAVSDK binary installation
+- Systemd service installation
+- Firewall configuration
+- NTP time synchronization
+- Optional: Netbird VPN, Static IP
+
+## Prerequisites
+
+### Hardware Requirements
+
+- Raspberry Pi 4 or 5 (4GB+ RAM recommended)
+- 16GB+ SD card (32GB recommended)
+- Stable power supply (5V 3A minimum)
+- Network connection (Ethernet or WiFi)
+
+### Software Requirements
+
+- Raspberry Pi OS (64-bit recommended)
+- Python 3.11 or later (included in latest Raspberry Pi OS)
+- Internet connectivity for package downloads
+
+## Quick Start
+
+### Step 1: Flash Raspberry Pi OS
+
+1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+2. Flash Raspberry Pi OS (64-bit) to your SD card
+3. Configure WiFi and SSH in the imager settings
+4. Boot the Raspberry Pi
+
+### Step 2: Initial System Setup
+
+SSH into your Raspberry Pi:
+
+```bash
+ssh pi@raspberrypi.local
+```
+
+Update the system:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+### Step 3: Create the droneshow User
+
+```bash
+sudo adduser droneshow
+sudo usermod -aG sudo droneshow
+```
+
+Switch to the droneshow user:
+
+```bash
+sudo su - droneshow
+```
+
+### Step 4: Clone the Repository
+
+**Option A: Using HTTPS (simpler, recommended for first-time setup)**
+
+```bash
+git clone https://github.com/alireza787b/mavsdk_drone_show.git
+cd mavsdk_drone_show
+```
+
+**Option B: Using SSH (requires deploy key)**
+
+```bash
+git clone git@github.com:alireza787b/mavsdk_drone_show.git
+cd mavsdk_drone_show
+```
+
+### Step 5: Run the Initialization Script
+
+**Interactive mode (recommended for first-time setup):**
+
+```bash
+sudo ./tools/mds_init.sh
+```
+
+**Non-interactive mode with drone ID:**
+
+```bash
+sudo ./tools/mds_init.sh -d 1 -y
+```
+
+## Initialization Phases
+
+The script runs through these phases automatically:
+
+| Phase | Description |
+|-------|-------------|
+| 1. Prerequisites | Validates system requirements, creates directories |
+| 2. MAVLink Guidance | Provides mavlink-anywhere setup instructions |
+| 3. Repository | Clones/updates repository, manages SSH keys |
+| 4. Identity | Configures drone ID and local.env file |
+| 5. Environment | Sets up environment variables |
+| 6. Firewall | Configures UFW rules for MDS services |
+| 7. Python Environment | Creates venv, installs requirements |
+| 8. MAVSDK | Downloads and installs MAVSDK binary |
+| 9. Services | Installs and enables systemd services |
+| 10. NTP | Configures time synchronization |
+| 11. Netbird | (Optional) Configures VPN access |
+| 12. Static IP | (Optional) Configures static IP address |
+| 13. Verify | Final verification of installation |
+
+## Common Setup Scenarios
+
+### Scenario 1: Single Drone Setup
+
+For a single drone with ID 1:
+
+```bash
+sudo ./tools/mds_init.sh -d 1 -y
+```
+
+### Scenario 2: Custom Repository Fork
+
+For using a forked repository:
+
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --https \
+    --repo-url https://github.com/yourusername/mavsdk_drone_show.git \
+    --branch your-branch \
+    -y
+```
+
+### Scenario 3: Full Setup with VPN and Static IP
+
+```bash
+sudo ./tools/mds_init.sh -d 5 \
+    --netbird-key "YOUR_NETBIRD_SETUP_KEY" \
+    --static-ip 192.168.1.105/24 \
+    --gateway 192.168.1.1 \
+    -y
+```
+
+### Scenario 4: Resume Interrupted Installation
+
+If the script was interrupted, resume from the last checkpoint:
+
+```bash
+sudo ./tools/mds_init.sh --resume
+```
+
+### Scenario 5: Dry Run (Test Mode)
+
+See what would happen without making changes:
+
+```bash
+sudo ./tools/mds_init.sh -d 1 --dry-run
+```
+
+## Post-Installation
+
+### Verify Installation
+
+Check service status:
+
+```bash
+systemctl status coordinator
+systemctl status git_sync_mds
+```
+
+Check the installation log:
+
+```bash
+cat /var/log/mds/mds_init.log
+```
+
+### Configure mavlink-anywhere
+
+The script provides guidance but does not install mavlink-anywhere. Complete this step manually:
+
+```bash
+cd ~
+git clone https://github.com/alireza787b/mavlink-anywhere.git
+cd mavlink-anywhere
+sudo ./install_mavlink_router.sh
+sudo ./configure_mavlink_router.sh
+```
+
+### Reboot
+
+After installation, reboot to start all services:
+
+```bash
+sudo reboot
+```
+
+## Configuration Files
+
+After installation, key configuration files are:
+
+| File | Purpose |
+|------|---------|
+| `/etc/mds/local.env` | Per-drone configuration (drone ID, GCS IP, etc.) |
+| `/var/lib/mds/init_state.json` | Installation state tracking |
+| `~/mavsdk_drone_show/config.csv` | Drone hardware configuration |
+| `~/mavsdk_drone_show/src/params.py` | Global parameters |
+
+### Editing Local Configuration
+
+To change drone-specific settings:
+
+```bash
+sudo nano /etc/mds/local.env
+sudo systemctl restart coordinator
+```
+
+## Troubleshooting
+
+See [MDS Init Troubleshooting Guide](mds-init-troubleshooting.md) for common issues.
+
+### Quick Fixes
+
+**Script fails to start:**
+```bash
+chmod +x tools/mds_init.sh
+```
+
+**Permission denied:**
+```bash
+sudo ./tools/mds_init.sh
+```
+
+**Check installation state:**
+```bash
+cat /var/lib/mds/init_state.json | jq
+```
+
+## Next Steps
+
+1. Configure mavlink-anywhere for flight controller communication
+2. Set up WiFi manager if using wireless networks
+3. Test drone connectivity with the GCS
+4. Run first system test
+
+## Related Documentation
+
+- [CLI Reference](mds-init-cli-reference.md) - All command-line options
+- [Headless Automation](headless-automation.md) - Fleet provisioning
+- [Troubleshooting](mds-init-troubleshooting.md) - Common issues
+- [Service Architecture](raspberry-pi-services.md) - Systemd services
+
+---
+
+**Version:** 4.0.0 | **Last Updated:** January 2026

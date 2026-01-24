@@ -1,0 +1,273 @@
+# MDS Init CLI Reference
+
+Complete reference for all command-line arguments and environment variables for `mds_init.sh`.
+
+## Synopsis
+
+```bash
+sudo ./mds_init.sh [OPTIONS]
+```
+
+## Required Parameters
+
+These parameters are required but can be provided interactively if omitted:
+
+| Option | Description |
+|--------|-------------|
+| `-d, --drone-id ID` | Hardware ID for this drone (1-999) |
+
+## Repository Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-r, --repo-url URL` | Git repository URL | `git@github.com:alireza787b/mavsdk_drone_show.git` |
+| `-b, --branch BRANCH` | Git branch to use | `main-candidate` |
+| `--https` | Use HTTPS instead of SSH for git operations | SSH |
+
+## Optional Components
+
+| Option | Description |
+|--------|-------------|
+| `--netbird-key KEY` | Netbird VPN setup key |
+| `--netbird-url URL` | Netbird management URL |
+| `--static-ip IP/CIDR` | Static IP address (e.g., `192.168.1.42/24`) |
+| `--gateway IP` | Gateway for static IP |
+| `--gcs-ip IP` | Override GCS IP address |
+
+## MAVSDK Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--mavsdk-version VERSION` | Specific MAVSDK version (e.g., `v3.5.0`) | Auto-detect latest |
+| `--mavsdk-url URL` | Direct URL to MAVSDK binary (overrides version) | - |
+
+## Skip Flags
+
+Use these flags to skip specific phases:
+
+| Flag | Description |
+|------|-------------|
+| `--skip-firewall` | Skip UFW firewall configuration |
+| `--skip-netbird` | Skip Netbird VPN setup |
+| `--skip-ntp` | Skip NTP time synchronization |
+| `--skip-services` | Skip systemd service installation |
+| `--skip-mavsdk` | Skip MAVSDK binary download |
+| `--skip-venv` | Skip Python virtual environment setup |
+
+## Control Options
+
+| Option | Description |
+|--------|-------------|
+| `-y, --yes` | Non-interactive mode (use defaults, no prompts) |
+| `--dry-run` | Show what would be done without making changes |
+| `--resume` | Resume from last checkpoint |
+| `--force` | Force re-run all phases (ignore state) |
+| `-v, --verbose` | Verbose output |
+| `--debug` | Debug output (very verbose) |
+| `-h, --help` | Show help message |
+
+## Environment Variables
+
+The script respects these environment variables (override CLI defaults):
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MDS_REPO_URL` | Override repository URL | CLI or default |
+| `MDS_BRANCH` | Override git branch | CLI or default |
+| `MDS_GCS_IP` | Override GCS IP address | From params.py |
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error or phase failure |
+
+## Usage Examples
+
+### Basic Setup
+
+Interactive mode with prompts:
+```bash
+sudo ./tools/mds_init.sh
+```
+
+Non-interactive with drone ID:
+```bash
+sudo ./tools/mds_init.sh -d 1 -y
+```
+
+### Repository Configuration
+
+Using HTTPS (no SSH key needed):
+```bash
+sudo ./tools/mds_init.sh -d 1 --https -y
+```
+
+Custom repository and branch:
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --https \
+    -r https://github.com/myuser/myfork.git \
+    -b feature-branch \
+    -y
+```
+
+### Network Configuration
+
+With static IP:
+```bash
+sudo ./tools/mds_init.sh -d 5 \
+    --static-ip 192.168.1.105/24 \
+    --gateway 192.168.1.1 \
+    -y
+```
+
+With Netbird VPN:
+```bash
+sudo ./tools/mds_init.sh -d 5 \
+    --netbird-key "nkey-XXXXX" \
+    -y
+```
+
+Full network setup:
+```bash
+sudo ./tools/mds_init.sh -d 5 \
+    --netbird-key "nkey-XXXXX" \
+    --static-ip 192.168.1.105/24 \
+    --gateway 192.168.1.1 \
+    --gcs-ip 192.168.1.100 \
+    -y
+```
+
+### MAVSDK Configuration
+
+Specific MAVSDK version:
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --mavsdk-version v3.5.0 \
+    -y
+```
+
+Direct MAVSDK URL:
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --mavsdk-url "https://example.com/mavsdk_server" \
+    -y
+```
+
+### Selective Installation
+
+Skip firewall and NTP:
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --skip-firewall \
+    --skip-ntp \
+    -y
+```
+
+Only repository and identity (minimal):
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --skip-firewall \
+    --skip-netbird \
+    --skip-ntp \
+    --skip-services \
+    --skip-mavsdk \
+    --skip-venv \
+    -y
+```
+
+### Testing and Debugging
+
+Dry run (preview changes):
+```bash
+sudo ./tools/mds_init.sh -d 1 --dry-run
+```
+
+Verbose output:
+```bash
+sudo ./tools/mds_init.sh -d 1 -v -y
+```
+
+Debug output:
+```bash
+sudo ./tools/mds_init.sh -d 1 --debug -y
+```
+
+### Recovery
+
+Resume interrupted installation:
+```bash
+sudo ./tools/mds_init.sh --resume
+```
+
+Force complete reinstall:
+```bash
+sudo ./tools/mds_init.sh -d 1 --force -y
+```
+
+## State Management
+
+The script maintains state in `/var/lib/mds/init_state.json`:
+
+```json
+{
+  "version": "4.0.0",
+  "started_at": "2026-01-24T12:00:00+00:00",
+  "drone_id": 1,
+  "phases": {
+    "prereqs": {"status": "completed", "timestamp": "..."},
+    "repository": {"status": "completed", "timestamp": "..."}
+  },
+  "values": {
+    "repo_url": "git@github.com:...",
+    "python_version": "3.13.0"
+  }
+}
+```
+
+### View State
+
+```bash
+cat /var/lib/mds/init_state.json | jq
+```
+
+### Reset State
+
+```bash
+sudo rm /var/lib/mds/init_state.json
+sudo ./tools/mds_init.sh -d 1 -y
+```
+
+## Configuration Paths
+
+| Path | Description |
+|------|-------------|
+| `/etc/mds/local.env` | Per-drone configuration |
+| `/var/lib/mds/init_state.json` | Installation state |
+| `/var/log/mds/mds_init.log` | Installation log |
+| `/home/droneshow/mavsdk_drone_show/` | MDS installation directory |
+| `/home/droneshow/mavsdk_drone_show/venv/` | Python virtual environment |
+
+## Breaking Changes from v3.x
+
+The following changes affect users upgrading from older versions:
+
+| Change | Migration |
+|--------|-----------|
+| `raspberry_setup.sh` deprecated | Use `mds_init.sh` instead |
+| `--skip-gpio` removed | GPIO always configured |
+| `--skip-sudoers` removed | Sudoers always configured |
+| `-u/--management-url` renamed | Use `--netbird-url` |
+| `--ssh-key-path` removed | Uses standard location |
+
+## Related Documentation
+
+- [Setup Guide](mds-init-setup.md) - Step-by-step instructions
+- [Headless Automation](headless-automation.md) - Fleet deployment
+- [Troubleshooting](mds-init-troubleshooting.md) - Common issues
+
+---
+
+**Version:** 4.0.0 | **Last Updated:** January 2026

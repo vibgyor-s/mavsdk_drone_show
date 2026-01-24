@@ -154,7 +154,7 @@ MDS_LOG_LEVEL=DEBUG
 
 ## Installing Services
 
-The services are installed by `tools/raspberry_setup.sh`. To manually install:
+The services are installed by `tools/mds_init.sh` (the enterprise initialization script). To manually install:
 
 ```bash
 # Copy service files
