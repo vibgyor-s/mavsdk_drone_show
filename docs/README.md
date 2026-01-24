@@ -1,6 +1,6 @@
 # MAVSDK Drone Show Documentation
 
-**Complete documentation index for MDS 3.6**
+**Complete documentation index for MDS 4.1**
 
 Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
 
@@ -25,24 +25,19 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 
 Start here to get your first drone show simulation running:
 
-1. **[Quick Start Guide](quickstart/sitl-demo.md)** *(Coming Soon)*
-   - Condensed essential steps to run SITL demo
-   - Perfect for quick evaluation
-   - 15-minute setup
-
-2. **[SITL Comprehensive Guide](guides/sitl-comprehensive.md)**
+1. **[SITL Comprehensive Guide](guides/sitl-comprehensive.md)** - Recommended for first-time users
    - Complete step-by-step SITL setup
-   - Detailed explanations of each component
    - Network configuration, Docker setup, dashboard startup
-   - Recommended for first-time users
+
+2. **[Deployment Quick Reference](guides/deployment-quick-reference.md)** - Essential commands only
 
 ### Choose Your Path
 
 | I want to... | Start with... |
 |--------------|---------------|
-| Try MDS quickly (SITL) | [Quick Start Guide](quickstart/sitl-demo.md) *(Coming Soon)* |
-| Understand MDS deeply (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
-| Deploy on real hardware | [Contact for assistance](../README.md#contact--contributions) |
+| Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
+| Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
 | Customize deployment | [Advanced SITL Guide](guides/advanced-sitl.md) |
 | Understand features | [Features Section](#-features) |
 
@@ -184,7 +179,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 3.6
+**Current Version:** 4.1
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 
@@ -266,6 +261,6 @@ Please submit a pull request or open an issue on GitHub.
 
 ---
 
-**Last Updated:** November 2025 (Version 3.6)
+**Last Updated:** January 2026 (Version 4.1)
 
 © 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0

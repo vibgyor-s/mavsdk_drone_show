@@ -2,7 +2,7 @@
 
 **All-in-One Drone Show & Smart Swarm Framework for PX4**
 
-[![Version](https://img.shields.io/badge/version-3.6-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
@@ -148,7 +148,7 @@ This guide covers:
 - 3D Trajectory Planning setup (add Mapbox access token to `.env`)
 
 **Quick Start Option:**
-📖 **[Quick Start Guide](docs/quickstart/sitl-demo.md)** - Essential steps only (condensed version)
+📖 **[Deployment Quick Reference](docs/guides/deployment-quick-reference.md)** - Essential commands only
 
 ### Advanced Configuration
 
@@ -216,7 +216,7 @@ All project documentation is organized in the `docs/` folder:
 
 | Category | Description | Link |
 |----------|-------------|------|
-| **Quick Start** | Fast SITL demo setup | [docs/quickstart/](docs/quickstart/) |
+| **Quick Start** | Fast SITL demo setup | [docs/guides/sitl-comprehensive.md](docs/guides/sitl-comprehensive.md) |
 | **Guides** | Comprehensive setup and configuration | [docs/guides/](docs/guides/) |
 | **Features** | Detailed feature documentation | [docs/features/](docs/features/) |
 | **Hardware** | Hardware-specific guides | [docs/hardware/](docs/hardware/) |
@@ -237,14 +237,13 @@ All project documentation is organized in the `docs/` folder:
 
 ## Version & Changelog
 
-**Current Version: 3.6** (November 2025)
+**Current Version: 4.1** (January 2026)
 
 Major updates in this version:
-- Documentation restructure and professional organization
-- Unified versioning system across entire project
-- Enhanced GCS configuration with .env auto-update
-- Production-ready UI/UX improvements
-- Dark mode fixes and accessibility improvements
+- GCS initialization system for VPS/Ubuntu servers
+- Enterprise Raspberry Pi initialization (v4.0)
+- Production-ready startup script integration
+- Comprehensive documentation for GCS and drone setup
 
 📖 **[Full Changelog](CHANGELOG.md)** - Complete version history from v0.1 to current
 
