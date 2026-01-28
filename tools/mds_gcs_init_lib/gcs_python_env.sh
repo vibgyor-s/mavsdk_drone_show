@@ -94,21 +94,14 @@ upgrade_pip() {
 # REQUIREMENTS INSTALLATION
 # =============================================================================
 
-# Install requirements from requirements file
+# Install requirements from requirements.txt
+# Note: requirements.txt uses platform markers to skip RPi packages on x86
 install_requirements() {
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
     local venv_path
     venv_path=$(get_venv_path)
     local pip_cmd="${venv_path}/bin/pip"
-
-    # Use GCS-specific requirements (excludes Raspberry Pi packages)
-    local requirements_file="${install_dir}/requirements-gcs.txt"
-
-    # Fall back to main requirements if GCS-specific doesn't exist
-    if [[ ! -f "$requirements_file" ]]; then
-        requirements_file="${install_dir}/requirements.txt"
-        log_warn "Using main requirements.txt (may include RPi packages)"
-    fi
+    local requirements_file="${install_dir}/requirements.txt"
 
     log_step "Installing Python requirements..."
 

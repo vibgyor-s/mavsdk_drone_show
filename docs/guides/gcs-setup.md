@@ -311,24 +311,54 @@ This will continue from the last completed phase.
 
 After successful installation, start the dashboard:
 
-### Development Mode (Recommended for testing)
+### Quick Start
 
 ```bash
 cd ~/mavsdk_drone_show/app
-./linux_dashboard_start.sh --dev --sitl
+
+# SITL mode (simulation) - runs in tmux by default
+./linux_dashboard_start.sh --sitl
+
+# Real mode (hardware drones)
+./linux_dashboard_start.sh --real
 ```
 
-### Production Mode
+### Common Options
+
+| Option | Description |
+|--------|-------------|
+| `--sitl` | Simulation mode (no real drones) |
+| `--real` | Hardware mode (real drones) |
+| `--prod` | Production mode (optimized builds) |
+| `--dev` | Development mode (hot reload) |
+| `--rebuild` | Force rebuild React app |
+| `--status` | Show current status |
+| `-n` | Do NOT use tmux |
+| `--help` | Show all options |
+
+### Examples
 
 ```bash
-cd ~/mavsdk_drone_show/app
+# Development with simulation
+./linux_dashboard_start.sh --sitl
+
+# Production with real drones
 ./linux_dashboard_start.sh --prod --real
+
+# Check status
+./linux_dashboard_start.sh --status
 ```
 
-### Quick Status Check
+### Managing the Services
 
 ```bash
-./linux_dashboard_start.sh --status
+# View running services (tmux)
+tmux attach -t DroneServices
+
+# Detach from tmux: Ctrl+B, then D
+
+# Stop all services
+tmux kill-session -t DroneServices
 ```
 
 ### Access Points
@@ -349,4 +379,4 @@ After starting:
 
 ---
 
-**Last Updated:** January 2026 (Version 4.2.0)
+**Last Updated:** January 2026 (Version 4.2.2)
