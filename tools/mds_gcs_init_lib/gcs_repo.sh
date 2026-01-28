@@ -27,12 +27,15 @@ prompt_repository_selection() {
     # Skip if non-interactive or already have a custom repo URL
     if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
         log_info "Using default repository (non-interactive mode)"
+        log_info "Repository: alireza787b/mavsdk_drone_show"
+        log_info "Branch: ${BRANCH:-main-candidate}"
         return 0
     fi
 
     # If REPO_URL is already set (via CLI or env), use it
     if [[ -n "${REPO_URL:-}" ]]; then
         log_info "Using provided repository: ${REPO_URL}"
+        log_info "Branch: ${BRANCH:-main-candidate}"
         return 0
     fi
 
@@ -41,49 +44,28 @@ prompt_repository_selection() {
     echo -e "${CYAN}|${NC}  ${WHITE}Repository Selection${NC}"
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
     echo ""
-    echo -e "  Which repository do you want to use?"
-    echo ""
-    echo -e "  ${WHITE}1)${NC} Default - ${GREEN}alireza787b/mavsdk_drone_show${NC} (Recommended)"
-    echo -e "     Branch: ${CYAN}${BRANCH:-main-candidate}${NC}"
-    echo -e "     Official MDS repository with latest updates"
-    echo ""
-    echo -e "  ${WHITE}2)${NC} Custom fork - Use your own forked repository"
-    echo -e "     You will need to provide your GitHub username"
-    echo ""
-    echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+    echo -e "  Default: ${GREEN}github.com/alireza787b/mavsdk_drone_show${NC}"
+    echo -e "  Branch:  ${CYAN}${BRANCH:-main-candidate}${NC}"
     echo ""
 
-    local choice
-    read -p "  Select option [1]: " choice </dev/tty
-    choice=${choice:-1}
+    if confirm "Use default repository?" "y"; then
+        log_info "Using: alireza787b/mavsdk_drone_show (${BRANCH:-main-candidate})"
+    else
+        echo ""
+        echo -e "  ${WHITE}Enter your fork details:${NC}"
+        local github_user
+        read -p "  GitHub username: " github_user </dev/tty
 
-    case "$choice" in
-        1)
-            log_info "Using default repository: alireza787b/mavsdk_drone_show"
-            # REPO_URL stays empty, will use defaults
-            ;;
-        2)
+        if [[ -n "$github_user" ]]; then
+            REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
+            export REPO_URL
             echo ""
-            local github_user
-            read -p "  Enter your GitHub username: " github_user </dev/tty
-            if [[ -n "$github_user" ]]; then
-                REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
-                export REPO_URL
-                log_info "Using fork: ${REPO_URL}"
-                echo ""
-                read -p "  Enter branch name [main-candidate]: " custom_branch </dev/tty
-                if [[ -n "$custom_branch" ]]; then
-                    BRANCH="$custom_branch"
-                    export BRANCH
-                fi
-            else
-                log_warn "No username provided, using default repository"
-            fi
-            ;;
-        *)
-            log_info "Invalid option, using default repository"
-            ;;
-    esac
+            log_info "Repository: ${REPO_URL}"
+            log_info "Branch: ${BRANCH:-main-candidate}"
+        else
+            log_warn "No username provided, using default repository"
+        fi
+    fi
     echo ""
 }
 
