@@ -272,15 +272,30 @@ clone_or_update_repo() {
         return 0
     fi
 
-    # Check if already in a git repo with the right remote
+    # Check if already in a git repo
     if [[ -d "${install_dir}/.git" ]]; then
-        log_info "Repository already exists, updating..."
-
         cd "$install_dir" || return 1
+
+        # Check if remote URL needs to be updated (user selected different fork)
+        local current_remote
+        current_remote=$(git remote get-url origin 2>/dev/null || echo "")
+
+        if [[ "$current_remote" != "$repo_url" ]]; then
+            log_info "Updating remote URL..."
+            log_info "  From: $current_remote"
+            log_info "  To:   $repo_url"
+            git remote set-url origin "$repo_url" || {
+                log_error "Failed to update remote URL"
+                return 1
+            }
+            log_success "Remote URL updated"
+        fi
+
+        log_info "Fetching from remote..."
 
         # Fetch and checkout branch
         git fetch origin "$branch" 2>/dev/null || {
-            log_warn "Could not fetch from remote"
+            log_warn "Could not fetch from remote - check your access"
         }
 
         # Check current branch
@@ -347,73 +362,127 @@ run_repository_phase() {
     fi
 
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
+    local current_remote current_branch current_commit
 
-    # Check if we're already in a valid repo (bootstrapped by install_gcs.sh)
+    # Get current repo info if exists
     if [[ -d "${install_dir}/.git" ]]; then
-        print_section "Repository Configuration"
-
-        # Show current repo info
-        local current_remote current_branch current_commit
         current_remote=$(cd "$install_dir" && git remote get-url origin 2>/dev/null || echo "unknown")
         current_branch=$(cd "$install_dir" && git branch --show-current 2>/dev/null || echo "unknown")
         current_commit=$(cd "$install_dir" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-
-        echo ""
-        echo -e "  ${WHITE}Current Repository:${NC}"
-        echo -e "    Remote: ${GREEN}${current_remote}${NC}"
-        echo -e "    Branch: ${CYAN}${current_branch}${NC}"
-        echo -e "    Commit: ${DIM}${current_commit}${NC}"
-        echo ""
-
-        # Ask about access mode if not already set via CLI
-        if [[ "${USE_HTTPS:-}" != "true" ]] && [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-            echo -e "${CYAN}|${NC}  ${WHITE}Git Access Mode${NC}"
-            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-            echo ""
-            echo -e "  ${WHITE}1)${NC} ${GREEN}HTTPS (Recommended for most users)${NC}"
-            echo -e "     - Simple setup, no SSH keys needed"
-            echo -e "     - Read-only access (manual git push if needed)"
-            echo ""
-            echo -e "  ${WHITE}2)${NC} SSH with deploy key"
-            echo -e "     - Enables automatic git sync features"
-            echo -e "     - Requires adding deploy key to GitHub"
-            echo ""
-            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-            echo ""
-
-            local access_choice
-            read -p "  Select access mode [1]: " access_choice </dev/tty
-            access_choice=${access_choice:-1}
-
-            if [[ "$access_choice" == "1" ]]; then
-                USE_HTTPS="true"
-                export USE_HTTPS
-                log_info "Using HTTPS mode (simple setup)"
-            else
-                log_info "Setting up SSH deploy key..."
-            fi
-            echo ""
-        fi
-
-        # If using HTTPS mode, we're done with repo phase
-        if [[ "${USE_HTTPS:-false}" == "true" ]]; then
-            log_info "Repository configured with HTTPS access"
-            clone_or_update_repo || return 1
-            echo ""
-            log_success "Repository phase completed"
-            return 0
-        fi
-    else
-        # No existing repo - prompt for repository selection
-        print_section "Repository Selection"
-        prompt_repository_selection
     fi
 
-    # SSH key setup for write access (only if not using HTTPS)
+    # =========================================================================
+    # STEP 1: Repository Selection (WHAT repo to use)
+    # =========================================================================
+    print_section "Step 1: Repository Selection"
+
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -z "${REPO_URL:-}" ]]; then
+        echo ""
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo -e "${CYAN}|${NC}  ${WHITE}Which repository do you want to use?${NC}"
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo ""
+        echo -e "  ${WHITE}1)${NC} ${GREEN}Official MDS repository (Recommended)${NC}"
+        echo -e "     github.com/alireza787b/mavsdk_drone_show"
+        echo -e "     Branch: main-candidate"
+        echo ""
+        echo -e "  ${WHITE}2)${NC} My own fork"
+        echo -e "     Use your forked repository"
+        echo ""
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo ""
+
+        local repo_choice
+        read -p "  Select repository [1]: " repo_choice </dev/tty
+        repo_choice=${repo_choice:-1}
+
+        if [[ "$repo_choice" == "2" ]]; then
+            echo ""
+            local github_user custom_branch
+            read -p "  Your GitHub username: " github_user </dev/tty
+
+            if [[ -n "$github_user" ]]; then
+                read -p "  Branch name [main-candidate]: " custom_branch </dev/tty
+                custom_branch=${custom_branch:-main-candidate}
+
+                REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
+                BRANCH="$custom_branch"
+                export REPO_URL BRANCH
+
+                log_info "Using fork: ${github_user}/mavsdk_drone_show"
+                log_info "Branch: ${BRANCH}"
+            else
+                log_warn "No username provided, using official repository"
+            fi
+        else
+            log_info "Using official repository: alireza787b/mavsdk_drone_show"
+            log_info "Branch: ${BRANCH:-main-candidate}"
+        fi
+        echo ""
+    else
+        # Non-interactive or REPO_URL already set
+        if [[ -n "${REPO_URL:-}" ]]; then
+            log_info "Repository: ${REPO_URL}"
+        else
+            log_info "Repository: alireza787b/mavsdk_drone_show (default)"
+        fi
+        log_info "Branch: ${BRANCH:-main-candidate}"
+        echo ""
+    fi
+
+    # =========================================================================
+    # STEP 2: Access Mode (HOW to access the repo)
+    # =========================================================================
+    print_section "Step 2: Access Mode"
+
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ "${USE_HTTPS:-}" != "true" ]]; then
+        echo ""
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo -e "${CYAN}|${NC}  ${WHITE}How do you want to access the repository?${NC}"
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo ""
+        echo -e "  ${WHITE}1)${NC} ${GREEN}HTTPS (Recommended - simpler setup)${NC}"
+        echo -e "     - No SSH keys needed"
+        echo -e "     - Pull updates anytime"
+        echo -e "     - Push requires manual: git push"
+        echo ""
+        echo -e "  ${WHITE}2)${NC} SSH with deploy key"
+        echo -e "     - Enables automatic git sync from dashboard"
+        echo -e "     - Requires adding deploy key to GitHub"
+        echo -e "     - More setup steps"
+        echo ""
+        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo ""
+
+        local access_choice
+        read -p "  Select access mode [1]: " access_choice </dev/tty
+        access_choice=${access_choice:-1}
+
+        if [[ "$access_choice" == "1" ]]; then
+            USE_HTTPS="true"
+            export USE_HTTPS
+            log_info "Using HTTPS access (simple setup)"
+        else
+            USE_HTTPS="false"
+            export USE_HTTPS
+            log_info "Using SSH access (will set up deploy key)"
+        fi
+        echo ""
+    else
+        if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+            log_info "Access mode: HTTPS"
+        else
+            log_info "Access mode: SSH"
+        fi
+        echo ""
+    fi
+
+    # =========================================================================
+    # STEP 3: SSH Key Setup (only if SSH mode selected)
+    # =========================================================================
     if [[ "${USE_HTTPS:-false}" != "true" ]]; then
-        print_section "SSH Deploy Key Setup"
-        log_info "Setting up SSH key for git sync features..."
+        print_section "Step 3: SSH Deploy Key Setup"
+        log_info "Setting up SSH key for repository access..."
         echo ""
 
         generate_ssh_key || return 1
@@ -424,7 +493,10 @@ run_repository_phase() {
         fi
     fi
 
-    print_section "Repository Clone/Update"
+    # =========================================================================
+    # STEP 4: Apply Configuration
+    # =========================================================================
+    print_section "Applying Repository Configuration"
     clone_or_update_repo || return 1
 
     echo ""
