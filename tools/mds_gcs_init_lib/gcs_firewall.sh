@@ -118,6 +118,31 @@ show_firewall_summary() {
 # MAIN PHASE RUNNER
 # =============================================================================
 
+# Detect current SSH port from sshd config or connection
+detect_ssh_port() {
+    local ssh_port="22"
+
+    # Check sshd_config for custom port
+    if [[ -f /etc/ssh/sshd_config ]]; then
+        local config_port
+        config_port=$(grep -E "^Port\s+" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}')
+        if [[ -n "$config_port" ]]; then
+            ssh_port="$config_port"
+        fi
+    fi
+
+    # Also check from current SSH connection
+    if [[ -n "${SSH_CONNECTION:-}" ]]; then
+        local conn_port
+        conn_port=$(echo "$SSH_CONNECTION" | awk '{print $4}')
+        if [[ -n "$conn_port" ]] && [[ "$conn_port" != "22" ]]; then
+            ssh_port="$conn_port"
+        fi
+    fi
+
+    echo "$ssh_port"
+}
+
 run_firewall_phase() {
     print_phase_header "5" "Firewall Configuration" "9"
 
@@ -131,7 +156,7 @@ run_firewall_phase() {
 
     # Check if UFW is installed
     if ! check_ufw_installed; then
-        log_error "UFW is not installed. Installing..."
+        log_info "UFW is not installed. Installing..."
         if is_dry_run; then
             echo -e "  ${DIM}[DRY-RUN] Would install UFW${NC}"
         else
@@ -144,6 +169,10 @@ run_firewall_phase() {
 
     log_success "UFW is installed"
 
+    # Detect SSH port
+    local ssh_port
+    ssh_port=$(detect_ssh_port)
+
     print_section "Port Configuration"
 
     # Display port list
@@ -153,18 +182,55 @@ run_firewall_phase() {
     printf "  ${WHITE}%-12s %-10s %s${NC}\n" "PORT" "PROTO" "DESCRIPTION"
     echo -e "  ${DIM}───────────────────────────────────────────────────────────────${NC}"
 
+    # Always show SSH port first
+    printf "  %-12s %-10s %s\n" "$ssh_port" "tcp" "SSH access (CRITICAL)"
+
     for port_proto in "${!GCS_PORTS[@]}"; do
         local port="${port_proto%/*}"
         local proto="${port_proto#*/}"
         local desc="${GCS_PORTS[$port_proto]}"
+        # Skip if it's the SSH port (already shown)
+        [[ "$port" == "$ssh_port" ]] && continue
         printf "  %-12s %-10s %s\n" "$port" "$proto" "$desc"
     done
 
     echo -e "  ${DIM}───────────────────────────────────────────────────────────────${NC}"
     echo ""
 
-    # Ask for confirmation in interactive mode
+    # Warning if enabling firewall for first time
+    if ! check_ufw_active; then
+        echo -e "  ${YELLOW}WARNING: Firewall is not currently active.${NC}"
+        echo -e "  ${YELLOW}Enabling it will block all ports except those listed above.${NC}"
+        echo -e "  ${YELLOW}SSH port $ssh_port will be allowed to prevent lockout.${NC}"
+        echo ""
+    fi
+
+    # Ask for custom ports in interactive mode
     if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        if confirm "Do you need to add any custom ports?" "n"; then
+            echo ""
+            echo -e "  Enter additional ports (comma-separated, e.g., 8080,9000/udp):"
+            local custom_ports
+            read -p "  Custom ports: " custom_ports </dev/tty
+
+            if [[ -n "$custom_ports" ]]; then
+                # Parse and store custom ports
+                IFS=',' read -ra CUSTOM_PORTS <<< "$custom_ports"
+                for port in "${CUSTOM_PORTS[@]}"; do
+                    port=$(echo "$port" | tr -d ' ')
+                    if [[ -n "$port" ]]; then
+                        # Default to tcp if no protocol specified
+                        if [[ "$port" != */* ]]; then
+                            port="${port}/tcp"
+                        fi
+                        GCS_PORTS["$port"]="Custom port"
+                        log_info "Added custom port: $port"
+                    fi
+                done
+            fi
+            echo ""
+        fi
+
         if ! confirm "Configure firewall with these ports?" "y"; then
             log_info "Skipping firewall configuration"
             return 0
@@ -172,6 +238,13 @@ run_firewall_phase() {
     fi
 
     print_section "Applying Rules"
+
+    # CRITICAL: Always allow SSH first before enabling firewall
+    if ! is_dry_run; then
+        log_step "Ensuring SSH access on port $ssh_port..."
+        ufw allow "$ssh_port/tcp" comment "SSH access" 2>/dev/null
+        log_success "SSH port $ssh_port allowed"
+    fi
 
     # Enable UFW if not active
     if ! check_ufw_active; then
