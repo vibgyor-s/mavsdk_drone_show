@@ -94,13 +94,21 @@ upgrade_pip() {
 # REQUIREMENTS INSTALLATION
 # =============================================================================
 
-# Install requirements from requirements.txt
+# Install requirements from requirements file
 install_requirements() {
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
     local venv_path
     venv_path=$(get_venv_path)
     local pip_cmd="${venv_path}/bin/pip"
-    local requirements_file="${install_dir}/requirements.txt"
+
+    # Use GCS-specific requirements (excludes Raspberry Pi packages)
+    local requirements_file="${install_dir}/requirements-gcs.txt"
+
+    # Fall back to main requirements if GCS-specific doesn't exist
+    if [[ ! -f "$requirements_file" ]]; then
+        requirements_file="${install_dir}/requirements.txt"
+        log_warn "Using main requirements.txt (may include RPi packages)"
+    fi
 
     log_step "Installing Python requirements..."
 
@@ -109,16 +117,16 @@ install_requirements() {
         return 0
     fi
 
-    # Check if requirements.txt exists
+    # Check if requirements file exists
     if [[ ! -f "$requirements_file" ]]; then
-        log_error "requirements.txt not found at: $requirements_file"
+        log_error "Requirements file not found at: $requirements_file"
         return 1
     fi
 
     # Count packages
     local pkg_count
     pkg_count=$(grep -c "^[^#]" "$requirements_file" 2>/dev/null || echo "0")
-    log_info "Installing $pkg_count packages from requirements.txt..."
+    log_info "Installing $pkg_count packages from $(basename "$requirements_file")..."
     log_info "This may take a few minutes..."
 
     # Install requirements with visible output for errors
@@ -131,8 +139,9 @@ install_requirements() {
         echo ""
         echo -e "  ${YELLOW}Troubleshooting:${NC}"
         echo -e "  1. Check internet connection"
-        echo -e "  2. Try manually: ${CYAN}source ${venv_path}/bin/activate && pip install -r requirements.txt${NC}"
-        echo -e "  3. Check for specific package errors above"
+        echo -e "  2. Ensure build tools: ${CYAN}sudo apt install build-essential${NC}"
+        echo -e "  3. Try manually: ${CYAN}source ${venv_path}/bin/activate && pip install -r $(basename "$requirements_file")${NC}"
+        echo -e "  4. Check for specific package errors above"
         echo ""
         return 1
     fi

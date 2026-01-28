@@ -162,8 +162,8 @@ install_python() {
     fi
 }
 
-# Ensure venv package is installed for the detected Python version
-ensure_venv_package() {
+# Ensure venv and dev packages are installed for the detected Python version
+ensure_python_packages() {
     local python_cmd="$1"
     local version
     version=$(get_python_major_minor "$python_cmd")
@@ -173,22 +173,30 @@ ensure_venv_package() {
         return 1
     fi
 
-    log_step "Ensuring venv package for Python $version..."
+    log_step "Ensuring Python $version packages..."
 
-    local venv_pkg="python${version}-venv"
+    # Packages needed for venv and compiling C extensions
+    local packages=("python${version}-venv" "python${version}-dev")
+    local packages_to_install=()
 
-    if dpkg -l "$venv_pkg" 2>/dev/null | grep -q "^ii"; then
-        log_info "$venv_pkg already installed"
+    for pkg in "${packages[@]}"; do
+        if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+            packages_to_install+=("$pkg")
+        fi
+    done
+
+    if [[ ${#packages_to_install[@]} -eq 0 ]]; then
+        log_info "All Python $version packages already installed"
         return 0
     fi
 
-    log_info "Installing $venv_pkg..."
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y "$venv_pkg" 2>&1; then
-        log_success "$venv_pkg installed"
+    log_info "Installing: ${packages_to_install[*]}"
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages_to_install[@]}" 2>&1; then
+        log_success "Python $version packages installed"
         return 0
     else
-        log_error "Failed to install $venv_pkg"
-        log_info "Try manually: sudo apt install $venv_pkg"
+        log_error "Failed to install Python packages"
+        log_info "Try manually: sudo apt install ${packages_to_install[*]}"
         return 1
     fi
 }
@@ -245,10 +253,10 @@ run_python_phase() {
         python_version=$(get_python_major_minor "$python_cmd")
         log_success "Python ${python_version} found: $python_cmd"
 
-        # Ensure venv package is installed for this version
-        ensure_venv_package "$python_cmd" || {
-            log_warn "Could not install venv package automatically"
-            log_info "Please run: sudo apt install python${python_version}-venv"
+        # Ensure venv and dev packages are installed for this version
+        ensure_python_packages "$python_cmd" || {
+            log_warn "Could not install Python packages automatically"
+            log_info "Please run: sudo apt install python${python_version}-venv python${python_version}-dev"
         }
 
         gcs_state_set_value "python_version" "$python_version"

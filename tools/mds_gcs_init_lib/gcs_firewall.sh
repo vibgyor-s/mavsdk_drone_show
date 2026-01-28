@@ -232,6 +232,18 @@ run_firewall_phase() {
         fi
         echo ""
 
+        # Check if user is using non-standard SSH port
+        if [[ "$ssh_port" != "22" ]]; then
+            echo -e "  ${YELLOW}IMPORTANT: You are using SSH on port $ssh_port (not standard 22)${NC}"
+            echo -e "  ${YELLOW}This port will be allowed to maintain your connection.${NC}"
+            echo ""
+        fi
+
+        # Final warning before applying
+        echo -e "  ${WHITE}The firewall will ONLY allow the ports listed above.${NC}"
+        echo -e "  ${WHITE}All other incoming connections will be blocked.${NC}"
+        echo ""
+
         if ! confirm "Apply firewall configuration?" "y"; then
             log_info "Skipping firewall configuration"
             echo ""
