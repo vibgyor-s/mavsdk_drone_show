@@ -153,13 +153,13 @@ GCS_BACKEND=uvicorn
 # Repository Settings
 MDS_REPO_URL=git@github.com:alireza787b/mavsdk_drone_show.git
 MDS_BRANCH=main-candidate
-MDS_INSTALL_DIR=/opt/mavsdk_drone_show
+MDS_INSTALL_DIR=~/mavsdk_drone_show
 
 # Dashboard Settings
 DASHBOARD_PORT=3030
 
 # Virtual Environment
-VENV_PATH=/opt/mavsdk_drone_show/venv
+VENV_PATH=~/mavsdk_drone_show/venv
 ```
 
 ---
@@ -209,18 +209,18 @@ cat /var/lib/mds/gcs_init_state.json | jq .
 tail -50 /var/log/mds/mds_gcs_init.log
 
 # Verify Python environment
-source /opt/mavsdk_drone_show/venv/bin/activate
+source ~/mavsdk_drone_show/venv/bin/activate
 python -c "import fastapi; print('FastAPI OK')"
 python -c "import mavsdk; print('MAVSDK OK')"
 
 # Verify Node.js environment
-ls /opt/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules | head -5
+ls ~/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules | head -5
 ```
 
 ### Run Diagnostic Check
 
 ```bash
-cd /opt/mavsdk_drone_show/app
+cd ~/mavsdk_drone_show/app
 ./linux_dashboard_start.sh --check
 ```
 
@@ -275,7 +275,7 @@ sudo kill -9 <PID>
 
 2. **Remove corrupted venv and retry:**
    ```bash
-   rm -rf /opt/mavsdk_drone_show/venv
+   rm -rf ~/mavsdk_drone_show/venv
    sudo ./tools/mds_gcs_init.sh --resume
    ```
 
@@ -291,8 +291,8 @@ sudo kill -9 <PID>
 
 2. **Remove node_modules and retry:**
    ```bash
-   rm -rf /opt/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules
-   cd /opt/mavsdk_drone_show/app/dashboard/drone-dashboard
+   rm -rf ~/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules
+   cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
    npm install
    ```
 
@@ -314,14 +314,14 @@ After successful installation, start the dashboard:
 ### Development Mode (Recommended for testing)
 
 ```bash
-cd /opt/mavsdk_drone_show/app
+cd ~/mavsdk_drone_show/app
 ./linux_dashboard_start.sh --dev --sitl
 ```
 
 ### Production Mode
 
 ```bash
-cd /opt/mavsdk_drone_show/app
+cd ~/mavsdk_drone_show/app
 ./linux_dashboard_start.sh --prod --real
 ```
 

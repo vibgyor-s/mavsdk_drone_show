@@ -371,6 +371,7 @@ get_architecture() {
 }
 
 # Prompt for input with default value
+# Uses /dev/tty to work correctly when script is piped (curl | bash)
 prompt_input() {
     local prompt="$1"
     local default="$2"
@@ -384,16 +385,17 @@ prompt_input() {
 
     local input
     if [[ "$is_password" == "true" ]]; then
-        read -s -p "  $prompt [$default]: " input
+        read -s -p "  $prompt [$default]: " input </dev/tty
         echo ""
     else
-        read -p "  $prompt [$default]: " input
+        read -p "  $prompt [$default]: " input </dev/tty
     fi
 
     eval "$var_name=\"${input:-$default}\""
 }
 
 # Prompt for yes/no confirmation
+# Uses /dev/tty to work correctly when script is piped (curl | bash)
 confirm() {
     local prompt="$1"
     local default="${2:-y}"
@@ -404,14 +406,28 @@ confirm() {
 
     local yn
     if [[ "$default" == "y" ]]; then
-        read -p "  $prompt [Y/n]: " yn
+        read -p "  $prompt [Y/n]: " yn </dev/tty
         yn=${yn:-y}
     else
-        read -p "  $prompt [y/N]: " yn
+        read -p "  $prompt [y/N]: " yn </dev/tty
         yn=${yn:-n}
     fi
 
     [[ "${yn,,}" == "y" || "${yn,,}" == "yes" ]]
+}
+
+# Wait for user to press any key
+# Uses /dev/tty to work correctly when script is piped (curl | bash)
+wait_for_keypress() {
+    local prompt="${1:-Press any key to continue...}"
+
+    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+        return 0
+    fi
+
+    echo ""
+    read -n 1 -s -r -p "  $prompt" </dev/tty
+    echo ""
 }
 
 # Wait with countdown

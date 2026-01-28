@@ -79,11 +79,13 @@ display_ssh_key_instructions() {
     echo -e "  2. Click ${CYAN}Settings${NC} → ${CYAN}Deploy keys${NC} → ${CYAN}Add deploy key${NC}"
     echo -e "  3. Title: ${GREEN}MDS GCS - $(hostname)${NC}"
     echo -e "  4. Paste the key above"
-    echo -e "  ${YELLOW}5. ✓ Check 'Allow write access' (REQUIRED for git sync features)${NC}"
+    echo -e "  ${YELLOW}5. CHECK 'Allow write access' (REQUIRED for git sync features)${NC}"
     echo -e "  6. Click ${CYAN}Add key${NC}"
     echo ""
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-    echo ""
+
+    # Wait for user to read the instructions
+    wait_for_keypress "Press any key after copying the key..."
 }
 
 # Configure SSH for GitHub

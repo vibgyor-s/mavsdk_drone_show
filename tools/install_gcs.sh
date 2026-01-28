@@ -23,9 +23,18 @@ set -euo pipefail
 # CONFIGURATION
 # =============================================================================
 
+# Repository settings
 REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
 BRANCH="${MDS_BRANCH:-main-candidate}"
-INSTALL_DIR="${MDS_INSTALL_DIR:-/opt/mavsdk_drone_show}"
+
+# Installation directory - defaults to user's home directory
+# When running via sudo, SUDO_USER contains the original user
+if [[ -n "${SUDO_USER:-}" ]]; then
+    DEFAULT_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    DEFAULT_HOME="$HOME"
+fi
+INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/mavsdk_drone_show}"
 
 # Colors
 RED='\033[0;31m'
@@ -135,7 +144,7 @@ run_init_script() {
 }
 
 show_help() {
-    cat << 'EOF'
+    cat << EOF
 MDS GCS Bootstrap Installer
 
 USAGE:
@@ -144,7 +153,7 @@ USAGE:
 
 OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
-    --install-dir PATH  Installation directory (default: /opt/mavsdk_drone_show)
+    --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
     -h, --help          Show this help message
 
     All other options are passed to mds_gcs_init.sh
@@ -155,7 +164,7 @@ ENVIRONMENT VARIABLES:
     MDS_INSTALL_DIR     Installation directory
 
 EXAMPLES:
-    # Default installation
+    # Default installation (installs to ~/mavsdk_drone_show)
     curl -fsSL https://raw.githubusercontent.com/.../install_gcs.sh | sudo bash
 
     # Custom branch
@@ -163,6 +172,9 @@ EXAMPLES:
 
     # Non-interactive
     curl -fsSL ... | sudo bash -s -- -y
+
+    # Custom install directory
+    curl -fsSL ... | sudo bash -s -- --install-dir /opt/mds
 
 EOF
 }
