@@ -349,4 +349,4 @@ After starting:
 
 ---
 
-**Last Updated:** January 2026 (Version 4.1.0)
+**Last Updated:** January 2026 (Version 4.2.0)

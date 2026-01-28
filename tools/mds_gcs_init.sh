@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Script
 # =============================================================================
-# Version: 1.0.0
+# Version: 4.2.0
 # Description: Enterprise GCS (Ground Control Station) initialization script
 #              Configures VPS/Ubuntu systems for MDS GCS operation
 # Author: MDS Team
@@ -94,7 +94,7 @@ export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 
 show_help() {
     cat << 'EOF'
-MDS GCS Initialization Script v1.0.0
+MDS GCS Initialization Script v4.2.0
 
 USAGE:
     sudo ./mds_gcs_init.sh [OPTIONS]
@@ -527,7 +527,17 @@ main() {
     fi
 
     # Configure mode
-    print_gcs_banner
+    # Get git info if available
+    local git_info branch commit git_date
+    if [[ -d "${GCS_INSTALL_DIR}/.git" ]]; then
+        git_info=$(get_git_info "${GCS_INSTALL_DIR}" 2>/dev/null || echo "unknown|unknown|unknown")
+        IFS='|' read -r branch commit git_date <<< "$git_info"
+    fi
+
+    print_gcs_banner "${branch:-$GCS_DEFAULT_BRANCH}" "${commit:-pending}"
+
+    log_info "Installation started: $(date '+%Y-%m-%d %H:%M:%S')"
+    log_info "Script version: ${GCS_VERSION}"
 
     # Display mode indicators
     if [[ "$DRY_RUN" == "true" ]]; then

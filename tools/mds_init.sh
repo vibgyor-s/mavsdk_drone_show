@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Raspberry Pi Initialization Script
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.2.0
 # Description: Production-ready, enterprise-grade initialization for drone swarm nodes
 # Author: MDS Team
 # Repository: https://github.com/alireza787b/mavsdk_drone_show
@@ -102,7 +102,7 @@ DEBUG="false"
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Initialization Script v4.0.0
+MDS Raspberry Pi Initialization Script v4.2.0
 
 USAGE:
     sudo ./mds_init.sh [OPTIONS]
@@ -469,8 +469,18 @@ main() {
     # Initialize state
     state_init
 
-    # Show banner
-    print_banner
+    # Get git info if available
+    local git_info branch commit git_date
+    if [[ -d "${SCRIPT_DIR}/../.git" ]]; then
+        git_info=$(get_git_info "${SCRIPT_DIR}/.." 2>/dev/null || echo "unknown|unknown|unknown")
+        IFS='|' read -r branch commit git_date <<< "$git_info"
+    fi
+
+    # Show banner with version info
+    print_banner "${branch:-main-candidate}" "${commit:-pending}"
+
+    log_info "Initialization started: $(date '+%Y-%m-%d %H:%M:%S')"
+    log_info "Script version: ${MDS_VERSION}"
 
     # Show mode indicators
     echo ""

@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.2.0
 # Description: Core utilities for mds_init.sh - colors, logging, state, branding
 # Author: MDS Team
 # =============================================================================
@@ -15,7 +15,7 @@ _MDS_COMMON_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-readonly MDS_VERSION="4.0.0"
+readonly MDS_VERSION="4.2.0"
 readonly MDS_STATE_DIR="/var/lib/mds"
 readonly MDS_STATE_FILE="${MDS_STATE_DIR}/init_state.json"
 readonly MDS_CONFIG_DIR="/etc/mds"
@@ -137,23 +137,44 @@ log_step() {
 }
 
 # =============================================================================
+# SHARED BANNER
+# =============================================================================
+
+# Source the shared banner file
+_MDS_COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MDS_BANNER_PATH="${_MDS_COMMON_SCRIPT_DIR}/../mds_banner.sh"
+if [[ -f "$MDS_BANNER_PATH" ]]; then
+    source "$MDS_BANNER_PATH"
+fi
+
+# =============================================================================
 # BRANDING AND DISPLAY
 # =============================================================================
 
 print_banner() {
-    echo -e "${CYAN}"
-    cat << 'EOF'
-+==============================================================================+
-|                                                                              |
-|    __  __   ___   _____ ___  _  __  ___  ___  ___  _  _ ___   ___ _  _  ___  |
-|   |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ |
-|   | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) ||
-|   |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ |
-|                                                                              |
-+==============================================================================+
-EOF
-    echo -e "${NC}"
-    echo -e "${WHITE}           Raspberry Pi Initialization Script v${MDS_VERSION}${NC}"
+    local branch="${1:-}"
+    local commit="${2:-}"
+
+    # Use shared banner if available
+    if type print_mds_banner &>/dev/null; then
+        print_mds_banner "Raspberry Pi Drone" "${MDS_VERSION}" "${branch}" "${commit}"
+    else
+        # Fallback to inline banner
+        echo -e "${CYAN}"
+        echo ",--.   ,--.,------.   ,---.   "
+        echo "|   \`.'   ||  .-.  \\ '   .-'  "
+        echo "|  |'.'|  ||  |  \\  :\`.  \`-.  "
+        echo "|  |   |  ||  '--'  /.-'    | "
+        echo "\`--'   \`--'\`-------' \`-----'  "
+        echo -e "${NC}"
+        echo -e "${WHITE}MAVSDK Drone Show - Raspberry Pi Drone${NC}"
+        echo "================================================"
+        echo -e "Version:  ${WHITE}${MDS_VERSION}${NC}"
+        [[ -n "$branch" ]] && echo -e "Branch:   ${WHITE}$branch${NC}"
+        [[ -n "$commit" ]] && echo -e "Commit:   ${WHITE}$commit${NC}"
+        echo "================================================"
+        echo ""
+    fi
     echo -e "${DIM}                   Enterprise Drone Swarm Platform${NC}"
     echo ""
 }

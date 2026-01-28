@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Bootstrap Installer
 # =============================================================================
-# Version: 1.0.0
+# Version: 4.2.0
 # Description: Bootstrap installer for remote GCS setup
 #              Downloads and runs mds_gcs_init.sh
 # Author: MDS Team
@@ -55,12 +55,27 @@ log_warn() {
 }
 
 print_banner() {
-    echo ""
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}                   ${GREEN}MDS GCS Bootstrap Installer${NC}                    ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}                      Ground Control Station                       ${CYAN}║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+    # Source shared banner if available
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ -f "${script_dir}/mds_banner.sh" ]]; then
+        source "${script_dir}/mds_banner.sh"
+        print_mds_banner "GCS Bootstrap" "4.2.0" "$BRANCH" ""
+    else
+        # Fallback banner
+        echo ""
+        echo -e "${CYAN},--.   ,--.,------.   ,---.   ${NC}"
+        echo -e "${CYAN}|   \`.'   ||  .-.  \\ '   .-'  ${NC}"
+        echo -e "${CYAN}|  |'.'|  ||  |  \\  :\`.  \`-.  ${NC}"
+        echo -e "${CYAN}|  |   |  ||  '--'  /.-'    | ${NC}"
+        echo -e "${CYAN}\`--'   \`--'\`-------' \`-----'  ${NC}"
+        echo ""
+        echo -e "${GREEN}MAVSDK Drone Show - GCS Bootstrap${NC}"
+        echo "================================================"
+        echo "Version:  4.2.0"
+        echo "Branch:   $BRANCH"
+        echo "================================================"
+        echo ""
+    fi
 }
 
 check_root() {
@@ -185,6 +200,7 @@ main() {
     print_banner
 
     log_info "Starting GCS bootstrap installation..."
+    log_info "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
 
     check_root

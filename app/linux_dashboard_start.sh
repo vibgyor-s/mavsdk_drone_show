@@ -913,18 +913,33 @@ EOF
 # MAIN EXECUTION
 #########################################
 
-# Banner
-cat << "EOF"
+# Banner - Use shared banner if available
+display_startup_banner() {
+    local banner_path="$PARENT_DIR/tools/mds_banner.sh"
+    if [[ -f "$banner_path" ]]; then
+        source "$banner_path"
+        local git_info branch commit git_date
+        git_info=$(get_git_info "$PARENT_DIR" 2>/dev/null || echo "unknown|unknown|unknown")
+        IFS='|' read -r branch commit git_date <<< "$git_info"
+        print_mds_banner "Dashboard Services" "4.2.0" "$branch" "$commit"
+    else
+        # Fallback banner
+        echo ""
+        echo ",--.   ,--.,------.   ,---.   "
+        echo "|   \`.'   ||  .-.  \\ '   .-'  "
+        echo "|  |'.'|  ||  |  \\  :\`.  \`-.  "
+        echo "|  |   |  ||  '--'  /.-'    | "
+        echo "\`--'   \`--'\`-------' \`-----'  "
+        echo ""
+        echo "MAVSDK Drone Show - Dashboard Services"
+        echo "================================================"
+        echo "Version:  4.2.0"
+        echo "================================================"
+        echo ""
+    fi
+}
 
-  __  __   ___   _____ ___  _  __  ___  ___  ___  _  _ ___   ___ _  _  _____      __   ____  __ ___  _____  
- |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
- | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) \ \/\/ /  | || |\/| | |) \__ \| |
- |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
-                                                                                      \_\               /_/ 
-
-                              PRODUCTION READY DRONE SERVICES
-
-EOF
+display_startup_banner
 
 # Parse arguments and initialize
 parse_arguments "$@"

@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 1.0.0
+# Version: 4.2.0
 # Description: GCS-specific constants and utilities (extends mds_init_lib/common.sh)
 # Author: MDS Team
 # =============================================================================
@@ -31,7 +31,7 @@ fi
 # GCS-SPECIFIC CONSTANTS (Override base constants)
 # =============================================================================
 
-readonly GCS_VERSION="1.0.0"
+readonly GCS_VERSION="4.2.0"
 readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
 readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
 readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
@@ -158,22 +158,36 @@ log_step() {
 # GCS BRANDING
 # =============================================================================
 
+# Source the shared banner file
+MDS_BANNER_PATH="${GCS_SCRIPT_DIR}/../mds_banner.sh"
+if [[ -f "$MDS_BANNER_PATH" ]]; then
+    source "$MDS_BANNER_PATH"
+fi
+
 print_gcs_banner() {
-    echo -e "${CYAN}"
-    cat << 'EOF'
-+==============================================================================+
-|                                                                              |
-|    __  __   ___   _____ ___  _  __   ___  ___ ___                            |
-|   |  \/  | /_\ \ / / __|   \| |/ /  / __|/ __/ __|                           |
-|   | |\/| |/ _ \ V /\__ \ |) | ' <  | (_ | (__\__ \                           |
-|   |_|  |_/_/ \_\_/ |___/___/|_|\_\  \___|\___|___/                           |
-|                                                                              |
-|                  Ground Control Station Setup                                |
-|                                                                              |
-+==============================================================================+
-EOF
-    echo -e "${NC}"
-    echo -e "${WHITE}           GCS Initialization Script v${GCS_VERSION}${NC}"
+    local branch="${1:-}"
+    local commit="${2:-}"
+
+    # Use shared banner if available
+    if type print_mds_banner &>/dev/null; then
+        print_mds_banner "Ground Control Station" "${GCS_VERSION}" "${branch}" "${commit}"
+    else
+        # Fallback to inline banner
+        echo -e "${CYAN}"
+        echo ",--.   ,--.,------.   ,---.   "
+        echo "|   \`.'   ||  .-.  \\ '   .-'  "
+        echo "|  |'.'|  ||  |  \\  :\`.  \`-.  "
+        echo "|  |   |  ||  '--'  /.-'    | "
+        echo "\`--'   \`--'\`-------' \`-----'  "
+        echo -e "${NC}"
+        echo -e "${WHITE}MAVSDK Drone Show - Ground Control Station${NC}"
+        echo "================================================"
+        echo -e "Version:  ${WHITE}${GCS_VERSION}${NC}"
+        [[ -n "$branch" ]] && echo -e "Branch:   ${WHITE}$branch${NC}"
+        [[ -n "$commit" ]] && echo -e "Commit:   ${WHITE}$commit${NC}"
+        echo "================================================"
+        echo ""
+    fi
     echo -e "${DIM}              Enterprise Drone Swarm Platform${NC}"
     echo ""
 }

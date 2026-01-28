@@ -2,7 +2,7 @@
 
 **All-in-One Drone Show & Smart Swarm Framework for PX4**
 
-[![Version](https://img.shields.io/badge/version-4.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.2-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
@@ -237,13 +237,13 @@ All project documentation is organized in the `docs/` folder:
 
 ## Version & Changelog
 
-**Current Version: 4.1** (January 2026)
+**Current Version: 4.2** (January 2026)
 
 Major updates in this version:
-- GCS initialization system for VPS/Ubuntu servers
-- Enterprise Raspberry Pi initialization (v4.0)
-- Production-ready startup script integration
-- Comprehensive documentation for GCS and drone setup
+- Unified ASCII art branding across all scripts
+- Version and git info (branch, commit) displayed at startup
+- Improved startup experience with consistent banners
+- All initialization scripts now share common banner code
 
 📖 **[Full Changelog](CHANGELOG.md)** - Complete version history from v0.1 to current
 

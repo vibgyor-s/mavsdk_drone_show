@@ -1,6 +1,6 @@
 # MAVSDK Drone Show Documentation
 
-**Complete documentation index for MDS 4.1**
+**Complete documentation index for MDS 4.2**
 
 Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
 
@@ -179,7 +179,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 4.1
+**Current Version:** 4.2
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 
@@ -261,6 +261,6 @@ Please submit a pull request or open an issue on GitHub.
 
 ---
 
-**Last Updated:** January 2026 (Version 4.1)
+**Last Updated:** January 2026 (Version 4.2)
 
 © 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0

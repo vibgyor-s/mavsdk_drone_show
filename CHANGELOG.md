@@ -7,6 +7,61 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [4.2] - 2026-01-28
+
+### Added
+- **Unified MDS Branding**: Consistent ASCII art banner across all initialization scripts
+  - New shared banner file: `tools/mds_banner.sh`
+  - `print_mds_banner()` function for consistent display
+  - `get_git_info()` function for git branch/commit retrieval
+- **Version/Git Info at Startup**: All scripts now display version, branch, and commit at startup
+  - GCS bootstrap shows version and branch during installation
+  - GCS init displays version, branch, commit, and timestamp
+  - RPi init displays version, branch, commit, and timestamp
+  - Dashboard startup shows version and git info
+
+### Changed
+- **Banner Unification**: All scripts now use the same MDS ASCII art
+  - `tools/install_gcs.sh`: Replaced box-drawing banner with unified banner
+  - `tools/mds_gcs_init.sh`: Uses shared banner with git info
+  - `tools/mds_gcs_init_lib/gcs_common.sh`: Sources shared banner
+  - `tools/mds_init.sh`: Uses shared banner with git info
+  - `tools/mds_init_lib/common.sh`: Sources shared banner
+  - `app/linux_dashboard_start.sh`: Replaced wide ASCII with unified banner
+- **Version Synchronization**: All version numbers updated to 4.2.0
+  - `GCS_VERSION` in gcs_common.sh
+  - `MDS_VERSION` in common.sh
+  - `MDS_BANNER_VERSION` in mds_banner.sh
+  - Documentation updated (README.md, docs/README.md, gcs-setup.md)
+
+---
+
+## [4.1] - 2026-01-24
+
+### Added
+- **GCS Initialization System**: Enterprise-grade VPS/Ubuntu GCS setup
+  - One-line installation: `curl ... | sudo bash`
+  - Comprehensive `mds_gcs_init.sh` with 9 phases
+  - Library modules for prereqs, Python, Node.js, firewall, etc.
+- **Documentation Updates**: GCS setup guide and documentation links
+
+---
+
+## [4.0] - 2026-01-20
+
+### Added
+- **Enterprise Raspberry Pi Initialization**: Production-ready `mds_init.sh`
+  - Modular library architecture in `mds_init_lib/`
+  - 13 installation phases with state tracking
+  - Resume capability for interrupted installations
+  - SSH key management for git sync
+- **Production Dashboard Startup**: Enhanced `linux_dashboard_start.sh`
+  - FastAPI/Flask backend selection
+  - Development and production modes
+  - tmux session management
+
+---
+
 ## [3.8] - 2025-11-07
 
 ### Added
