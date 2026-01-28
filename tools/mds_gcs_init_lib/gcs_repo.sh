@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Repository Setup
 # =============================================================================
-# Version: 1.0.0
+# Version: 4.2.1
 # Description: Clone/update repository with SSH key management for WRITE access
 # Author: MDS Team
 # =============================================================================
@@ -17,6 +17,75 @@ _MDS_GCS_REPO_LOADED=1
 
 readonly GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
+
+# =============================================================================
+# REPOSITORY SELECTION
+# =============================================================================
+
+# Prompt user to select repository (default or custom fork)
+prompt_repository_selection() {
+    # Skip if non-interactive or already have a custom repo URL
+    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+        log_info "Using default repository (non-interactive mode)"
+        return 0
+    fi
+
+    # If REPO_URL is already set (via CLI or env), use it
+    if [[ -n "${REPO_URL:-}" ]]; then
+        log_info "Using provided repository: ${REPO_URL}"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+    echo -e "${CYAN}|${NC}  ${WHITE}Repository Selection${NC}"
+    echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+    echo ""
+    echo -e "  Which repository do you want to use?"
+    echo ""
+    echo -e "  ${WHITE}1)${NC} Default - ${GREEN}alireza787b/mavsdk_drone_show${NC} (Recommended)"
+    echo -e "     Branch: ${CYAN}${BRANCH:-main-candidate}${NC}"
+    echo -e "     Official MDS repository with latest updates"
+    echo ""
+    echo -e "  ${WHITE}2)${NC} Custom fork - Use your own forked repository"
+    echo -e "     You will need to provide your GitHub username"
+    echo ""
+    echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+    echo ""
+
+    local choice
+    read -p "  Select option [1]: " choice </dev/tty
+    choice=${choice:-1}
+
+    case "$choice" in
+        1)
+            log_info "Using default repository: alireza787b/mavsdk_drone_show"
+            # REPO_URL stays empty, will use defaults
+            ;;
+        2)
+            echo ""
+            local github_user
+            read -p "  Enter your GitHub username: " github_user </dev/tty
+            if [[ -n "$github_user" ]]; then
+                REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
+                export REPO_URL
+                log_info "Using fork: ${REPO_URL}"
+                echo ""
+                read -p "  Enter branch name [main-candidate]: " custom_branch </dev/tty
+                if [[ -n "$custom_branch" ]]; then
+                    BRANCH="$custom_branch"
+                    export BRANCH
+                fi
+            else
+                log_warn "No username provided, using default repository"
+            fi
+            ;;
+        *)
+            log_info "Invalid option, using default repository"
+            ;;
+    esac
+    echo ""
+}
 
 # =============================================================================
 # SSH KEY MANAGEMENT
@@ -297,29 +366,48 @@ run_repository_phase() {
 
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
 
-    # Check if we're already in a valid repo
+    # Check if we're already in a valid repo (bootstrapped)
     if [[ -d "${install_dir}/.git" ]]; then
         print_section "Existing Repository"
         log_info "Found existing repository at: $install_dir"
 
-        # If using HTTPS mode or repo exists, just update
+        # Show current repo info
+        local current_remote current_branch
+        current_remote=$(cd "$install_dir" && git remote get-url origin 2>/dev/null || echo "unknown")
+        current_branch=$(cd "$install_dir" && git branch --show-current 2>/dev/null || echo "unknown")
+        log_info "Remote: $current_remote"
+        log_info "Branch: $current_branch"
+
+        # If using HTTPS mode, just update
         if [[ "${USE_HTTPS:-false}" == "true" ]]; then
             clone_or_update_repo || return 1
             echo ""
             log_success "Repository phase completed"
             return 0
         fi
+    else
+        # No existing repo - prompt for repository selection
+        print_section "Repository Selection"
+        prompt_repository_selection
     fi
 
-    # SSH key setup for write access
+    # SSH key setup for write access (only if not using HTTPS)
     if [[ "${USE_HTTPS:-false}" != "true" ]]; then
-        print_section "SSH Key Setup"
+        print_section "SSH Key Setup (for git sync features)"
+        log_info "SSH keys enable push/pull to your repository"
+        echo ""
 
-        generate_ssh_key || return 1
-        configure_ssh_github || return 1
+        if confirm "Do you want to set up SSH deploy key for git sync?" "y"; then
+            generate_ssh_key || return 1
+            configure_ssh_github || return 1
 
-        if ! test_ssh_connection; then
-            wait_for_ssh_key || return 1
+            if ! test_ssh_connection; then
+                wait_for_ssh_key || return 1
+            fi
+        else
+            log_info "Skipping SSH key setup - using HTTPS (read-only)"
+            USE_HTTPS="true"
+            export USE_HTTPS
         fi
     fi
 

@@ -163,7 +163,7 @@ EXAMPLES:
 PHASES:
     1. prereqs      - System validation, base packages
     2. python       - Python 3.11+ installation
-    3. nodejs       - Node.js 18.x LTS installation
+    3. nodejs       - Node.js 20.x LTS installation
     4. repository   - Clone/update repository with SSH key
     5. firewall     - UFW with GCS ports
     6. python_env   - venv + requirements.txt

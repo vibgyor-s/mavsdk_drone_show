@@ -2,8 +2,8 @@
 # =============================================================================
 # MDS GCS Initialization Library: Node.js Installation
 # =============================================================================
-# Version: 1.0.0
-# Description: Install Node.js 18.x LTS from NodeSource
+# Version: 4.2.1
+# Description: Install Node.js 20.x LTS from NodeSource
 # Author: MDS Team
 # =============================================================================
 
@@ -15,7 +15,7 @@ _MDS_GCS_NODEJS_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-readonly NODESOURCE_URL="https://deb.nodesource.com/setup_18.x"
+readonly NODESOURCE_URL="https://deb.nodesource.com/setup_20.x"
 
 # =============================================================================
 # NODE.JS CHECKS
