@@ -348,20 +348,57 @@ run_repository_phase() {
 
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
 
-    # Check if we're already in a valid repo (bootstrapped)
+    # Check if we're already in a valid repo (bootstrapped by install_gcs.sh)
     if [[ -d "${install_dir}/.git" ]]; then
-        print_section "Existing Repository"
-        log_info "Found existing repository at: $install_dir"
+        print_section "Repository Configuration"
 
         # Show current repo info
-        local current_remote current_branch
+        local current_remote current_branch current_commit
         current_remote=$(cd "$install_dir" && git remote get-url origin 2>/dev/null || echo "unknown")
         current_branch=$(cd "$install_dir" && git branch --show-current 2>/dev/null || echo "unknown")
-        log_info "Remote: $current_remote"
-        log_info "Branch: $current_branch"
+        current_commit=$(cd "$install_dir" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-        # If using HTTPS mode, just update
+        echo ""
+        echo -e "  ${WHITE}Current Repository:${NC}"
+        echo -e "    Remote: ${GREEN}${current_remote}${NC}"
+        echo -e "    Branch: ${CYAN}${current_branch}${NC}"
+        echo -e "    Commit: ${DIM}${current_commit}${NC}"
+        echo ""
+
+        # Ask about access mode if not already set via CLI
+        if [[ "${USE_HTTPS:-}" != "true" ]] && [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+            echo -e "${CYAN}|${NC}  ${WHITE}Git Access Mode${NC}"
+            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+            echo ""
+            echo -e "  ${WHITE}1)${NC} ${GREEN}HTTPS (Recommended for most users)${NC}"
+            echo -e "     - Simple setup, no SSH keys needed"
+            echo -e "     - Read-only access (manual git push if needed)"
+            echo ""
+            echo -e "  ${WHITE}2)${NC} SSH with deploy key"
+            echo -e "     - Enables automatic git sync features"
+            echo -e "     - Requires adding deploy key to GitHub"
+            echo ""
+            echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+            echo ""
+
+            local access_choice
+            read -p "  Select access mode [1]: " access_choice </dev/tty
+            access_choice=${access_choice:-1}
+
+            if [[ "$access_choice" == "1" ]]; then
+                USE_HTTPS="true"
+                export USE_HTTPS
+                log_info "Using HTTPS mode (simple setup)"
+            else
+                log_info "Setting up SSH deploy key..."
+            fi
+            echo ""
+        fi
+
+        # If using HTTPS mode, we're done with repo phase
         if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+            log_info "Repository configured with HTTPS access"
             clone_or_update_repo || return 1
             echo ""
             log_success "Repository phase completed"
@@ -375,21 +412,15 @@ run_repository_phase() {
 
     # SSH key setup for write access (only if not using HTTPS)
     if [[ "${USE_HTTPS:-false}" != "true" ]]; then
-        print_section "SSH Key Setup (for git sync features)"
-        log_info "SSH keys enable push/pull to your repository"
+        print_section "SSH Deploy Key Setup"
+        log_info "Setting up SSH key for git sync features..."
         echo ""
 
-        if confirm "Do you want to set up SSH deploy key for git sync?" "y"; then
-            generate_ssh_key || return 1
-            configure_ssh_github || return 1
+        generate_ssh_key || return 1
+        configure_ssh_github || return 1
 
-            if ! test_ssh_connection; then
-                wait_for_ssh_key || return 1
-            fi
-        else
-            log_info "Skipping SSH key setup - using HTTPS (read-only)"
-            USE_HTTPS="true"
-            export USE_HTTPS
+        if ! test_ssh_connection; then
+            wait_for_ssh_key || return 1
         fi
     fi
 

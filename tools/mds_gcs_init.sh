@@ -569,14 +569,8 @@ main() {
     # Store initial values
     gcs_state_set_value "install_dir" "$GCS_INSTALL_DIR"
 
-    # Display configuration summary
-    local git_mode="SSH"
-    [[ "$USE_HTTPS" == "true" ]] && git_mode="HTTPS"
-
-    echo -e "  ${WHITE}Configuration:${NC}"
-    echo -e "    Install directory: ${GCS_INSTALL_DIR}"
-    echo -e "    Branch: ${BRANCH}"
-    echo -e "    Git mode: ${git_mode}"
+    # Display minimal configuration (details will be asked in Phase 4)
+    echo -e "  ${WHITE}Install directory:${NC} ${GCS_INSTALL_DIR}"
     echo ""
 
     # Confirm before proceeding (interactive mode)
