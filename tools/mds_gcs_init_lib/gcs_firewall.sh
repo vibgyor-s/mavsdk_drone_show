@@ -199,40 +199,45 @@ run_firewall_phase() {
 
     # Warning if enabling firewall for first time
     if ! check_ufw_active; then
-        echo -e "  ${YELLOW}WARNING: Firewall is not currently active.${NC}"
-        echo -e "  ${YELLOW}Enabling it will block all ports except those listed above.${NC}"
-        echo -e "  ${YELLOW}SSH port $ssh_port will be allowed to prevent lockout.${NC}"
+        echo -e "  ${YELLOW}NOTE: Firewall is not currently active.${NC}"
+        echo -e "  ${YELLOW}Enabling it will allow ONLY the ports listed above.${NC}"
+        echo -e "  ${GREEN}SSH port $ssh_port will be allowed automatically.${NC}"
         echo ""
     fi
 
-    # Ask for custom ports in interactive mode
+    # Ask for custom ports in interactive mode - cleaner UX
     if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-        if confirm "Do you need to add any custom ports?" "n"; then
-            echo ""
-            echo -e "  Enter additional ports (comma-separated, e.g., 8080,9000/udp):"
-            local custom_ports
-            read -p "  Custom ports: " custom_ports </dev/tty
+        echo -e "  ${WHITE}Additional ports (optional):${NC}"
+        echo -e "  ${DIM}Enter extra ports if needed, or press Enter to skip${NC}"
+        echo -e "  ${DIM}Format: 8080 or 8080,9000 or 8080/udp${NC}"
+        echo ""
 
-            if [[ -n "$custom_ports" ]]; then
-                # Parse and store custom ports
-                IFS=',' read -ra CUSTOM_PORTS <<< "$custom_ports"
-                for port in "${CUSTOM_PORTS[@]}"; do
-                    port=$(echo "$port" | tr -d ' ')
-                    if [[ -n "$port" ]]; then
-                        # Default to tcp if no protocol specified
-                        if [[ "$port" != */* ]]; then
-                            port="${port}/tcp"
-                        fi
-                        GCS_PORTS["$port"]="Custom port"
-                        log_info "Added custom port: $port"
+        local custom_ports
+        read -p "  Extra ports [none]: " custom_ports </dev/tty
+
+        if [[ -n "$custom_ports" ]]; then
+            # Parse and store custom ports
+            IFS=',' read -ra CUSTOM_PORTS <<< "$custom_ports"
+            for port in "${CUSTOM_PORTS[@]}"; do
+                port=$(echo "$port" | tr -d ' ')
+                if [[ -n "$port" ]]; then
+                    # Default to tcp if no protocol specified
+                    if [[ "$port" != */* ]]; then
+                        port="${port}/tcp"
                     fi
-                done
-            fi
-            echo ""
+                    GCS_PORTS["$port"]="Custom port"
+                    log_info "Added: $port"
+                fi
+            done
         fi
+        echo ""
 
-        if ! confirm "Configure firewall with these ports?" "y"; then
+        if ! confirm "Apply firewall configuration?" "y"; then
             log_info "Skipping firewall configuration"
+            echo ""
+            echo -e "  ${DIM}You can configure firewall later with:${NC}"
+            echo -e "  ${CYAN}sudo ufw allow PORT/tcp${NC}"
+            echo ""
             return 0
         fi
     fi

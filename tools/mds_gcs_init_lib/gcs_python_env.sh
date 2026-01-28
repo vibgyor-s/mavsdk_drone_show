@@ -119,18 +119,21 @@ install_requirements() {
     local pkg_count
     pkg_count=$(grep -c "^[^#]" "$requirements_file" 2>/dev/null || echo "0")
     log_info "Installing $pkg_count packages from requirements.txt..."
+    log_info "This may take a few minutes..."
 
-    # Install requirements (capture output to properly detect exit code)
-    local output
-    if output=$("$pip_cmd" install -r "$requirements_file" 2>&1); then
-        # Show progress from captured output
-        echo "$output" | grep -q "Successfully installed" && \
-            log_debug "$(echo "$output" | grep "Successfully installed" | tail -1)"
+    # Install requirements with visible output for errors
+    if "$pip_cmd" install -r "$requirements_file"; then
         log_success "Python requirements installed"
         return 0
     else
+        echo ""
         log_error "Failed to install some requirements"
-        log_debug "pip install output: $output"
+        echo ""
+        echo -e "  ${YELLOW}Troubleshooting:${NC}"
+        echo -e "  1. Check internet connection"
+        echo -e "  2. Try manually: ${CYAN}source ${venv_path}/bin/activate && pip install -r requirements.txt${NC}"
+        echo -e "  3. Check for specific package errors above"
+        echo ""
         return 1
     fi
 }
