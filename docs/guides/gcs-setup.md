@@ -7,6 +7,7 @@
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Repository Options](#repository-options)
 - [Manual Setup](#manual-setup)
 - [CLI Reference](#cli-reference)
 - [Configuration Files](#configuration-files)
@@ -14,6 +15,7 @@
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
 - [Running the Dashboard](#running-the-dashboard)
+- [VPN Networking](#vpn-networking)
 
 ---
 
@@ -35,6 +37,62 @@ This script will:
 - Install npm dependencies
 - Configure firewall rules
 - Create system configuration files
+
+---
+
+## Repository Options
+
+During installation, you'll choose between two repository options:
+
+### Option 1: Default Repository (Testing/SITL)
+
+Use the official MDS repository for testing and simulation:
+
+```
+github.com/alireza787b/mavsdk_drone_show
+```
+
+**Limitations:**
+- Read-only access (unless you're a collaborator)
+- No git sync features for drones
+- Suitable for SITL and testing only
+
+### Option 2: Your Own Fork (Production)
+
+For production drone shows, fork the repository first:
+
+1. **Fork on GitHub**: Go to [mavsdk_drone_show](https://github.com/alireza787b/mavsdk_drone_show) and click "Fork"
+
+2. **Use your fork during installation**:
+   ```bash
+   curl -fsSL ... | sudo bash -s -- --fork yourusername
+   ```
+
+   Or select option 2 during interactive setup.
+
+3. **Benefits:**
+   - Full write access
+   - Git sync features enabled
+   - Drones can pull updates from your GCS
+   - Push configuration changes
+
+### SSH Deploy Keys
+
+For write access (fork or collaborator), you'll set up an SSH deploy key:
+
+1. The installer generates a key at `~/.ssh/mds_gcs_deploy_key`
+2. Add the public key to your GitHub repository:
+   - Go to Repository → Settings → Deploy keys → Add deploy key
+   - **Enable "Allow write access"**
+3. The installer verifies the connection before proceeding
+
+### Access Modes
+
+| Mode | Write Access | Git Sync | Use Case |
+|------|--------------|----------|----------|
+| HTTPS (default repo) | No | No | Testing, SITL |
+| HTTPS (fork) | Manual push | Manual | Simple deployments |
+| SSH (fork) | Yes | Yes | Production shows |
 
 ---
 
@@ -370,13 +428,47 @@ After starting:
 
 ---
 
-## Next Steps
+---
 
-1. **Configure Mapbox Token** (optional): Edit `.env` file to add your Mapbox access token for map features
-2. **Set up MAVLink Routing**: See [MAVLink Routing Setup](mavlink-routing-setup.md)
-3. **Configure Drones**: See [MDS Init Setup](mds-init-setup.md) for Raspberry Pi drones
-4. **Review SITL Guide**: See [SITL Comprehensive Guide](sitl-comprehensive.md) for simulation testing
+## VPN Networking
+
+For drones to communicate with your GCS over the internet, both must be on the same VPN network.
+
+### Recommended: NetBird
+
+NetBird provides secure, easy-to-setup networking:
+
+```bash
+# Install on GCS
+curl -fsSL https://pkgs.netbird.io/install.sh | sh
+sudo netbird up
+```
+
+After connecting:
+1. Note your NetBird IP (typically `100.x.x.x`)
+2. Use this IP as `GCS_IP` when configuring drones
+3. Install NetBird on each drone and connect to the same network
+
+See [NetBird Setup Guide](netbird-setup.md) for detailed instructions.
+
+### Network Architecture
+
+```
+GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
+                        ◄──────────────► Drone 2 (100.64.0.3)
+                        ◄──────────────► Drone N (100.64.0.N)
+```
 
 ---
 
-**Last Updated:** January 2026 (Version 4.2.2)
+## Next Steps
+
+1. **Configure Mapbox Token** (optional): Edit `.env` file to add your Mapbox access token for map features
+2. **Set up VPN Networking**: See [NetBird Setup](netbird-setup.md) for secure drone-GCS communication
+3. **Set up MAVLink Routing**: See [MAVLink Routing Setup](mavlink-routing-setup.md)
+4. **Configure Drones**: See [MDS Init Setup](mds-init-setup.md) for Raspberry Pi drones
+5. **Review SITL Guide**: See [SITL Comprehensive Guide](sitl-comprehensive.md) for simulation testing
+
+---
+
+**Last Updated:** January 2026 (Version 4.3.0)

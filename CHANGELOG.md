@@ -7,6 +7,37 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [4.3] - 2026-01-28
+
+### Added
+- **Enhanced Repository Management**: Interactive fork vs default repository selection
+  - Clear read-only warning for default repo users
+  - SSH access detection for collaborators
+  - Fork configuration verification (matches RPi init behavior)
+- **NetBird VPN Integration**: VPN networking guidance in installation summary
+  - New guide: `docs/guides/netbird-setup.md`
+  - Network architecture diagrams
+  - Step-by-step setup instructions
+- **CLI Improvements**: New `--fork` option for `install_gcs.sh`
+  - Quick fork setup: `curl ... | sudo bash -s -- --fork username`
+  - Better error messages and guidance
+
+### Changed
+- **Repository Selection Flow**: Separated "what repo" from "how to access"
+  - Step 1: Choose official repo or your own fork
+  - Step 2: Choose HTTPS or SSH access
+  - SSH recommended for production (enables git sync)
+- **Path Resolution**: Fixed PYTHONPATH for GCS server module imports
+  - Works correctly from any execution directory
+  - Explicitly sets PROJECT_ROOT in PYTHONPATH
+- **Documentation**: Updated gcs-setup.md with repository options and VPN networking
+
+### Fixed
+- **Module Import Issues**: GCS server can now find functions module from any path
+- **Version Consistency**: All files updated to 4.3.0
+
+---
+
 ## [4.2] - 2026-01-28
 
 ### Added

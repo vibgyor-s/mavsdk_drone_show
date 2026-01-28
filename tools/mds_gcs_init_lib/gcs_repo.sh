@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Repository Setup
 # =============================================================================
-# Version: 4.2.1
+# Version: 4.3.0
 # Description: Clone/update repository with SSH key management for WRITE access
 # Author: MDS Team
 # =============================================================================
@@ -22,12 +22,90 @@ readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 # REPOSITORY SELECTION
 # =============================================================================
 
+# Display read-only warning for default repository
+display_readonly_warning() {
+    echo ""
+    echo -e "${YELLOW}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}│${NC}  ${WHITE}⚠ DEFAULT REPOSITORY NOTICE${NC}"
+    echo -e "${YELLOW}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${YELLOW}│${NC}"
+    echo -e "${YELLOW}│${NC}  You're using the default MDS repository:"
+    echo -e "${YELLOW}│${NC}  ${DIM}github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show${NC}"
+    echo -e "${YELLOW}│${NC}"
+    echo -e "${YELLOW}│${NC}  ${WHITE}Unless you are the owner or a collaborator, you will have:${NC}"
+    echo -e "${YELLOW}│${NC}    • ${RED}NO write access${NC} - changes cannot be pushed"
+    echo -e "${YELLOW}│${NC}    • ${RED}NO git sync${NC} - drones cannot pull updates from this GCS"
+    echo -e "${YELLOW}│${NC}    • ${GREEN}SITL/testing${NC} - works fine for simulation and testing"
+    echo -e "${YELLOW}│${NC}"
+    echo -e "${YELLOW}│${NC}  ${WHITE}For production drone shows, fork the repository first.${NC}"
+    echo -e "${YELLOW}│${NC}"
+    echo -e "${YELLOW}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
+# Verify fork configuration matches src/params.py (if using custom repo)
+verify_fork_config() {
+    local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
+    local params_file="${install_dir}/src/params.py"
+
+    # Only check if we have a custom repo and params.py exists
+    if [[ -z "${REPO_URL:-}" ]] || [[ ! -f "$params_file" ]]; then
+        return 0
+    fi
+
+    log_step "Verifying fork configuration..."
+
+    local params_repo params_branch
+    params_repo=$(grep -E "^GIT_REPO_URL\s*=" "$params_file" 2>/dev/null | cut -d'"' -f2 || echo "")
+    params_branch=$(grep -E "^GIT_BRANCH\s*=" "$params_file" 2>/dev/null | cut -d'"' -f2 || echo "")
+
+    local current_repo="${REPO_URL}"
+    local current_branch="${BRANCH:-$GCS_DEFAULT_BRANCH}"
+
+    # Convert both to comparable format (remove .git suffix)
+    local clean_params_repo="${params_repo%.git}"
+    local clean_current_repo="${current_repo%.git}"
+    # Convert SSH to HTTPS format for comparison
+    clean_params_repo=$(echo "$clean_params_repo" | sed 's|git@github.com:|https://github.com/|')
+    clean_current_repo=$(echo "$clean_current_repo" | sed 's|git@github.com:|https://github.com/|')
+
+    local mismatches=0
+
+    if [[ -n "$params_repo" ]] && [[ "$clean_params_repo" != "$clean_current_repo" ]]; then
+        echo ""
+        echo -e "  ${YELLOW}⚠ Repository mismatch detected:${NC}"
+        echo -e "    Configured (GCS): ${CYAN}${current_repo}${NC}"
+        echo -e "    In params.py:     ${CYAN}${params_repo}${NC}"
+        ((mismatches++))
+    fi
+
+    if [[ -n "$params_branch" ]] && [[ "$params_branch" != "$current_branch" ]]; then
+        echo ""
+        echo -e "  ${YELLOW}⚠ Branch mismatch detected:${NC}"
+        echo -e "    Configured (GCS): ${CYAN}${current_branch}${NC}"
+        echo -e "    In params.py:     ${CYAN}${params_branch}${NC}"
+        ((mismatches++))
+    fi
+
+    if [[ $mismatches -gt 0 ]]; then
+        echo ""
+        echo -e "  ${DIM}Note: /etc/mds/gcs.env settings override params.py for this GCS.${NC}"
+        echo -e "  ${DIM}Drones use their own params.py for git sync configuration.${NC}"
+        echo ""
+        log_warn "Configuration differences noted (may be intentional)"
+    else
+        log_success "Fork configuration verified"
+    fi
+
+    return 0
+}
+
 # Prompt user to select repository (default or custom fork)
 prompt_repository_selection() {
     # Skip if non-interactive or already have a custom repo URL
     if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
         log_info "Using default repository (non-interactive mode)"
-        log_info "Repository: alireza787b/mavsdk_drone_show"
+        log_info "Repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
         log_info "Branch: ${BRANCH:-main-candidate}"
         return 0
     fi
@@ -44,12 +122,12 @@ prompt_repository_selection() {
     echo -e "${CYAN}|${NC}  ${WHITE}Repository Selection${NC}"
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
     echo ""
-    echo -e "  Default: ${GREEN}github.com/alireza787b/mavsdk_drone_show${NC}"
+    echo -e "  Default: ${GREEN}github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show${NC}"
     echo -e "  Branch:  ${CYAN}${BRANCH:-main-candidate}${NC}"
     echo ""
 
     if confirm "Use default repository?" "y"; then
-        log_info "Using: alireza787b/mavsdk_drone_show (${BRANCH:-main-candidate})"
+        log_info "Using: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show (${BRANCH:-main-candidate})"
     else
         echo ""
         echo -e "  ${WHITE}Enter your fork details:${NC}"
@@ -376,27 +454,32 @@ run_repository_phase() {
     # =========================================================================
     print_section "Step 1: Repository Selection"
 
+    # Track if using default repo for read-only warning
+    local using_default_repo="true"
+
     if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -z "${REPO_URL:-}" ]]; then
         echo ""
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-        echo -e "${CYAN}|${NC}  ${WHITE}Which repository do you want to use?${NC}"
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-        echo ""
-        echo -e "  ${WHITE}1)${NC} ${GREEN}Official MDS repository (Recommended)${NC}"
-        echo -e "     github.com/alireza787b/mavsdk_drone_show"
-        echo -e "     Branch: main-candidate"
-        echo ""
-        echo -e "  ${WHITE}2)${NC} My own fork"
-        echo -e "     Use your forked repository"
-        echo ""
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
+        echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+        echo -e "${CYAN}│${NC}  ${WHITE}Do you have your own fork of the MDS repository?${NC}"
+        echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+        echo -e "${CYAN}│${NC}"
+        echo -e "${CYAN}│${NC}  ${WHITE}[1]${NC} ${GREEN}No - Use default repository (Recommended for testing)${NC}"
+        echo -e "${CYAN}│${NC}      github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
+        echo -e "${CYAN}│${NC}      ${YELLOW}⚠ Limited: SITL/testing only unless you have collaborator access${NC}"
+        echo -e "${CYAN}│${NC}"
+        echo -e "${CYAN}│${NC}  ${WHITE}[2]${NC} Yes - I have my own fork"
+        echo -e "${CYAN}│${NC}      ${GREEN}✓ Full write access for production use${NC}"
+        echo -e "${CYAN}│${NC}      Requires: SSH deploy key setup"
+        echo -e "${CYAN}│${NC}"
+        echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
         echo ""
 
         local repo_choice
-        read -p "  Select repository [1]: " repo_choice </dev/tty
+        read -p "  Select [1/2]: " repo_choice </dev/tty
         repo_choice=${repo_choice:-1}
 
         if [[ "$repo_choice" == "2" ]]; then
+            using_default_repo="false"
             echo ""
             local github_user custom_branch
             read -p "  Your GitHub username: " github_user </dev/tty
@@ -411,69 +494,98 @@ run_repository_phase() {
 
                 log_info "Using fork: ${github_user}/mavsdk_drone_show"
                 log_info "Branch: ${BRANCH}"
+
+                # Fork users need SSH for write access
+                echo ""
+                log_info "Fork selected - SSH access recommended for git sync features"
             else
                 log_warn "No username provided, using official repository"
+                using_default_repo="true"
             fi
         else
-            log_info "Using official repository: alireza787b/mavsdk_drone_show"
+            log_info "Using official repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
             log_info "Branch: ${BRANCH:-main-candidate}"
+
+            # Show read-only warning for default repo
+            display_readonly_warning
+
+            # Ask if they have SSH access (owner/collaborator)
+            if confirm "Do you have SSH write access to this repository? (owner/collaborator)" "n"; then
+                log_info "SSH access confirmed - enabling git sync features"
+                using_default_repo="false"  # Treat as having write access
+            else
+                log_info "Using HTTPS (read-only) - suitable for SITL and testing"
+                USE_HTTPS="true"
+                export USE_HTTPS
+            fi
         fi
         echo ""
     else
         # Non-interactive or REPO_URL already set
         if [[ -n "${REPO_URL:-}" ]]; then
             log_info "Repository: ${REPO_URL}"
+            using_default_repo="false"
         else
-            log_info "Repository: alireza787b/mavsdk_drone_show (default)"
+            log_info "Repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show (default)"
         fi
         log_info "Branch: ${BRANCH:-main-candidate}"
         echo ""
     fi
 
+    # Store repo type in state
+    if [[ "$using_default_repo" == "true" ]]; then
+        gcs_state_set_value "repo_type" "default"
+    else
+        gcs_state_set_value "repo_type" "fork"
+    fi
+
     # =========================================================================
     # STEP 2: Access Mode (HOW to access the repo)
     # =========================================================================
-    print_section "Step 2: Access Mode"
+    # Skip if HTTPS was already selected in Step 1 (read-only default repo)
+    if [[ "${USE_HTTPS:-}" != "true" ]]; then
+        print_section "Step 2: Access Mode"
 
-    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ "${USE_HTTPS:-}" != "true" ]]; then
-        echo ""
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-        echo -e "${CYAN}|${NC}  ${WHITE}How do you want to access the repository?${NC}"
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-        echo ""
-        echo -e "  ${WHITE}1)${NC} ${GREEN}HTTPS (Recommended - simpler setup)${NC}"
-        echo -e "     - No SSH keys needed"
-        echo -e "     - Pull updates anytime"
-        echo -e "     - Push requires manual: git push"
-        echo ""
-        echo -e "  ${WHITE}2)${NC} SSH with deploy key"
-        echo -e "     - Enables automatic git sync from dashboard"
-        echo -e "     - Requires adding deploy key to GitHub"
-        echo -e "     - More setup steps"
-        echo ""
-        echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
-        echo ""
+        if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+            echo ""
+            echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+            echo -e "${CYAN}│${NC}  ${WHITE}How do you want to access the repository?${NC}"
+            echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+            echo -e "${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${WHITE}[1]${NC} ${GREEN}HTTPS (Simpler setup)${NC}"
+            echo -e "${CYAN}│${NC}      - No SSH keys needed"
+            echo -e "${CYAN}│${NC}      - Pull updates anytime"
+            echo -e "${CYAN}│${NC}      - Push requires manual: git push"
+            echo -e "${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${WHITE}[2]${NC} SSH with deploy key ${GREEN}(Recommended for production)${NC}"
+            echo -e "${CYAN}│${NC}      - Enables automatic git sync from dashboard"
+            echo -e "${CYAN}│${NC}      - Drones can pull updates automatically"
+            echo -e "${CYAN}│${NC}      - Requires adding deploy key to GitHub"
+            echo -e "${CYAN}│${NC}"
+            echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+            echo ""
 
-        local access_choice
-        read -p "  Select access mode [1]: " access_choice </dev/tty
-        access_choice=${access_choice:-1}
+            local access_choice
+            read -p "  Select access mode [2]: " access_choice </dev/tty
+            access_choice=${access_choice:-2}
 
-        if [[ "$access_choice" == "1" ]]; then
-            USE_HTTPS="true"
-            export USE_HTTPS
-            log_info "Using HTTPS access (simple setup)"
+            if [[ "$access_choice" == "1" ]]; then
+                USE_HTTPS="true"
+                export USE_HTTPS
+                log_info "Using HTTPS access (simple setup)"
+            else
+                USE_HTTPS="false"
+                export USE_HTTPS
+                log_info "Using SSH access (will set up deploy key)"
+            fi
+            echo ""
         else
-            USE_HTTPS="false"
-            export USE_HTTPS
-            log_info "Using SSH access (will set up deploy key)"
+            log_info "Access mode: SSH (non-interactive default)"
+            echo ""
         fi
-        echo ""
     else
-        if [[ "${USE_HTTPS:-false}" == "true" ]]; then
-            log_info "Access mode: HTTPS"
-        else
-            log_info "Access mode: SSH"
-        fi
+        log_info "Access mode: HTTPS (read-only, set in Step 1)"
+        gcs_state_set_value "access_method" "https"
         echo ""
     fi
 
@@ -498,6 +610,21 @@ run_repository_phase() {
     # =========================================================================
     print_section "Applying Repository Configuration"
     clone_or_update_repo || return 1
+
+    # Store access method in state
+    if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+        gcs_state_set_value "access_method" "https"
+    else
+        gcs_state_set_value "access_method" "ssh"
+    fi
+
+    # =========================================================================
+    # STEP 5: Fork Verification (for custom repos)
+    # =========================================================================
+    if [[ -n "${REPO_URL:-}" ]]; then
+        print_section "Fork Configuration Check"
+        verify_fork_config
+    fi
 
     echo ""
     log_success "Repository phase completed"

@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Bootstrap Installer
 # =============================================================================
-# Version: 4.2.2
+# Version: 4.3.0
 # Description: Bootstrap installer for remote GCS setup
 #              Downloads and runs mds_gcs_init.sh
 # Author: MDS Team
@@ -68,7 +68,7 @@ print_banner() {
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "${script_dir}/mds_banner.sh" ]]; then
         source "${script_dir}/mds_banner.sh"
-        print_mds_banner "GCS Bootstrap" "4.2.2" "$BRANCH" ""
+        print_mds_banner "GCS Bootstrap" "4.3.0" "$BRANCH" ""
     else
         # Fallback banner
         echo ""
@@ -80,7 +80,7 @@ print_banner() {
         echo ""
         echo -e "${GREEN}MAVSDK Drone Show - GCS Bootstrap${NC}"
         echo "================================================"
-        echo "Version:  4.2.2"
+        echo "Version:  4.3.0"
         echo "Branch:   $BRANCH"
         echo "================================================"
         echo ""
@@ -148,7 +148,7 @@ run_init_script() {
 
 show_help() {
     cat << EOF
-MDS GCS Bootstrap Installer
+MDS GCS Bootstrap Installer (v4.3.0)
 
 USAGE:
     curl -fsSL <url> | sudo bash
@@ -156,6 +156,7 @@ USAGE:
 
 OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
+    --fork USER         Use a forked repository (github.com/USER/mavsdk_drone_show)
     --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
     -h, --help          Show this help message
 
@@ -170,11 +171,14 @@ EXAMPLES:
     # Default installation (installs to ~/mavsdk_drone_show)
     curl -fsSL https://raw.githubusercontent.com/.../install_gcs.sh | sudo bash
 
+    # Use your own fork
+    curl -fsSL ... | sudo bash -s -- --fork myusername
+
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop
 
-    # Non-interactive
-    curl -fsSL ... | sudo bash -s -- -y
+    # Non-interactive with fork
+    curl -fsSL ... | sudo bash -s -- --fork myusername -y
 
     # Custom install directory
     curl -fsSL ... | sudo bash -s -- --install-dir /opt/mds
@@ -194,6 +198,13 @@ main() {
         case "$1" in
             --branch)
                 BRANCH="$2"
+                shift 2
+                ;;
+            --fork)
+                # Set fork repository URL
+                REPO_URL="https://github.com/$2/mavsdk_drone_show.git"
+                export MDS_REPO_URL="$REPO_URL"
+                log_info "Using fork: $2/mavsdk_drone_show"
                 shift 2
                 ;;
             --install-dir)

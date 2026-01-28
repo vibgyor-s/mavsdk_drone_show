@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Raspberry Pi Initialization Script
 # =============================================================================
-# Version: 4.2.2
+# Version: 4.3.0
 # Description: Production-ready, enterprise-grade initialization for drone swarm nodes
 # Author: MDS Team
 # Repository: https://github.com/alireza787b/mavsdk_drone_show
@@ -102,7 +102,7 @@ DEBUG="false"
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Initialization Script v4.2.2
+MDS Raspberry Pi Initialization Script v4.3.0
 
 USAGE:
     sudo ./mds_init.sh [OPTIONS]

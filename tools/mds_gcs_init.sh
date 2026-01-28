@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Script
 # =============================================================================
-# Version: 4.2.2
+# Version: 4.3.0
 # Description: Enterprise GCS (Ground Control Station) initialization script
 #              Configures VPS/Ubuntu systems for MDS GCS operation
 # Author: MDS Team
@@ -94,7 +94,7 @@ export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 
 show_help() {
     cat << 'EOF'
-MDS GCS Initialization Script v4.2.2
+MDS GCS Initialization Script v4.3.0
 
 USAGE:
     sudo ./mds_gcs_init.sh [OPTIONS]

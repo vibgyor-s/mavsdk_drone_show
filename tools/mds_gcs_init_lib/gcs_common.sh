@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.2.2
+# Version: 4.3.0
 # Description: GCS-specific constants and utilities (extends mds_init_lib/common.sh)
 # Author: MDS Team
 # =============================================================================
@@ -31,7 +31,7 @@ fi
 # GCS-SPECIFIC CONSTANTS (Override base constants)
 # =============================================================================
 
-readonly GCS_VERSION="4.2.2"
+readonly GCS_VERSION="4.3.0"
 readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
 readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
 readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
@@ -83,6 +83,7 @@ readonly GCS_PYTHON_MIN_VERSION="3.11"
 readonly GCS_DEFAULT_REPO="https://github.com/alireza787b/mavsdk_drone_show.git"
 readonly GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
 readonly GCS_DEFAULT_BRANCH="main-candidate"
+readonly GCS_DEFAULT_REPO_OWNER="alireza787b"
 
 # =============================================================================
 # GCS-SPECIFIC LOGGING
@@ -370,5 +371,5 @@ get_npm_version() {
 # =============================================================================
 
 export GCS_VERSION GCS_STATE_FILE GCS_CONFIG_FILE GCS_LOG_FILE
-export GCS_DEFAULT_REPO GCS_DEFAULT_REPO_SSH GCS_DEFAULT_BRANCH
+export GCS_DEFAULT_REPO GCS_DEFAULT_REPO_SSH GCS_DEFAULT_BRANCH GCS_DEFAULT_REPO_OWNER
 export GCS_NODE_MIN_VERSION GCS_NODE_TARGET_VERSION GCS_PYTHON_MIN_VERSION

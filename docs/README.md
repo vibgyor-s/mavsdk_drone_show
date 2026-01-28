@@ -1,6 +1,6 @@
 # MAVSDK Drone Show Documentation
 
-**Complete documentation index for MDS 4.2**
+**Complete documentation index for MDS 4.3**
 
 Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
 

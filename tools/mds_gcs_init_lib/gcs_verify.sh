@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Verification
 # =============================================================================
-# Version: 1.0.0
+# Version: 4.3.0
 # Description: Final verification and next steps
 # Author: MDS Team
 # =============================================================================
@@ -228,6 +228,31 @@ print_summary() {
     echo ""
 }
 
+# Print NetBird VPN info
+print_netbird_info() {
+    echo -e "${CYAN}+==============================================================================+${NC}"
+    echo -e "${CYAN}|${NC}  ${WHITE}VPN NETWORKING (NetBird)${NC}"
+    echo -e "${CYAN}+==============================================================================+${NC}"
+    echo ""
+    echo -e "  For drones to communicate with this GCS over the internet, both must"
+    echo -e "  be on the same VPN network (e.g., NetBird)."
+    echo ""
+    echo -e "  ${WHITE}Options:${NC}"
+    echo -e "    • Official NetBird Cloud: ${CYAN}https://netbird.io${NC}"
+    echo -e "    • Self-hosted NetBird server"
+    echo -e "    • NetBird server on this GCS machine"
+    echo ""
+    echo -e "  ${WHITE}After connecting this GCS to NetBird:${NC}"
+    echo -e "    1. Note your NetBird IP (typically ${CYAN}100.x.x.x${NC})"
+    echo -e "    2. Use this IP as GCS_IP when configuring drones"
+    echo -e "    3. Drones must also connect to the same NetBird network"
+    echo ""
+    echo -e "  ${DIM}See: docs/guides/netbird-setup.md${NC}"
+    echo ""
+    echo -e "${CYAN}+==============================================================================+${NC}"
+    echo ""
+}
+
 # Print next steps
 print_next_steps() {
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
@@ -303,6 +328,7 @@ run_verify_phase() {
 
     print_summary
     print_next_steps
+    print_netbird_info
 
     echo ""
     log_success "GCS Initialization Complete!"

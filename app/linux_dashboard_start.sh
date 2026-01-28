@@ -54,21 +54,15 @@ SESSION_NAME="DroneServices"
 # ===========================================
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$(dirname "$PARENT_DIR")"
 
-# Detect correct paths regardless of execution directory
-if [[ "$SCRIPT_DIR" == *"/app" ]]; then
-    # Executed as app/linux_dashboard_start.sh
-    REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
-    GCS_SERVER_DIR="$PARENT_DIR/gcs-server"
-    VENV_PATH="$PARENT_DIR/venv"
-else
-    # Executed from project root
-    REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
-    GCS_SERVER_DIR="$SCRIPT_DIR/gcs-server"
-    VENV_PATH="$SCRIPT_DIR/venv"
-fi
+# The script is in PROJECT_ROOT/app/, so PARENT_DIR is PROJECT_ROOT
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$PARENT_DIR"
+
+# All paths are relative to PROJECT_ROOT (the repository root)
+REACT_APP_DIR="$PROJECT_ROOT/app/dashboard/drone-dashboard"
+GCS_SERVER_DIR="$PROJECT_ROOT/gcs-server"
+VENV_PATH="$PROJECT_ROOT/venv"
 
 # Final path validation
 if [[ ! -d "$GCS_SERVER_DIR" ]]; then
@@ -700,21 +694,24 @@ setup_production_environment() {
 }
 
 get_gcs_server_command() {
+    # Set PYTHONPATH to include project root for module imports (functions, src, etc.)
+    local python_path="PYTHONPATH='$PROJECT_ROOT:$PROJECT_ROOT/src:\$PYTHONPATH'"
+
     # Support both FastAPI and Flask backends
     if [[ "$GCS_BACKEND" == "fastapi" ]]; then
         if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
             # FastAPI production: Gunicorn with Uvicorn workers
-            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
+            echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
         else
             # FastAPI development: Uvicorn with auto-reload
-            echo "cd '$GCS_SERVER_DIR' && uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
+            echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
         fi
     else
         # Flask backend (legacy)
         if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+            echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
         else
-            echo "cd '$GCS_SERVER_DIR' && python app.py"
+            echo "cd '$GCS_SERVER_DIR' && $python_path python app.py"
         fi
     fi
 }
@@ -921,7 +918,7 @@ display_startup_banner() {
         local git_info branch commit git_date
         git_info=$(get_git_info "$PARENT_DIR" 2>/dev/null || echo "unknown|unknown|unknown")
         IFS='|' read -r branch commit git_date <<< "$git_info"
-        print_mds_banner "Dashboard Services" "4.2.2" "$branch" "$commit"
+        print_mds_banner "Dashboard Services" "4.3.0" "$branch" "$commit"
     else
         # Fallback banner
         echo ""
@@ -933,7 +930,7 @@ display_startup_banner() {
         echo ""
         echo "MAVSDK Drone Show - Dashboard Services"
         echo "================================================"
-        echo "Version:  4.2.2"
+        echo "Version:  4.3.0"
         echo "================================================"
         echo ""
     fi
