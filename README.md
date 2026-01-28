@@ -2,7 +2,7 @@
 
 **All-in-One Drone Show & Smart Swarm Framework for PX4**
 
-[![Version](https://img.shields.io/badge/version-4.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.2.2-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
