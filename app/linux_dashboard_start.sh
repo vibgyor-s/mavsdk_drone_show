@@ -831,18 +831,64 @@ start_services_no_tmux() {
         local gcs_cmd=$(get_gcs_server_command)
         gnome-terminal -- bash -c "echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
     fi
-    
+
     if [[ "$RUN_GUI_APP" == "true" ]]; then
         local react_cmd=$(get_react_command)
         gnome-terminal -- bash -c "echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd; exec bash"
     fi
+
+    # Show helpful info for non-tmux mode
+    cat << EOF
+
+===============================================================================
+  SERVICES STARTED (No-Tmux Mode)
+===============================================================================
+
+  Services are running in separate terminal windows.
+
+  USEFUL COMMANDS:
+    Check GCS health:  curl http://localhost:$DEV_GCS_PORT/health
+    View status:       $0 --status
+
+  TO STOP SERVICES:
+    Close the terminal windows, or find and kill the processes:
+      pkill -f "uvicorn app_fastapi"   # Stop GCS server
+      pkill -f "npm start"             # Stop React app
+
+  ACCESS:
+    Dashboard:  http://localhost:$DEV_REACT_PORT
+    API:        http://localhost:$DEV_GCS_PORT
+    Health:     http://localhost:$DEV_GCS_PORT/health
+
+===============================================================================
+EOF
 }
 
 show_tmux_instructions() {
-    # Simplified - main instructions shown in print_ready_message
-    echo ""
-    echo "  [Services starting in tmux - use Ctrl+B, D to detach]"
-    echo ""
+    cat << EOF
+
+===============================================================================
+  TMUX SESSION: $SESSION_NAME
+===============================================================================
+
+  NAVIGATION (Prefix: Ctrl+B):
+    Switch panes:    Ctrl+B, Arrow keys
+    Detach session:  Ctrl+B, then D
+    Scroll mode:     Ctrl+B, then [  (q to exit scroll)
+
+  COMMON COMMANDS:
+    Reattach:        tmux attach -t $SESSION_NAME
+    List sessions:   tmux ls
+    Stop services:   tmux kill-session -t $SESSION_NAME
+
+  HEALTH CHECK:
+    curl http://localhost:$DEV_GCS_PORT/health
+
+  STATUS:
+    $0 --status
+
+===============================================================================
+EOF
 }
 
 display_config_summary() {
