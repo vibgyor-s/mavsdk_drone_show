@@ -253,7 +253,7 @@ All project documentation is organized in the `docs/` folder:
 
 ## Version & Changelog
 
-**Current Version: 4.3.0** (January 2026)
+**Current Version: 4.4.0** (January 2026)
 
 Major updates in this version:
 - **RPi Bootstrap Installer**: One-line curl installation for fresh Raspbian

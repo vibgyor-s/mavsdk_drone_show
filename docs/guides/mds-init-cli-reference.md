@@ -219,7 +219,7 @@ The script maintains state in `/var/lib/mds/init_state.json`:
 
 ```json
 {
-  "version": "4.3.0",
+  "version": "4.4.0",
   "started_at": "2026-01-24T12:00:00+00:00",
   "drone_id": 1,
   "phases": {
@@ -310,4 +310,4 @@ curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y
 
 ---
 
-**Version:** 4.3.0 | **Last Updated:** January 2026
+**Version:** 4.4.0 | **Last Updated:** January 2026

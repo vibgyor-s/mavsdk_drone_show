@@ -271,4 +271,4 @@ cat /var/lib/mds/init_state.json | jq
 
 ---
 
-**Version:** 4.3.0 | **Last Updated:** January 2026
+**Version:** 4.4.0 | **Last Updated:** January 2026

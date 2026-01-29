@@ -102,7 +102,7 @@ DEBUG="false"
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Initialization Script v4.3.0
+MDS Raspberry Pi Initialization Script v4.4.0
 
 USAGE:
     sudo ./mds_init.sh [OPTIONS]

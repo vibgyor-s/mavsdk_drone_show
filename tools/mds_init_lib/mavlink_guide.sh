@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: mavlink-anywhere Guidance
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Display instructions for manual mavlink-anywhere setup
 # Author: MDS Team
 # =============================================================================

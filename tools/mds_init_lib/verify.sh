@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Verification
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Component verification, health checks, and summary reporting
 # Author: MDS Team
 # =============================================================================

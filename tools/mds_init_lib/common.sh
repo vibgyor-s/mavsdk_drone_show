@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Core utilities for mds_init.sh - colors, logging, state, branding
 # Author: MDS Team
 # =============================================================================
@@ -15,7 +15,7 @@ _MDS_COMMON_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-readonly MDS_VERSION="4.3.0"
+readonly MDS_VERSION="4.4.0"
 readonly MDS_STATE_DIR="/var/lib/mds"
 readonly MDS_STATE_FILE="${MDS_STATE_DIR}/init_state.json"
 readonly MDS_CONFIG_DIR="/etc/mds"

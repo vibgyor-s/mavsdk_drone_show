@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Raspberry Pi Bootstrap Installer
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Bootstrap installer for fresh Raspberry Pi setup
 #              Downloads and runs mds_init.sh
 # Author: MDS Team
@@ -75,7 +75,7 @@ print_banner() {
     echo ""
     echo -e "${WHITE}MAVSDK Drone Show - Raspberry Pi Bootstrap${NC}"
     echo "================================================================"
-    echo -e "Version:  ${WHITE}4.3.0${NC}"
+    echo -e "Version:  ${WHITE}4.4.0${NC}"
     echo -e "Branch:   ${WHITE}$BRANCH${NC}"
     echo "================================================================"
     echo -e "${DIM}           Enterprise Drone Swarm Platform${NC}"
@@ -276,7 +276,7 @@ run_init_script() {
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Bootstrap Installer (v4.3.0)
+MDS Raspberry Pi Bootstrap Installer (v4.4.0)
 
 USAGE:
     curl -fsSL <url> | sudo bash
