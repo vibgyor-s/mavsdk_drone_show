@@ -7,7 +7,7 @@
 # Version: Production Final
 #
 # CRITICAL FIXES APPLIED:
-# - Flask WSGI module-level app object created
+# - FastAPI backend (Flask legacy removed)
 # - Absolute path resolution for any execution directory
 # - Clean bash commands (NO Unicode/emojis)
 # - Robust virtual environment handling
@@ -96,10 +96,8 @@ SKIP_DEPENDENCY_CHECK=false
 # Default behavior unchanged for normal users
 BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
 
-# Backend Selection: FastAPI (recommended) or Flask (legacy)
-# Options: fastapi, flask
-# Can be overridden via GCS_BACKEND environment variable
-GCS_BACKEND="${GCS_BACKEND:-fastapi}"
+# Backend: FastAPI (Flask legacy removed)
+GCS_BACKEND="fastapi"
 
 # ===========================================
 # SYSTEM CONFIGURATION (MDS GCS Init Integration)
@@ -327,27 +325,24 @@ run_configuration_check() {
 # BACKEND VALIDATION
 # ===========================================
 validate_backend() {
-    # Check if FastAPI is available when fastapi backend is selected
-    if [[ "$GCS_BACKEND" == "fastapi" ]]; then
-        if ! python -c "import fastapi" 2>/dev/null; then
-            log_warn "FastAPI not installed but GCS_BACKEND=fastapi"
-            log_warn "Falling back to Flask backend"
-            GCS_BACKEND="flask"
-            export GCS_BACKEND
-        fi
+    # Verify FastAPI is installed
+    if ! python -c "import fastapi" 2>/dev/null; then
+        log_error "FastAPI not installed!"
+        echo ""
+        echo "  Install with: pip install fastapi uvicorn"
+        echo ""
+        exit 1
     fi
 
-    # Show prominent backend info
-    if [[ "$GCS_BACKEND" == "flask" ]]; then
-        log_warn "Using LEGACY Flask backend (FastAPI recommended)"
+    if ! python -c "import uvicorn" 2>/dev/null; then
+        log_error "Uvicorn not installed!"
         echo ""
-        echo "  To use FastAPI (recommended):"
-        echo "    pip install fastapi uvicorn"
-        echo "    export GCS_BACKEND=fastapi"
+        echo "  Install with: pip install uvicorn"
         echo ""
-    else
-        log_success "Using FastAPI backend (recommended)"
+        exit 1
     fi
+
+    log_success "FastAPI backend ready"
 }
 
 # ===========================================
@@ -724,22 +719,13 @@ get_gcs_server_command() {
     # Set PYTHONPATH to include project root for module imports (functions, src, etc.)
     local python_path="PYTHONPATH='$PROJECT_ROOT:$PROJECT_ROOT/src:\$PYTHONPATH'"
 
-    # Support both FastAPI and Flask backends
-    if [[ "$GCS_BACKEND" == "fastapi" ]]; then
-        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-            # FastAPI production: Gunicorn with Uvicorn workers
-            echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
-        else
-            # FastAPI development: Uvicorn with auto-reload
-            echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
-        fi
+    # FastAPI backend (only option)
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        # Production: Gunicorn with Uvicorn workers
+        echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
     else
-        # Flask backend (legacy)
-        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-            echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
-        else
-            echo "cd '$GCS_SERVER_DIR' && $python_path python app.py"
-        fi
+        # Development: Uvicorn with auto-reload
+        echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
     fi
 }
 

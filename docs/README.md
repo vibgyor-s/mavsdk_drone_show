@@ -151,11 +151,10 @@ sudo ./tools/mds_gcs_init.sh
 
 ### Available APIs
 
-- **FastAPI Backend** (recommended) - High-performance REST API
+- **FastAPI Backend** - High-performance REST API with WebSocket support
   - Health check: `/health`
+  - API docs: `/docs` (Swagger UI)
   - See [GCS Setup Guide](guides/gcs-setup.md) for configuration
-- **Flask Backend** (legacy) - REST API for configuration and control
-  - Endpoint documentation: *(TBD)*
 - **MAVLink2REST** - REST API for MAVLink messages
   - [Official Documentation](https://github.com/mavlink/mavlink2rest)
 - **WebSocket** - Real-time telemetry streaming
