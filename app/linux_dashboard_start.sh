@@ -839,46 +839,10 @@ start_services_no_tmux() {
 }
 
 show_tmux_instructions() {
-    cat << EOF
-
-===============================================
-  tmux Session Guide (Mode: $DEPLOYMENT_MODE)
-===============================================
-Prefix key (Ctrl+B), then:
-EOF
-
-    if [[ "$COMBINED_VIEW" == "true" ]]; then
-        echo "  - Switch panes: Arrow keys"
-        echo "  - Resize panes: Hold Ctrl+B + Arrow key"
-    else
-        echo "  - Switch windows: Number keys (1, 2, etc.)"
-    fi
-
-    cat << EOF
-  - Detach session: Ctrl+B, then D
-  - Reattach: tmux attach -t $SESSION_NAME
-  - Kill session: tmux kill-session -t $SESSION_NAME
-
-MODE INFORMATION:
-EOF
-
-    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        cat << EOF
-  - React: Serving optimized build files
-  - GCS Server: $GCS_BACKEND with gunicorn WSGI server
-  - Working Dir: $GCS_SERVER_DIR
-  - Logging: Production logging enabled
-EOF
-    else
-        cat << EOF
-  - React: Hot reload enabled on port $DEV_REACT_PORT
-  - GCS Server: $GCS_BACKEND with auto-restart
-  - Logging: Verbose debug logging enabled
-EOF
-    fi
-
-    echo "==============================================="
-    echo
+    # Simplified - main instructions shown in print_ready_message
+    echo ""
+    echo "  [Services starting in tmux - use Ctrl+B, D to detach]"
+    echo ""
 }
 
 display_config_summary() {
@@ -963,15 +927,60 @@ display_startup_banner() {
     fi
 }
 
+# ===========================================
+# STARTUP SUMMARY FUNCTIONS
+# ===========================================
+
+print_startup_summary() {
+    echo ""
+    echo "==============================================================================="
+    echo "  MDS GROUND CONTROL STATION - STARTUP SUMMARY"
+    echo "==============================================================================="
+    echo ""
+    printf "  %-20s %s\n" "Mode:" "$(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]')"
+    printf "  %-20s %s\n" "Backend:" "$GCS_BACKEND"
+    printf "  %-20s %s\n" "Drone Mode:" "$(get_current_drone_mode)"
+    printf "  %-20s %s\n" "Session:" "$SESSION_NAME"
+    echo ""
+    echo "  Services:"
+    [[ "$RUN_GCS_SERVER" == "true" ]] && printf "    [x] GCS Server      http://localhost:%s\n" "$DEV_GCS_PORT"
+    [[ "$RUN_GUI_APP" == "true" ]] && printf "    [x] React Dashboard http://localhost:%s\n" "$DEV_REACT_PORT"
+    echo ""
+    echo "==============================================================================="
+    echo ""
+}
+
+print_ready_message() {
+    echo ""
+    echo "==============================================================================="
+    echo "  SERVICES STARTING"
+    echo "==============================================================================="
+    echo ""
+    echo "  Opening tmux session: $SESSION_NAME"
+    echo ""
+    echo "  Quick Reference:"
+    echo "    Detach:    Ctrl+B, then D"
+    echo "    Reattach:  tmux attach -t $SESSION_NAME"
+    echo "    Stop:      tmux kill-session -t $SESSION_NAME"
+    echo ""
+    echo "  Health Check:"
+    echo "    curl http://localhost:$DEV_GCS_PORT/health"
+    echo ""
+    echo "==============================================================================="
+    sleep 1
+}
+
+# ===========================================
+# MAIN EXECUTION
+# ===========================================
+
 display_startup_banner
 
 # Parse arguments and initialize
 parse_arguments "$@"
 
-# Load GCS system configuration if available (MDS GCS Init integration)
-if load_gcs_system_config; then
-    log_info "Loaded system configuration from $GCS_SYSTEM_CONFIG"
-fi
+# Load GCS system configuration if available
+load_gcs_system_config 2>/dev/null || true
 
 # Handle --check option (run checks only, don't start services)
 if [[ "$CHECK_ONLY" == "true" ]]; then
@@ -979,27 +988,36 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
     exit 0
 fi
 
-log_info "Initializing Drone Services System..."
-display_config_summary
+echo ""
+echo "-----------------------------------------------------------------------"
+echo "  SYSTEM CHECKS"
+echo "-----------------------------------------------------------------------"
 
-# System checks
+# Quick essential checks
 check_command_installed "tmux" "tmux"
 check_command_installed "lsof" "lsof"
 
-# GCS initialization check (MDS GCS Init integration)
+# GCS initialization check
 check_gcs_initialized
 
-# Execute setup sequence
+echo ""
+echo "-----------------------------------------------------------------------"
+echo "  CONFIGURATION"
+echo "-----------------------------------------------------------------------"
+
+# Execute setup sequence (minimal output)
 handle_real_mode_file
-update_repository
 load_virtualenv
-validate_backend  # Check FastAPI availability
-check_python_dependencies  # Smart dependency check
+validate_backend
+check_python_dependencies
 handle_env_file
 setup_production_environment
 
-# Port management
-log_info "Checking ports for $DEPLOYMENT_MODE mode..."
+echo ""
+echo "-----------------------------------------------------------------------"
+echo "  PORT MANAGEMENT"
+echo "-----------------------------------------------------------------------"
+
 if [[ "$RUN_GCS_SERVER" == "true" ]]; then
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         prod_port=$(echo "$PROD_WSGI_BIND" | cut -d':' -f2)
@@ -1013,24 +1031,13 @@ if [[ "$RUN_GUI_APP" == "true" ]]; then
     check_and_kill_port "$DEV_REACT_PORT"
 fi
 
+# Print startup summary
+print_startup_summary
+print_ready_message
+
 # Start services
 if [[ "$USE_TMUX" == "true" ]]; then
     start_services_in_tmux
 else
     start_services_no_tmux
 fi
-
-log_success "Drone Services System Started Successfully!"
-log_info "Mode: $(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]') | Backend: $GCS_BACKEND | Drone: $(get_current_drone_mode)"
-
-if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-    log_info "Production optimizations active"
-else
-    log_info "Development mode with hot reloading active"
-fi
-
-echo ""
-echo "Quick Commands:"
-echo "  Check health:  curl http://localhost:$DEV_GCS_PORT/health"
-echo "  View status:   $0 --status"
-echo "  Stop services: tmux kill-session -t $SESSION_NAME"
