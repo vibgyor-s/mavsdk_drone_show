@@ -22,6 +22,7 @@ These parameters are required but can be provided interactively if omitted:
 |--------|-------------|---------|
 | `-r, --repo-url URL` | Git repository URL | `git@github.com:alireza787b/mavsdk_drone_show.git` |
 | `-b, --branch BRANCH` | Git branch to use | `main-candidate` |
+| `--fork USER` | Use forked repository (`github.com/USER/mavsdk_drone_show`) | - |
 | `--https` | Use HTTPS instead of SSH for git operations | SSH |
 
 ## Optional Components
@@ -102,6 +103,11 @@ sudo ./tools/mds_init.sh -d 1 -y
 Using HTTPS (no SSH key needed):
 ```bash
 sudo ./tools/mds_init.sh -d 1 --https -y
+```
+
+Using your own fork (simple method):
+```bash
+sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
 ```
 
 Custom repository and branch:
@@ -213,7 +219,7 @@ The script maintains state in `/var/lib/mds/init_state.json`:
 
 ```json
 {
-  "version": "4.0.0",
+  "version": "4.3.0",
   "started_at": "2026-01-24T12:00:00+00:00",
   "drone_id": 1,
   "phases": {
@@ -268,6 +274,40 @@ The following changes affect users upgrading from older versions:
 - [Headless Automation](headless-automation.md) - Fleet deployment
 - [Troubleshooting](mds-init-troubleshooting.md) - Common issues
 
+## Bootstrap Installer (install_rpi.sh)
+
+For fresh Raspberry Pi installations, use the bootstrap installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+```
+
+### Bootstrap-Specific Options
+
+| Option | Description |
+|--------|-------------|
+| `--branch BRANCH` | Git branch to clone |
+| `--fork USER` | Use forked repository |
+| `-h, --help` | Show bootstrap help |
+
+All other options are passed through to `mds_init.sh`.
+
+### Bootstrap Examples
+
+```bash
+# Basic installation (interactive)
+curl -fsSL ... | sudo bash
+
+# With drone ID
+curl -fsSL ... | sudo bash -s -- -d 1 -y
+
+# Using your fork
+curl -fsSL ... | sudo bash -s -- --fork yourusername -d 1 -y
+
+# Custom branch with VPN
+curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y
+```
+
 ---
 
-**Version:** 4.0.0 | **Last Updated:** January 2026
+**Version:** 4.3.0 | **Last Updated:** January 2026

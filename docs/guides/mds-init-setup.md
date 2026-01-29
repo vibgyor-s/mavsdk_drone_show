@@ -7,14 +7,14 @@ Complete step-by-step guide for initializing a Raspberry Pi for the MDS drone sw
 The `mds_init.sh` script is an enterprise-grade initialization system that configures a fresh Raspberry Pi for use in MDS drone swarm operations. It handles:
 
 - System prerequisites and validation
-- Repository cloning with SSH/HTTPS support
+- Repository cloning with SSH/HTTPS support (fork selection included)
 - Hardware identity configuration
 - Python virtual environment setup
 - MAVSDK binary installation
 - Systemd service installation
-- Firewall configuration
+- Firewall configuration with SSH port detection
 - NTP time synchronization
-- Optional: Netbird VPN, Static IP
+- Optional: NetBird VPN (official or self-hosted), Static IP
 
 ## Prerequisites
 
@@ -33,14 +33,34 @@ The `mds_init.sh` script is an enterprise-grade initialization system that confi
 
 ## Quick Start
 
-### Step 1: Flash Raspberry Pi OS
+### Option 1: One-Line Installation (Recommended)
+
+The fastest way to set up a fresh Raspberry Pi:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+```
+
+**With drone ID (non-interactive):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- -d 1 -y
+```
+
+**Using your own fork:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourusername -d 1 -y
+```
+
+### Option 2: Manual Installation
+
+#### Step 1: Flash Raspberry Pi OS
 
 1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 2. Flash Raspberry Pi OS (64-bit) to your SD card
 3. Configure WiFi and SSH in the imager settings
 4. Boot the Raspberry Pi
 
-### Step 2: Initial System Setup
+#### Step 2: Initial System Setup
 
 SSH into your Raspberry Pi:
 
@@ -54,36 +74,16 @@ Update the system:
 sudo apt update && sudo apt upgrade -y
 ```
 
-### Step 3: Create the droneshow User
+#### Step 3: Clone the Repository
 
-```bash
-sudo adduser droneshow
-sudo usermod -aG sudo droneshow
-```
-
-Switch to the droneshow user:
-
-```bash
-sudo su - droneshow
-```
-
-### Step 4: Clone the Repository
-
-**Option A: Using HTTPS (simpler, recommended for first-time setup)**
+The init script will create the `droneshow` user automatically. First, clone as pi:
 
 ```bash
 git clone https://github.com/alireza787b/mavsdk_drone_show.git
 cd mavsdk_drone_show
 ```
 
-**Option B: Using SSH (requires deploy key)**
-
-```bash
-git clone git@github.com:alireza787b/mavsdk_drone_show.git
-cd mavsdk_drone_show
-```
-
-### Step 5: Run the Initialization Script
+#### Step 4: Run the Initialization Script
 
 **Interactive mode (recommended for first-time setup):**
 
@@ -95,6 +95,12 @@ sudo ./tools/mds_init.sh
 
 ```bash
 sudo ./tools/mds_init.sh -d 1 -y
+```
+
+**Using your own fork:**
+
+```bash
+sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
 ```
 
 ## Initialization Phases
@@ -129,7 +135,13 @@ sudo ./tools/mds_init.sh -d 1 -y
 
 ### Scenario 2: Custom Repository Fork
 
-For using a forked repository:
+For using a forked repository (simple method):
+
+```bash
+sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
+```
+
+Or with full URL:
 
 ```bash
 sudo ./tools/mds_init.sh -d 1 \
@@ -259,4 +271,4 @@ cat /var/lib/mds/init_state.json | jq
 
 ---
 
-**Version:** 4.0.0 | **Last Updated:** January 2026
+**Version:** 4.3.0 | **Last Updated:** January 2026

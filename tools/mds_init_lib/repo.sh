@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Repository Operations
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: Git repository cloning, updating, and SSH key management
 # Author: MDS Team
 # =============================================================================
@@ -171,6 +171,118 @@ test_ssh_connection() {
         log_warn "SSH connection test inconclusive: $output"
         return 1
     fi
+}
+
+# =============================================================================
+# FORK SELECTION
+# =============================================================================
+
+# Display repository selection prompt
+display_repo_selection_box() {
+    echo ""
+    echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${WHITE}Repository Selection${NC}                                                      ${CYAN}│${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  Do you have your own fork of the MDS repository?                         ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[1]${NC} No - Use default repository ${DIM}(read-only unless you're a collaborator)${NC}  ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[2]${NC} Yes - I have my own fork ${DIM}(recommended for production)${NC}              ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
+# Display read-only warning for default repo
+display_readonly_warning() {
+    echo ""
+    echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${YELLOW}Note: Read-Only Access${NC}                                                    ${CYAN}│${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  Using the default repository in read-only mode.                          ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${DIM}• git_sync_mds service will pull updates automatically${NC}                  ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${DIM}• You cannot push local changes unless you're a collaborator${NC}            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${DIM}• For custom modifications, create your own fork${NC}                        ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
+# Prompt for fork username
+prompt_fork_username() {
+    local fork_user=""
+
+    echo ""
+    echo -e "  ${INFO} Enter your GitHub username for the fork."
+    echo -e "  ${DIM}The repository should be at: github.com/YOUR_USER/mavsdk_drone_show${NC}"
+    echo ""
+    prompt_input "GitHub username" "" fork_user
+
+    if [[ -z "$fork_user" ]]; then
+        log_warn "No username provided, using default repository"
+        return 1
+    fi
+
+    # Set the repository URL based on access method preference
+    if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+        REPO_URL="https://github.com/${fork_user}/mavsdk_drone_show.git"
+    else
+        REPO_URL="git@github.com:${fork_user}/mavsdk_drone_show.git"
+    fi
+
+    log_info "Using fork: ${fork_user}/mavsdk_drone_show"
+    return 0
+}
+
+# Interactive repository selection
+prompt_repository_selection() {
+    # If REPO_URL already set (from CLI), skip prompt
+    if [[ -n "${REPO_URL:-}" ]]; then
+        log_info "Repository URL provided via CLI: ${REPO_URL}"
+        return 0
+    fi
+
+    # Non-interactive mode: use default
+    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+        REPO_URL="${DEFAULT_REPO_URL_HTTPS}"
+        USE_HTTPS="true"
+        log_info "Non-interactive mode: using default repository (HTTPS)"
+        return 0
+    fi
+
+    # Interactive selection
+    display_repo_selection_box
+
+    local choice=""
+    prompt_input "Select option (1 or 2)" "1" choice
+
+    case "$choice" in
+        1)
+            # Default repo - use HTTPS for read-only
+            REPO_URL="${DEFAULT_REPO_URL_HTTPS}"
+            USE_HTTPS="true"
+            display_readonly_warning
+            ;;
+        2)
+            # Fork - prompt for username
+            if ! prompt_fork_username; then
+                # Fallback to default if no username provided
+                REPO_URL="${DEFAULT_REPO_URL_HTTPS}"
+                USE_HTTPS="true"
+                display_readonly_warning
+            fi
+            ;;
+        *)
+            log_warn "Invalid selection, using default repository"
+            REPO_URL="${DEFAULT_REPO_URL_HTTPS}"
+            USE_HTTPS="true"
+            display_readonly_warning
+            ;;
+    esac
+
+    return 0
 }
 
 # =============================================================================
@@ -416,7 +528,6 @@ verify_fork_config() {
 # =============================================================================
 
 run_repository_phase() {
-    local repo_url="${REPO_URL:-$DEFAULT_REPO_URL}"
     local branch="${BRANCH:-$DEFAULT_BRANCH}"
     local access_method
 
@@ -424,9 +535,18 @@ run_repository_phase() {
 
     set_led_state "GIT_SYNCING"
 
+    print_section "Repository Selection"
+
+    # Interactive fork selection (skipped if REPO_URL already set via CLI)
+    prompt_repository_selection
+
+    # Now use the selected/configured repo URL
+    local repo_url="${REPO_URL:-$DEFAULT_REPO_URL}"
+
     # Determine access method
     access_method=$(detect_git_access_method "$repo_url")
     log_info "Git access method: $access_method"
+    log_info "Repository: $repo_url"
 
     # SSH setup if using SSH
     if [[ "$access_method" == "ssh" ]]; then

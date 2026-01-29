@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: mavlink-anywhere Guidance
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: Display instructions for manual mavlink-anywhere setup
 # Author: MDS Team
 # =============================================================================
@@ -15,11 +15,27 @@ _MDS_MAVLINK_GUIDE_LOADED=1
 # MAVLINK-ANYWHERE GUIDANCE
 # =============================================================================
 
-# TODO: Automate mavlink-anywhere installation in future release
-# This phase currently provides guidance only. Future versions will support:
+# TODO: Future automation planned for mavlink-anywhere
+# mavlink-anywhere will be updated to support CLI automation:
+#
+#   mavlink-anywhere configure \
+#       --uart /dev/ttyS0 \
+#       --baud 57600 \
+#       --endpoints "127.0.0.1:14540,127.0.0.1:14569,${GCS_IP}:24550"
+#
+# This will enable fully automated mavlink-router setup.
+# For now, this phase provides clear manual instructions.
+#
+# Current limitations:
+#   - Manual installation required
+#   - Manual endpoint configuration
+#   - Service must be started manually
+#
+# Planned features (future release):
 #   --install-mavlink-anywhere    Automatic installation and configuration
 #   --mavlink-uart /dev/ttyS0     Specify UART device
 #   --mavlink-baud 57600          Specify baud rate
+#   --mavlink-endpoints LIST      Comma-separated endpoint list
 
 # Check if mavlink-router is already installed
 check_mavlink_router_installed() {

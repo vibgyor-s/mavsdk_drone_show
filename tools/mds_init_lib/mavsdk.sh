@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: MAVSDK Binary
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: MAVSDK server binary download and configuration
 # Author: MDS Team
 # =============================================================================

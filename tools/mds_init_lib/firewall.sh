@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Firewall Configuration
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: UFW firewall setup and port configuration for MDS services
 # Author: MDS Team
 # =============================================================================
@@ -27,6 +27,38 @@ declare -A MDS_PORTS=(
     ["24550/udp"]="Remote GCS over VPN"
     ["34550/udp"]="MAVLink aggregation"
 )
+
+# =============================================================================
+# SSH PORT DETECTION
+# =============================================================================
+
+# Detect the SSH port being used for the current session
+# This is critical to avoid locking ourselves out when enabling UFW
+detect_ssh_port() {
+    local ssh_port=""
+
+    # Method 1: Try to detect from SSH_CONNECTION environment variable
+    # SSH_CONNECTION format: client_ip client_port server_ip server_port
+    if [[ -n "${SSH_CONNECTION:-}" ]]; then
+        ssh_port=$(echo "$SSH_CONNECTION" | awk '{print $4}')
+        log_debug "Detected SSH port from SSH_CONNECTION: ${ssh_port:-none}"
+    fi
+
+    # Method 2: Fallback - check sshd config
+    if [[ -z "$ssh_port" ]] && [[ -f /etc/ssh/sshd_config ]]; then
+        ssh_port=$(grep -E "^Port " /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' | head -1)
+        log_debug "Detected SSH port from sshd_config: ${ssh_port:-none}"
+    fi
+
+    # Method 3: Fallback - check active sshd process
+    if [[ -z "$ssh_port" ]]; then
+        ssh_port=$(ss -tlnp 2>/dev/null | grep sshd | awk '{print $4}' | grep -oP ':\K[0-9]+' | head -1)
+        log_debug "Detected SSH port from active sshd: ${ssh_port:-none}"
+    fi
+
+    # Default to port 22 if detection fails
+    echo "${ssh_port:-22}"
+}
 
 # =============================================================================
 # UFW FUNCTIONS
@@ -67,6 +99,7 @@ get_ufw_status() {
 }
 
 # Enable UFW with default policies
+# IMPORTANT: Always detects and allows SSH port before enabling to prevent lockout
 enable_ufw() {
     log_step "Enabling UFW firewall..."
 
@@ -75,6 +108,15 @@ enable_ufw() {
         return 0
     fi
 
+    # CRITICAL: Detect and allow SSH port BEFORE enabling UFW to prevent lockout
+    local ssh_port
+    ssh_port=$(detect_ssh_port)
+
+    log_info "Ensuring SSH access on port ${ssh_port} before enabling firewall..."
+    ufw allow "${ssh_port}/tcp" comment "SSH access (detected)" 2>/dev/null || {
+        log_warn "Failed to add SSH rule - proceeding with caution"
+    }
+
     # Set default policies
     ufw default deny incoming 2>/dev/null
     ufw default allow outgoing 2>/dev/null
@@ -82,6 +124,7 @@ enable_ufw() {
     # Enable UFW (--force to avoid interactive prompt)
     if ufw --force enable; then
         log_success "UFW enabled with default deny incoming"
+        log_success "SSH port ${ssh_port} allowed"
         return 0
     fi
 

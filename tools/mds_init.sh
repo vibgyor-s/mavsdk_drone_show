@@ -119,6 +119,7 @@ REPOSITORY OPTIONS:
                                 Default: git@github.com:alireza787b/mavsdk_drone_show.git
     -b, --branch BRANCH         Git branch to use
                                 Default: main-candidate
+    --fork USER                 Use forked repository (github.com/USER/mavsdk_drone_show)
     --https                     Use HTTPS instead of SSH for git operations
 
 OPTIONAL COMPONENTS:
@@ -157,7 +158,10 @@ EXAMPLES:
     # Non-interactive with drone ID
     sudo ./mds_init.sh -d 42 -y
 
-    # Custom fork with HTTPS
+    # Custom fork with HTTPS (using --fork shorthand)
+    sudo ./mds_init.sh -d 1 --fork myuser --branch main
+
+    # Or with full URL
     sudo ./mds_init.sh -d 1 --https -r https://github.com/myuser/myfork.git -b main
 
     # Full setup with VPN and static IP
@@ -192,7 +196,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,resume,force,verbose,debug,help \
         -n 'mds_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -212,6 +216,11 @@ parse_args() {
                 ;;
             -b|--branch)
                 BRANCH="$2"
+                shift 2
+                ;;
+            --fork)
+                # Set fork repository URL - use SSH by default
+                REPO_URL="git@github.com:$2/mavsdk_drone_show.git"
                 shift 2
                 ;;
             --https)

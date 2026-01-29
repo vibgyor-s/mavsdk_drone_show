@@ -191,8 +191,24 @@ See [GCS Setup Guide](docs/guides/gcs-setup.md) for detailed instructions, CLI o
 
 For Raspberry Pi deployment, use the enterprise-grade initialization script:
 
+**One-Line Installation (Fresh Raspbian):**
 ```bash
-# Clone the repository and run the initialization
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+```
+
+**With Drone ID (Non-Interactive):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- -d 1 -y
+```
+
+**Using Your Own Fork:**
+```bash
+curl -fsSL ... | sudo bash -s -- --fork yourusername -d 1 -y
+```
+
+**Manual Installation (Already Cloned):**
+```bash
+cd ~/mavsdk_drone_show
 sudo ./tools/mds_init.sh -d <DRONE_ID> -y
 ```
 
@@ -237,13 +253,16 @@ All project documentation is organized in the `docs/` folder:
 
 ## Version & Changelog
 
-**Current Version: 4.2** (January 2026)
+**Current Version: 4.3.0** (January 2026)
 
 Major updates in this version:
+- **RPi Bootstrap Installer**: One-line curl installation for fresh Raspbian
+- **Fork Selection Flow**: Interactive fork vs default repository selection
+- **Enhanced Network Config**: Comprehensive DHCP/Static IP and NetBird VPN options
+- **SSH Port Detection**: Automatic SSH port detection before enabling firewall
+- **Flask Removed**: Backend is now FastAPI only
 - Unified ASCII art branding across all scripts
 - Version and git info (branch, commit) displayed at startup
-- Improved startup experience with consistent banners
-- All initialization scripts now share common banner code
 
 📖 **[Full Changelog](CHANGELOG.md)** - Complete version history from v0.1 to current
 

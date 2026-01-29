@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Network Configuration
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: NTP time sync, static IP, and Netbird VPN configuration
 # Author: MDS Team
 # =============================================================================
@@ -211,6 +211,61 @@ display_network_info() {
     echo ""
 }
 
+# Display comprehensive network configuration box
+display_network_config_box() {
+    local iface
+    iface=$(detect_network_interface)
+
+    local ip gateway source
+    ip=$(ip -4 addr show "$iface" 2>/dev/null | grep -oP 'inet \K[\d.]+/\d+' | head -1)
+    gateway=$(ip route show default 2>/dev/null | awk '/default/ {print $3}' | head -1)
+
+    # Detect source type
+    if [[ "$iface" == wlan* ]]; then
+        source="WiFi"
+    elif [[ "$iface" == eth* ]] || [[ "$iface" == enp* ]]; then
+        source="Ethernet"
+    elif [[ "$iface" == usb* ]]; then
+        source="USB Tethering"
+    else
+        source="Unknown"
+    fi
+
+    # Detect if DHCP or static
+    local dhcp_status="DHCP"
+    if [[ -f /etc/dhcpcd.conf ]] && grep -q "interface ${iface}" /etc/dhcpcd.conf 2>/dev/null; then
+        if grep -A5 "interface ${iface}" /etc/dhcpcd.conf 2>/dev/null | grep -q "static ip_address"; then
+            dhcp_status="Static"
+        fi
+    fi
+
+    echo ""
+    echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${WHITE}Network Configuration${NC}                                                     ${CYAN}│${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Current Network:${NC}                                                         ${CYAN}│${NC}"
+    printf "${CYAN}│${NC}    Interface:  %-58s ${CYAN}│${NC}\n" "${iface:-none}"
+    printf "${CYAN}│${NC}    IP Address: %-58s ${CYAN}│${NC}\n" "${ip:-not assigned} (${dhcp_status})"
+    printf "${CYAN}│${NC}    Gateway:    %-58s ${CYAN}│${NC}\n" "${gateway:-not set}"
+    printf "${CYAN}│${NC}    Source:     %-58s ${CYAN}│${NC}\n" "$source"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Options:${NC}                                                                 ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[1]${NC} Keep DHCP (current) + Use NetBird VPN for drone/GCS communication  ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Recommended for most setups${NC}                                       ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Works across any network${NC}                                          ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[2]${NC} Set static IP on current network                                   ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${YELLOW}Warning: May disconnect SSH if IP changes${NC}                          ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${YELLOW}Only use if you understand network configuration${NC}                   ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[3]${NC} Skip network configuration                                         ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
 # Configure static IP (using dhcpcd)
 configure_static_ip_dhcpcd() {
     local iface="$1"
@@ -388,6 +443,84 @@ display_netbird_info() {
     echo ""
 }
 
+# Display NetBird configuration selection box
+display_netbird_config_box() {
+    echo ""
+    echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${WHITE}NetBird VPN Configuration${NC}                                                ${CYAN}│${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  NetBird provides secure VPN connectivity between drones and GCS.         ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${BOLD}Which NetBird setup do you use?${NC}                                          ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[1]${NC} Official NetBird Cloud (netbird.io)                                 ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Easiest setup, managed infrastructure${NC}                             ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Requires: Setup key from app.netbird.io${NC}                           ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[2]${NC} Self-hosted NetBird Server                                         ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Custom management URL required${NC}                                    ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}        ${DIM}- Requires: Management URL + Setup key${NC}                              ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[3]${NC} Skip NetBird (configure manually later)                            ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
+# Prompt for NetBird configuration interactively
+prompt_netbird_config() {
+    # If key already provided via CLI, skip prompt
+    if [[ -n "${NETBIRD_KEY:-}" ]]; then
+        log_info "NetBird setup key provided via CLI"
+        return 0
+    fi
+
+    display_netbird_config_box
+
+    local choice=""
+    prompt_input "Select option (1-3)" "3" choice
+
+    case "$choice" in
+        1)
+            # Official NetBird Cloud
+            log_info "Using official NetBird Cloud (netbird.io)"
+            echo ""
+            echo -e "  ${INFO} Get your setup key from: ${GREEN}https://app.netbird.io${NC}"
+            echo ""
+            prompt_input "Enter NetBird setup key" "" NETBIRD_KEY
+
+            if [[ -z "${NETBIRD_KEY:-}" ]]; then
+                log_warn "No setup key provided, skipping NetBird"
+                return 1
+            fi
+            ;;
+        2)
+            # Self-hosted
+            log_info "Using self-hosted NetBird server"
+            echo ""
+            prompt_input "Enter management URL (e.g., https://netbird.mycompany.com)" "" NETBIRD_URL
+            prompt_input "Enter setup key" "" NETBIRD_KEY
+
+            if [[ -z "${NETBIRD_KEY:-}" ]]; then
+                log_warn "No setup key provided, skipping NetBird"
+                return 1
+            fi
+
+            if [[ -z "${NETBIRD_URL:-}" ]]; then
+                log_warn "No management URL provided, skipping NetBird"
+                return 1
+            fi
+            ;;
+        3|*)
+            log_info "Skipping NetBird configuration"
+            return 1
+            ;;
+    esac
+
+    return 0
+}
+
 # =============================================================================
 # MAIN NETWORK RUNNERS
 # =============================================================================
@@ -429,16 +562,13 @@ run_netbird_phase() {
         return 0
     fi
 
-    # Check if setup key provided
+    # Check if setup key provided via CLI
     if [[ -z "${NETBIRD_KEY:-}" ]]; then
-        log_info "No Netbird setup key provided"
+        log_info "No Netbird setup key provided via CLI"
 
         if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-            echo ""
-            if confirm "Configure Netbird VPN?" "n"; then
-                prompt_input "Enter Netbird setup key" "" NETBIRD_KEY
-                prompt_input "Enter management URL (optional)" "" NETBIRD_URL
-            else
+            # Use the new interactive prompt
+            if ! prompt_netbird_config; then
                 log_info "Skipping Netbird configuration"
                 return 0
             fi
@@ -488,22 +618,49 @@ run_netbird_phase() {
 run_static_ip_phase() {
     print_phase_header "12" "Static IP Configuration"
 
-    # Check if static IP was requested
+    # Check if static IP was requested via CLI
     if [[ -z "${STATIC_IP:-}" ]]; then
-        log_info "No static IP requested"
+        log_info "No static IP requested via CLI"
 
         if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-            display_network_info
+            # Show comprehensive network config box
+            display_network_config_box
 
-            if confirm "Configure static IP?" "n"; then
-                local iface
-                iface=$(detect_network_interface)
-                prompt_input "Enter static IP (CIDR format, e.g., 192.168.1.42/24)" "" STATIC_IP
-                prompt_input "Enter gateway IP" "" GATEWAY
-            else
-                log_info "Keeping DHCP configuration"
-                return 0
-            fi
+            local choice=""
+            prompt_input "Select option (1-3)" "1" choice
+
+            case "$choice" in
+                1)
+                    # Keep DHCP + VPN recommendation
+                    log_info "Keeping DHCP configuration (VPN recommended for communication)"
+                    return 0
+                    ;;
+                2)
+                    # Static IP - show warning and prompt
+                    echo ""
+                    echo -e "  ${YELLOW}┌─────────────────────────────────────────────────────────────┐${NC}"
+                    echo -e "  ${YELLOW}│${NC}  ${RED}WARNING: SSH connection may be lost if IP changes!${NC}         ${YELLOW}│${NC}"
+                    echo -e "  ${YELLOW}│${NC}                                                             ${YELLOW}│${NC}"
+                    echo -e "  ${YELLOW}│${NC}  Make sure you have physical access to the device or know  ${YELLOW}│${NC}"
+                    echo -e "  ${YELLOW}│${NC}  the new IP address before proceeding.                     ${YELLOW}│${NC}"
+                    echo -e "  ${YELLOW}└─────────────────────────────────────────────────────────────┘${NC}"
+                    echo ""
+
+                    if ! confirm "Proceed with static IP configuration?" "n"; then
+                        log_info "Static IP configuration cancelled"
+                        return 0
+                    fi
+
+                    local iface
+                    iface=$(detect_network_interface)
+                    prompt_input "Enter static IP (CIDR format, e.g., 192.168.1.42/24)" "" STATIC_IP
+                    prompt_input "Enter gateway IP" "" GATEWAY
+                    ;;
+                3|*)
+                    log_info "Skipping network configuration"
+                    return 0
+                    ;;
+            esac
         else
             return 0
         fi

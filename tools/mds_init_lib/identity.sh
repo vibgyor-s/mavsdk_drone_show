@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Hardware Identity
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: Hardware ID file creation, hostname configuration, real.mode marker
 # Author: MDS Team
 # =============================================================================

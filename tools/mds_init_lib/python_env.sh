@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Python Environment
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: Python virtual environment setup and requirements installation
 # Author: MDS Team
 # =============================================================================
@@ -19,9 +19,9 @@ readonly VENV_DIR="${MDS_INSTALL_DIR}/venv"
 readonly REQUIREMENTS_FILE="${MDS_INSTALL_DIR}/requirements.txt"
 
 # Critical packages to verify after installation
+# Note: Flask removed in v4.3.0 (FastAPI only backend)
 readonly CRITICAL_PACKAGES=(
     "mavsdk"
-    "flask"
     "aiohttp"
     "requests"
     "numpy"

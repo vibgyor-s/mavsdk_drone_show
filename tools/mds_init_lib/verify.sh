@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Verification
 # =============================================================================
-# Version: 4.0.0
+# Version: 4.3.0
 # Description: Component verification, health checks, and summary reporting
 # Author: MDS Team
 # =============================================================================
@@ -204,6 +204,38 @@ verify_network() {
     return 1
 }
 
+# Verify NetBird VPN
+verify_netbird() {
+    if ! command_exists netbird; then
+        VERIFY_RESULTS["netbird"]="WARN:Not installed"
+        return 0
+    fi
+
+    local status
+    status=$(netbird status 2>/dev/null | grep -i "status:" | head -1 | awk '{print $2}' || echo "unknown")
+
+    case "${status,,}" in
+        connected)
+            local nb_ip
+            nb_ip=$(netbird status 2>/dev/null | grep -oP 'IP: \K[\d.]+' | head -1 || echo "")
+            if [[ -n "$nb_ip" ]]; then
+                VERIFY_RESULTS["netbird"]="PASS:Connected (${nb_ip})"
+            else
+                VERIFY_RESULTS["netbird"]="PASS:Connected"
+            fi
+            return 0
+            ;;
+        disconnected|idle)
+            VERIFY_RESULTS["netbird"]="WARN:Disconnected"
+            return 0
+            ;;
+        *)
+            VERIFY_RESULTS["netbird"]="WARN:Unknown ($status)"
+            return 0
+            ;;
+    esac
+}
+
 # =============================================================================
 # COMPREHENSIVE CHECKS
 # =============================================================================
@@ -222,6 +254,7 @@ run_all_verifications() {
     verify_service_status
     verify_ntp
     verify_mavlink_router
+    verify_netbird
     verify_network
 
     return 0
@@ -273,7 +306,7 @@ generate_summary_report() {
     local warn_count=0
     local fail_count=0
 
-    for component in hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router network; do
+    for component in hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router netbird network; do
         local result="${VERIFY_RESULTS[$component]:-SKIP:Not checked}"
         local status="${result%%:*}"
         local details="${result#*:}"
@@ -321,6 +354,51 @@ generate_summary_report() {
     echo -e "${CYAN}║${NC}                                                                              ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
+}
+
+# Display NetBird VPN info box
+display_netbird_summary() {
+    local nb_status="${VERIFY_RESULTS[netbird]:-SKIP:Not checked}"
+    local status="${nb_status%%:*}"
+    local details="${nb_status#*:}"
+
+    echo ""
+    echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${NC}  ${WHITE}VPN NETWORKING (NetBird)${NC}                                                  ${CYAN}│${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+
+    if [[ "$status" == "PASS" ]]; then
+        # Extract IP if available
+        local nb_ip=""
+        if [[ "$details" =~ \(([0-9.]+)\) ]]; then
+            nb_ip="${BASH_REMATCH[1]}"
+        fi
+
+        echo -e "${CYAN}│${NC}  Status:     ${GREEN}Connected${NC}                                                     ${CYAN}│${NC}"
+        if [[ -n "$nb_ip" ]]; then
+            printf "${CYAN}│${NC}  NetBird IP: ${GREEN}%-60s${NC}${CYAN}│${NC}\n" "$nb_ip"
+        fi
+        echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+        echo -e "${CYAN}│${NC}  ${DIM}This drone should use the GCS NetBird IP for communication.${NC}               ${CYAN}│${NC}"
+        echo -e "${CYAN}│${NC}  ${DIM}Ensure the GCS is also on the same NetBird network.${NC}                       ${CYAN}│${NC}"
+    elif [[ "$status" == "WARN" ]]; then
+        if [[ "$details" == "Not installed" ]]; then
+            echo -e "${CYAN}│${NC}  Status:     ${YELLOW}Not installed${NC}                                                 ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${DIM}NetBird VPN is recommended for drone/GCS communication.${NC}                   ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${DIM}Run: sudo ./tools/mds_init.sh --netbird-key YOUR_KEY${NC}                      ${CYAN}│${NC}"
+        else
+            echo -e "${CYAN}│${NC}  Status:     ${YELLOW}${details}${NC}                                                   ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${DIM}Check NetBird status: netbird status${NC}                                      ${CYAN}│${NC}"
+        fi
+    else
+        echo -e "${CYAN}│${NC}  Status:     ${DIM}Unknown${NC}                                                        ${CYAN}│${NC}"
+    fi
+
+    echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
 }
 
 # Display next steps
@@ -376,6 +454,11 @@ run_verify_phase() {
     print_section "Summary Report"
 
     generate_summary_report
+
+    # Display NetBird VPN summary if relevant
+    if command_exists netbird || [[ -n "${NETBIRD_KEY:-}" ]]; then
+        display_netbird_summary
+    fi
 
     # Run recovery health check if verbose
     if [[ "${VERBOSE:-false}" == "true" ]]; then
