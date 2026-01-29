@@ -33,6 +33,8 @@ readonly -a GCS_BASE_PACKAGES=(
 readonly -a GCS_SUPPORTED_UBUNTU_VERSIONS=("20.04" "22.04" "24.04")
 readonly -a GCS_SUPPORTED_ARCHITECTURES=("x86_64" "arm64" "aarch64")
 readonly GCS_MIN_DISK_SPACE_GB=5
+readonly GCS_MIN_RAM_MB=2048
+readonly GCS_RECOMMENDED_RAM_MB=4096
 
 # =============================================================================
 # SYSTEM CHECKS
@@ -148,6 +150,47 @@ check_disk_space_prereq() {
     else
         log_error "Insufficient disk space: ${available_gb}GB available, ${GCS_MIN_DISK_SPACE_GB}GB required"
         return 1
+    fi
+}
+
+# Check available RAM
+check_ram_prereq() {
+    if is_dry_run; then
+        echo -e "  ${DIM}[DRY-RUN] Would check RAM (min ${GCS_MIN_RAM_MB}MB, recommended ${GCS_RECOMMENDED_RAM_MB}MB)${NC}"
+        return 0
+    fi
+
+    local total_ram_kb total_ram_mb
+    total_ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    total_ram_mb=$((total_ram_kb / 1024))
+
+    log_debug "Available RAM: ${total_ram_mb}MB"
+
+    if [[ $total_ram_mb -lt $GCS_MIN_RAM_MB ]]; then
+        log_error "Insufficient RAM: ${total_ram_mb}MB available, ${GCS_MIN_RAM_MB}MB minimum required"
+        return 1
+    elif [[ $total_ram_mb -lt $GCS_RECOMMENDED_RAM_MB ]]; then
+        log_warn "RAM: ${total_ram_mb}MB available (recommended: ${GCS_RECOMMENDED_RAM_MB}MB)"
+        echo ""
+        echo -e "  ${YELLOW}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
+        echo -e "  ${YELLOW}│${NC}  ${WHITE}⚠ LOW MEMORY WARNING${NC}"
+        echo -e "  ${YELLOW}├────────────────────────────────────────────────────────────────────────────┤${NC}"
+        echo -e "  ${YELLOW}│${NC}  Your system has ${total_ram_mb}MB RAM (recommended: ${GCS_RECOMMENDED_RAM_MB}MB)"
+        echo -e "  ${YELLOW}│${NC}"
+        echo -e "  ${YELLOW}│${NC}  ${WHITE}npm build may fail with 'JavaScript heap out of memory' error.${NC}"
+        echo -e "  ${YELLOW}│${NC}  If this happens, you can:"
+        echo -e "  ${YELLOW}│${NC}    1. Add swap space: ${CYAN}sudo fallocate -l 2G /swapfile${NC}"
+        echo -e "  ${YELLOW}│${NC}       ${CYAN}sudo chmod 600 /swapfile && sudo mkswap /swapfile${NC}"
+        echo -e "  ${YELLOW}│${NC}       ${CYAN}sudo swapon /swapfile${NC}"
+        echo -e "  ${YELLOW}│${NC}    2. Or increase NODE_OPTIONS: ${CYAN}export NODE_OPTIONS='--max-old-space-size=1536'${NC}"
+        echo -e "  ${YELLOW}│${NC}"
+        echo -e "  ${YELLOW}└────────────────────────────────────────────────────────────────────────────┘${NC}"
+        echo ""
+        gcs_state_set_value "low_memory_warning" "true"
+        return 0
+    else
+        log_success "RAM: ${total_ram_mb}MB available (recommended: ${GCS_RECOMMENDED_RAM_MB}MB)"
+        return 0
     fi
 }
 
@@ -307,6 +350,7 @@ run_prereqs_phase() {
     check_os_supported || return 1
     check_architecture || return 1
     check_disk_space_prereq || return 1
+    check_ram_prereq || return 1
 
     print_section "Network Check"
     check_network || return 1

@@ -102,6 +102,9 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 
 - **Operating System:** Ubuntu 20.04, 22.04, or 24.04 (recommended: 22.04)
 - **Architecture:** x86_64 or arm64/aarch64
+- **RAM:** Minimum 2GB, **Recommended 4GB+**
+  > ⚠️ Systems with <4GB RAM may encounter npm "JavaScript heap out of memory" errors.
+  > **Solution:** Add swap space or set `export NODE_OPTIONS='--max-old-space-size=1536'`
 - **Disk Space:** Minimum 5GB free
 - **Network:** Internet access for package downloads
 - **Privileges:** Root or sudo access

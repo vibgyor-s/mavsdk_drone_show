@@ -133,6 +133,7 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 | Guide | Description |
 |-------|-------------|
 | **[GCS Setup Guide](guides/gcs-setup.md)** | Complete GCS server installation and configuration |
+| **[NetBird VPN Setup](guides/netbird-setup.md)** | Secure networking between GCS and drones |
 
 Quick start for VPS/Ubuntu:
 ```bash

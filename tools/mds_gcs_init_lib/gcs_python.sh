@@ -15,8 +15,7 @@ _MDS_GCS_PYTHON_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-# Minimum Python version required
-readonly GCS_PYTHON_MIN_VERSION="3.11"
+# Note: GCS_PYTHON_MIN_VERSION is defined in gcs_common.sh
 
 # Get required packages for a specific Python version
 get_python_packages() {

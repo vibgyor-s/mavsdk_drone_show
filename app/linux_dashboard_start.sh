@@ -324,6 +324,33 @@ run_configuration_check() {
 }
 
 # ===========================================
+# BACKEND VALIDATION
+# ===========================================
+validate_backend() {
+    # Check if FastAPI is available when fastapi backend is selected
+    if [[ "$GCS_BACKEND" == "fastapi" ]]; then
+        if ! python -c "import fastapi" 2>/dev/null; then
+            log_warn "FastAPI not installed but GCS_BACKEND=fastapi"
+            log_warn "Falling back to Flask backend"
+            GCS_BACKEND="flask"
+            export GCS_BACKEND
+        fi
+    fi
+
+    # Show prominent backend info
+    if [[ "$GCS_BACKEND" == "flask" ]]; then
+        log_warn "Using LEGACY Flask backend (FastAPI recommended)"
+        echo ""
+        echo "  To use FastAPI (recommended):"
+        echo "    pip install fastapi uvicorn"
+        echo "    export GCS_BACKEND=fastapi"
+        echo ""
+    else
+        log_success "Using FastAPI backend (recommended)"
+    fi
+}
+
+# ===========================================
 # GCS INITIALIZATION CHECK
 # ===========================================
 check_gcs_initialized() {
@@ -966,6 +993,7 @@ check_gcs_initialized
 handle_real_mode_file
 update_repository
 load_virtualenv
+validate_backend  # Check FastAPI availability
 check_python_dependencies  # Smart dependency check
 handle_env_file
 setup_production_environment
