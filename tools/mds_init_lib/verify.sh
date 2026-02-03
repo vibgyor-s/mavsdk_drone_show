@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Verification
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.5.0
 # Description: Component verification, health checks, and summary reporting
 # Author: MDS Team
 # =============================================================================
@@ -166,10 +166,40 @@ verify_ntp() {
     return 0
 }
 
-# Verify mavlink-router
+# Verify mavlink-router (enhanced in v4.5)
 verify_mavlink_router() {
+    # Check if binary is installed
+    local binary_found=false
+    if command_exists mavlink-routerd; then
+        binary_found=true
+    elif [[ -x /usr/bin/mavlink-routerd ]] || [[ -x /usr/local/bin/mavlink-routerd ]]; then
+        binary_found=true
+    fi
+
+    if [[ "$binary_found" != "true" ]]; then
+        VERIFY_RESULTS["mavlink_router"]="WARN:Not installed"
+        return 0
+    fi
+
+    # Check if config exists
+    if [[ ! -f /etc/mavlink-router/main.conf ]]; then
+        VERIFY_RESULTS["mavlink_router"]="WARN:Installed but not configured"
+        return 0
+    fi
+
+    # Check service status
     if systemctl is-active mavlink-router &>/dev/null; then
-        VERIFY_RESULTS["mavlink_router"]="PASS:Running"
+        # Get additional info if possible
+        local uart_device=""
+        if [[ -f /etc/mavlink-router/main.conf ]]; then
+            uart_device=$(grep "^Device=" /etc/mavlink-router/main.conf 2>/dev/null | head -1 | cut -d= -f2)
+        fi
+
+        if [[ -n "$uart_device" ]]; then
+            VERIFY_RESULTS["mavlink_router"]="PASS:Running (${uart_device})"
+        else
+            VERIFY_RESULTS["mavlink_router"]="PASS:Running"
+        fi
         return 0
     fi
 
@@ -178,7 +208,76 @@ verify_mavlink_router() {
         return 0
     fi
 
-    VERIFY_RESULTS["mavlink_router"]="WARN:Not configured"
+    VERIFY_RESULTS["mavlink_router"]="WARN:Configured but not enabled"
+    return 0
+}
+
+# Verify serial port configuration (NEW in v4.5)
+verify_serial_config() {
+    # Only relevant for Raspberry Pi
+    if ! is_raspberry_pi 2>/dev/null; then
+        VERIFY_RESULTS["serial_config"]="SKIP:Not Raspberry Pi"
+        return 0
+    fi
+
+    local issues=""
+
+    # Check if serial console is enabled (bad - blocks UART)
+    local cmdline_file="/boot/cmdline.txt"
+    [[ -f /boot/firmware/cmdline.txt ]] && cmdline_file="/boot/firmware/cmdline.txt"
+
+    if [[ -f "$cmdline_file" ]]; then
+        if grep -qE "console=(serial0|ttyAMA0|ttyS0)" "$cmdline_file"; then
+            issues="${issues}console_enabled,"
+        fi
+    fi
+
+    # Check if UART is enabled
+    local config_file="/boot/config.txt"
+    [[ -f /boot/firmware/config.txt ]] && config_file="/boot/firmware/config.txt"
+
+    if [[ -f "$config_file" ]]; then
+        if ! grep -qE "^enable_uart=1" "$config_file"; then
+            # UART might still work via serial0 symlink
+            if [[ ! -e /dev/serial0 ]]; then
+                issues="${issues}uart_disabled,"
+            fi
+        fi
+    fi
+
+    # Check for serial device
+    local serial_device=""
+    if [[ -e /dev/serial0 ]]; then
+        serial_device=$(readlink -f /dev/serial0 2>/dev/null || echo "/dev/serial0")
+    elif [[ -e /dev/ttyS0 ]]; then
+        serial_device="/dev/ttyS0"
+    elif [[ -e /dev/ttyAMA0 ]]; then
+        serial_device="/dev/ttyAMA0"
+    fi
+
+    if [[ -z "$serial_device" ]]; then
+        issues="${issues}no_device,"
+    fi
+
+    # Report result
+    if [[ -z "$issues" ]]; then
+        VERIFY_RESULTS["serial_config"]="PASS:OK (${serial_device:-detected})"
+        return 0
+    fi
+
+    # Remove trailing comma
+    issues="${issues%,}"
+
+    if [[ "$issues" == *"console_enabled"* ]]; then
+        VERIFY_RESULTS["serial_config"]="WARN:Console blocking UART"
+    elif [[ "$issues" == *"uart_disabled"* ]]; then
+        VERIFY_RESULTS["serial_config"]="WARN:UART not enabled"
+    elif [[ "$issues" == *"no_device"* ]]; then
+        VERIFY_RESULTS["serial_config"]="WARN:No serial device"
+    else
+        VERIFY_RESULTS["serial_config"]="WARN:${issues}"
+    fi
+
     return 0
 }
 
@@ -254,6 +353,7 @@ run_all_verifications() {
     verify_service_status
     verify_ntp
     verify_mavlink_router
+    verify_serial_config
     verify_netbird
     verify_network
 
@@ -306,7 +406,7 @@ generate_summary_report() {
     local warn_count=0
     local fail_count=0
 
-    for component in hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router netbird network; do
+    for component in hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router serial_config netbird network; do
         local result="${VERIFY_RESULTS[$component]:-SKIP:Not checked}"
         local status="${result%%:*}"
         local details="${result#*:}"
@@ -422,11 +522,19 @@ display_next_steps() {
     fi
 
     # Check mavlink-router
-    if [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not configured"* ]]; then
+    if [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not installed"* ]] || [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not configured"* ]]; then
         echo ""
-        echo -e "  ${ARROW} Configure mavlink-anywhere for MAVLink routing:"
-        echo -e "      ${GREEN}git clone https://github.com/alireza787b/mavlink-anywhere.git${NC}"
-        echo -e "      ${GREEN}cd mavlink-anywhere && sudo ./install_mavlink_router.sh${NC}"
+        echo -e "  ${ARROW} Configure mavlink-router for MAVLink routing:"
+        echo -e "      ${GREEN}sudo ./tools/mds_init.sh --resume --mavlink-auto${NC}"
+        echo -e "      ${DIM}Or manually:${NC}"
+        echo -e "      ${GREEN}cd /opt/mavlink-anywhere && sudo ./configure_mavlink_router.sh --auto${NC}"
+    fi
+
+    # Check serial config
+    if [[ "${VERIFY_RESULTS[serial_config]}" == *"Console blocking"* ]]; then
+        echo ""
+        echo -e "  ${WARN} Serial console is blocking UART - run raspi-config to disable it"
+        echo -e "      ${DIM}Interface Options → Serial Port → Login shell: NO, Hardware: YES${NC}"
     fi
 
     echo ""

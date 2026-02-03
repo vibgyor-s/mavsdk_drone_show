@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Raspberry Pi Initialization Script
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.5.0
 # Description: Production-ready, enterprise-grade initialization for drone swarm nodes
 # Author: MDS Team
 # Repository: https://github.com/alireza787b/mavsdk_drone_show
@@ -10,7 +10,7 @@
 # This script initializes a fresh Raspberry Pi for use in the MDS drone swarm
 # platform. It handles all aspects of setup including:
 #   - Prerequisites and system validation
-#   - mavlink-anywhere guidance
+#   - mavlink-anywhere automated setup (NEW in v4.5)
 #   - Repository cloning/updating with SSH key management
 #   - Hardware identity configuration
 #   - Firewall setup
@@ -55,7 +55,7 @@ source_library() {
 # Source all libraries
 source_library "common.sh"
 source_library "prereqs.sh"
-source_library "mavlink_guide.sh"
+source_library "mavlink_setup.sh"
 source_library "repo.sh"
 source_library "identity.sh"
 source_library "firewall.sh"
@@ -96,13 +96,22 @@ FORCE="false"
 VERBOSE="false"
 DEBUG="false"
 
+# MAVLink Configuration (NEW in v4.5)
+MAVLINK_AUTO="false"
+MAVLINK_SKIP="false"
+MAVLINK_UART=""
+MAVLINK_BAUD="57600"
+MAVLINK_ENDPOINTS=""
+MAVLINK_INPUT_TYPE="uart"
+MAVLINK_INPUT_PORT="14550"
+
 # =============================================================================
 # HELP TEXT
 # =============================================================================
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Initialization Script v4.4.0
+MDS Raspberry Pi Initialization Script v4.5.0
 
 USAGE:
     sudo ./mds_init.sh [OPTIONS]
@@ -133,6 +142,15 @@ MAVSDK OPTIONS:
     --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.5.0)
                                 Default: auto-detect latest
     --mavsdk-url URL            Direct URL to MAVSDK binary (overrides version)
+
+MAVLINK-ROUTER OPTIONS (NEW in v4.5):
+    --mavlink-auto              Auto-configure mavlink-router (recommended)
+    --mavlink-skip              Skip mavlink-router setup entirely
+    --mavlink-uart DEVICE       UART device (e.g., /dev/ttyS0)
+    --mavlink-baud RATE         Baud rate (default: 57600)
+    --mavlink-endpoints LIST    Comma-separated endpoints
+    --mavlink-input TYPE        Input type: uart (default) or udp
+    --mavlink-input-port PORT   UDP input port (default: 14550)
 
 SKIP FLAGS:
     --skip-firewall             Skip UFW firewall configuration
@@ -167,6 +185,12 @@ EXAMPLES:
     # Full setup with VPN and static IP
     sudo ./mds_init.sh -d 5 --netbird-key "XXXXX" --static-ip 192.168.1.105/24 --gateway 192.168.1.1
 
+    # Auto-configure mavlink-router with GCS IP (NEW)
+    sudo ./mds_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
+
+    # Headless mavlink configuration
+    sudo ./mds_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
+
     # Dry run to see what would happen
     sudo ./mds_init.sh -d 1 --dry-run
 
@@ -196,7 +220,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,resume,force,verbose,debug,help \
         -n 'mds_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -279,6 +303,34 @@ parse_args() {
                 SKIP_VENV="true"
                 shift
                 ;;
+            --mavlink-auto)
+                MAVLINK_AUTO="true"
+                shift
+                ;;
+            --mavlink-skip)
+                MAVLINK_SKIP="true"
+                shift
+                ;;
+            --mavlink-uart)
+                MAVLINK_UART="$2"
+                shift 2
+                ;;
+            --mavlink-baud)
+                MAVLINK_BAUD="$2"
+                shift 2
+                ;;
+            --mavlink-endpoints)
+                MAVLINK_ENDPOINTS="$2"
+                shift 2
+                ;;
+            --mavlink-input)
+                MAVLINK_INPUT_TYPE="$2"
+                shift 2
+                ;;
+            --mavlink-input-port)
+                MAVLINK_INPUT_PORT="$2"
+                shift 2
+                ;;
             -y|--yes)
                 NON_INTERACTIVE="true"
                 shift
@@ -323,6 +375,8 @@ parse_args() {
     export DRONE_ID REPO_URL BRANCH USE_HTTPS
     export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP
     export MAVSDK_VERSION MAVSDK_URL
+    export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
+    export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
     export SKIP_FIREWALL SKIP_NETBIRD SKIP_NTP SKIP_SERVICES SKIP_MAVSDK SKIP_VENV
     export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 }
@@ -334,7 +388,7 @@ parse_args() {
 # Phase definitions
 declare -a PHASES=(
     "prereqs"
-    "mavlink_guidance"
+    "mavlink_setup"
     "repository"
     "identity"
     "environment"
@@ -372,8 +426,8 @@ run_phase() {
         prereqs)
             run_prereqs_phase || result=$?
             ;;
-        mavlink_guidance)
-            run_mavlink_guidance_phase || result=$?
+        mavlink_setup)
+            run_mavlink_setup_phase || result=$?
             ;;
         repository)
             run_repository_phase || result=$?
