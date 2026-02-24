@@ -7,6 +7,7 @@ class Mission(Enum):
     SMART_SWARM = 2
     CUSTOM_CSV_DRONE_SHOW = 3
     SWARM_TRAJECTORY = 4
+    QUICKSCOUT = 5
     HOVER_TEST = 106
     TAKE_OFF = 10
     LAND = 101
@@ -112,6 +113,9 @@ class CommandErrorCode(str, Enum):
     TAKEOFF_FAILED = "E403"
     MISSION_SCRIPT_ERROR = "E404"
     TRAJECTORY_NOT_FOUND = "E405"
+    SEARCH_AREA_INVALID = "E406"
+    COVERAGE_PLAN_FAILED = "E407"
+    MISSION_UPLOAD_FAILED = "E408"
 
     # System errors (5xx)
     INTERNAL_ERROR = "E500"
@@ -148,6 +152,9 @@ class CommandErrorCode(str, Enum):
             "E403": "Takeoff failed",
             "E404": "Mission script error",
             "E405": "Trajectory file not found",
+            "E406": "Invalid search area polygon",
+            "E407": "Coverage planning algorithm failed",
+            "E408": "Mission upload to drone failed",
             "E500": "Internal server error",
             "E501": "Configuration error",
             "E502": "Hardware error",

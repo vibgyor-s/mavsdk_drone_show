@@ -67,6 +67,9 @@ from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_inf
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
 
+# Import SAR router
+from sar.routes import router as sar_router
+
 # Import swarm trajectory functions
 from functions.swarm_analyzer import analyze_swarm_structure
 from functions.swarm_trajectory_processor import (
@@ -297,6 +300,9 @@ app.add_middleware(
     expose_headers=["*"],  # Expose all headers to the client
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Register SAR router
+app.include_router(sar_router)
 
 
 # ============================================================================

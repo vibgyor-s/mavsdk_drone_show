@@ -1,0 +1,550 @@
+/* src/styles/QuickScout.css */
+/* QuickScout SAR Module Styles - uses DesignTokens.css variables */
+
+.quickscout-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    overflow: hidden;
+}
+
+/* === Mode Toggle === */
+.qs-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border-primary);
+    width: fit-content;
+}
+
+.qs-mode-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    color: var(--color-text-secondary);
+}
+
+.qs-mode-btn.active {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.qs-mode-btn:hover:not(.active) {
+    background: var(--color-bg-tertiary);
+}
+
+/* === Stats Bar === */
+.qs-stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    background: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border-primary);
+    font-size: 13px;
+}
+
+.qs-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.qs-stat-label {
+    color: var(--color-text-secondary);
+}
+
+.qs-stat-value {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.qs-stat-value.success { color: var(--color-success); }
+.qs-stat-value.warning { color: var(--color-warning); }
+.qs-stat-value.danger { color: var(--color-danger); }
+
+.qs-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--color-bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.qs-progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+/* === Top Bar === */
+.qs-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border-primary);
+}
+
+.qs-top-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.qs-page-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+/* === Main Layout === */
+.qs-main-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.qs-map-container {
+    flex: 1;
+    position: relative;
+}
+
+.qs-map-container .mapboxgl-map {
+    width: 100%;
+    height: 100%;
+}
+
+/* === Sidebar === */
+.qs-sidebar {
+    width: 320px;
+    background: var(--color-bg-secondary);
+    border-left: 1px solid var(--color-border-primary);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.qs-sidebar-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border-primary);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.qs-sidebar-content {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+
+/* === Config Section === */
+.qs-config-section {
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    border: 1px solid var(--color-border-primary);
+}
+
+.qs-config-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+}
+
+.qs-config-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.qs-config-label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.qs-config-input {
+    width: 80px;
+    padding: 4px 8px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: 13px;
+    text-align: right;
+}
+
+.qs-config-input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
+.qs-config-unit {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+    margin-left: 4px;
+    width: 24px;
+}
+
+/* === Drone Selection === */
+.qs-drone-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.qs-drone-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.qs-drone-item:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.qs-drone-item input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+.qs-drone-id {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.qs-drone-status {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+}
+
+.qs-drone-status.online {
+    background: var(--color-success-light);
+    color: var(--color-success);
+}
+
+.qs-drone-status.offline {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-tertiary);
+}
+
+/* === Action Buttons === */
+.qs-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.qs-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.qs-btn-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.qs-btn-primary:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.qs-btn-success {
+    background: var(--color-success);
+    color: #fff;
+}
+
+.qs-btn-success:hover:not(:disabled) {
+    background: var(--color-success-hover);
+}
+
+.qs-btn-warning {
+    background: var(--color-warning);
+    color: #000;
+}
+
+.qs-btn-danger {
+    background: var(--color-danger);
+    color: #fff;
+}
+
+.qs-btn-danger:hover:not(:disabled) {
+    background: var(--color-danger-hover);
+}
+
+.qs-btn-full {
+    width: 100%;
+}
+
+/* === Action Bar (monitor mode) === */
+.qs-action-bar {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10;
+}
+
+.qs-action-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--color-border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-md);
+}
+
+.qs-action-btn:hover {
+    transform: scale(1.1);
+}
+
+.qs-action-btn.resume { border-color: var(--color-success); color: var(--color-success); }
+.qs-action-btn.pause { border-color: var(--color-warning); color: var(--color-warning); }
+.qs-action-btn.rtl { border-color: #fd7e14; color: #fd7e14; }
+.qs-action-btn.abort { border-color: var(--color-danger); color: var(--color-danger); }
+
+/* === Drone Status Card === */
+.qs-drone-card {
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    border-left: 3px solid var(--color-border-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.qs-drone-card:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.qs-drone-card.executing { border-left-color: var(--color-success); }
+.qs-drone-card.paused { border-left-color: var(--color-warning); }
+.qs-drone-card.cruising { border-left-color: var(--color-primary); }
+.qs-drone-card.completed { border-left-color: var(--color-success); }
+.qs-drone-card.aborted { border-left-color: var(--color-danger); }
+
+.qs-drone-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.qs-drone-card-name {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.qs-state-badge {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.qs-state-badge.executing { background: var(--color-success-light); color: var(--color-success); }
+.qs-state-badge.paused { background: var(--color-warning-light); color: var(--color-warning); }
+.qs-state-badge.completed { background: var(--color-success-light); color: var(--color-success); }
+.qs-state-badge.aborted { background: var(--color-danger-light); color: var(--color-danger); }
+.qs-state-badge.ready { background: var(--color-primary-light); color: var(--color-primary); }
+
+.qs-drone-card-progress {
+    height: 4px;
+    background: var(--color-bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.qs-drone-card-progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    transition: width 0.3s;
+}
+
+.qs-drone-card-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+/* === POI System === */
+.qs-poi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.qs-poi-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 12px;
+}
+
+.qs-poi-item:hover {
+    background: var(--color-bg-tertiary);
+}
+
+.qs-poi-marker {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.qs-poi-marker.critical { background: var(--color-danger); }
+.qs-poi-marker.high { background: #fd7e14; }
+.qs-poi-marker.medium { background: var(--color-warning); }
+.qs-poi-marker.low { background: var(--color-primary); }
+
+/* === Mapbox Setup Instructions === */
+.qs-mapbox-setup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+    background: var(--color-bg-primary);
+}
+
+.qs-mapbox-setup h3 {
+    margin-bottom: 12px;
+    color: var(--color-text-primary);
+}
+
+.qs-mapbox-setup p {
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+    max-width: 500px;
+}
+
+.qs-mapbox-setup code {
+    background: var(--color-bg-tertiary);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.qs-mapbox-setup a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.qs-mapbox-setup a:hover {
+    text-decoration: underline;
+}
+
+/* === Collapsible Section === */
+.qs-collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.qs-collapsible-header:hover {
+    color: var(--color-primary);
+}
+
+.qs-collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+/* === Confirm Slider === */
+.qs-confirm-slider {
+    position: relative;
+    height: 44px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    user-select: none;
+}
+
+.qs-confirm-slider-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.qs-confirm-slider-thumb {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 40px;
+    height: 40px;
+    border-radius: calc(var(--radius-lg) - 2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    transition: left 0.1s;
+    font-size: 16px;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+    .qs-sidebar {
+        width: 260px;
+    }
+
+    .qs-stats-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}

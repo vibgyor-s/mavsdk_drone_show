@@ -33,6 +33,7 @@ import SwarmTrajectory from './pages/SwarmTrajectory';
 
 // Clean import - no error boundary needed with Mapbox
 import TrajectoryPlanning from './pages/TrajectoryPlanning';
+import QuickScoutPage from './pages/QuickScoutPage';
 
 // Import external styles
 import { ToastContainer } from 'react-toastify';
@@ -73,6 +74,9 @@ const App = () => {
             
             {/* Enhanced Trajectory Planning Route with unified design system */}
             <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
+
+            {/* QuickScout SAR */}
+            <Route path="/quickscout" element={<QuickScoutPage />} />
             
             {/* Default route */}
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />

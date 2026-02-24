@@ -14,7 +14,8 @@ import {
   FaTimes,
   FaLinkedin,
   FaClock,
-  FaCodeBranch
+  FaCodeBranch,
+  FaSearchLocation
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -38,6 +39,7 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
     { to: '/swarm-design', icon: FaList, label: 'Swarm Design', category: 'workflow' },
     { to: '/trajectory-planning', icon: FaRoute, label: 'Trajectory Planning', category: 'workflow' },
     { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory', category: 'workflow' },
+    { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout', category: 'workflow' },
     { to: '/manage-drone-show', icon: FaGithub, label: 'Drone Show Design', category: 'design' },
     { to: '/custom-show', icon: FaGem, label: 'Custom Show', category: 'design' },
     { to: '/globe-view', icon: FaGlobe, label: 'Drone 3D View', category: 'visualization' }

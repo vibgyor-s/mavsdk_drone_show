@@ -52,6 +52,7 @@ class DroneSetup:
             Mission.HOVER_TEST.value: self._execute_hover_test,
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
             Mission.SWARM_TRAJECTORY.value: self._execute_swarm_trajectory,
+            Mission.QUICKSCOUT.value: self._execute_quickscout,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
             Mission.RETURN_RTL.value: self._execute_return_rtl,
@@ -627,6 +628,21 @@ class DroneSetup:
         """Handler for Mission.SWARM_TRAJECTORY."""
         logger.info("Starting Swarm Trajectory Mission")
         return await self.execute_mission_script("swarm_trajectory_mission.py", "")
+
+    async def _execute_quickscout(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """Handler for Mission.QUICKSCOUT."""
+        mission_id = getattr(self.drone_config, 'quickscout_mission_id', '')
+        waypoints_file = getattr(self.drone_config, 'quickscout_waypoints_file', '')
+        return_behavior = getattr(self.drone_config, 'quickscout_return_behavior', 'return_home')
+        hw_id = self.drone_config.hw_id
+
+        if not waypoints_file or not os.path.isfile(waypoints_file):
+            logger.error(f"QuickScout waypoints file not found: {waypoints_file}")
+            return (False, "Waypoints file not found")
+
+        args = f"--waypoints-file {waypoints_file} --mission-id {mission_id} --hw-id {hw_id} --return-behavior {return_behavior}"
+        logger.info(f"Starting QuickScout mission {mission_id}")
+        return await self.execute_mission_script("quickscout_mission.py", args)
 
     async def _execute_takeoff(self, current_time: int = 0, earlier_trigger_time: int = 0) -> tuple:
         """Handler for Mission.TAKE_OFF."""

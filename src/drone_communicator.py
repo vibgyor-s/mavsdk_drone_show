@@ -198,6 +198,8 @@ class DroneCommunicator:
 
         if mission == Mission.TAKE_OFF.value:
             self._handle_takeoff_command(command_data)
+        elif mission == Mission.QUICKSCOUT.value:
+            self._handle_quickscout_command(command_data)
         elif mission in Mission._value2member_map_:
             self._handle_standard_mission(mission)
         else:
@@ -221,6 +223,31 @@ class DroneCommunicator:
         logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
         self.drone_config.mission = mission
         self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
+
+    def _handle_quickscout_command(self, command_data: Dict[str, Any]) -> None:
+        """Handle QuickScout SAR mission command - extract waypoints and store."""
+        import json
+
+        waypoints = command_data.get('waypoints', [])
+        mission_id = command_data.get('mission_id', 'unknown')
+        return_behavior = command_data.get('return_behavior', 'return_home')
+        hw_id = self.drone_config.hw_id
+
+        if not waypoints:
+            raise ValueError("QuickScout command missing waypoints")
+
+        # Write waypoints to temp JSON file
+        waypoints_file = f"/tmp/quickscout_{hw_id}_{mission_id}.json"
+        with open(waypoints_file, 'w') as f:
+            json.dump(waypoints, f)
+        logging.info(f"QuickScout waypoints written to {waypoints_file} ({len(waypoints)} waypoints)")
+
+        # Store mission parameters on drone_config
+        self.drone_config.quickscout_mission_id = mission_id
+        self.drone_config.quickscout_waypoints_file = waypoints_file
+        self.drone_config.quickscout_return_behavior = return_behavior
+        self.drone_config.mission = Mission.QUICKSCOUT.value
+        self.drone_config.state = State.MISSION_READY.value
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""
