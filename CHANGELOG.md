@@ -7,6 +7,34 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [5.0] - 2026-02-24
+
+### Added
+- **QuickScout SAR/Reconnaissance Module**: Multi-drone cooperative area survey
+  - New mission mode: `QUICKSCOUT = 5` with boustrophedon coverage planning
+  - Boustrophedon (lawn-mower) coverage path planner with Shapely polygon operations
+  - ENU coordinate conversion via pymap3d for accurate local planning
+  - Automatic sector partitioning and GPS-proximity drone assignment
+  - PX4 Mission Mode executor (`quickscout_mission.py`) with MAVSDK mission upload
+  - Mission lifecycle management: plan, launch, pause, resume, abort
+  - Point of Interest (POI) management with CRUD operations
+  - Terrain-following altitude adjustment
+  - Camera trigger actions at configurable intervals
+- **SAR API Endpoints**: FastAPI APIRouter at `/api/sar`
+  - Coverage planning, mission control, drone progress, POI, and elevation endpoints
+  - Thread-safe singleton managers for mission state and POI storage
+- **QuickScout Dashboard Page**: Full Plan/Monitor UI
+  - Mapbox GL polygon drawing for search area definition
+  - Coverage path preview with per-drone color coding
+  - Real-time drone progress monitoring with status cards
+  - Interactive POI marker system
+  - Survey configuration panel with advanced options
+- **SAR Test Suite**: Schema validation, coverage planner algorithm, and API endpoint tests
+- **New Dependencies**: `shapely>=2.0.0` and `pymap3d` (GCS server only), `@mapbox/mapbox-gl-draw` (frontend)
+- **Documentation**: `docs/quickscout.md` with architecture, API reference, and configuration guide
+
+---
+
 ## [4.3] - 2026-01-28
 
 ### Added
