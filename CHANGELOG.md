@@ -35,6 +35,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [4.5] - 2026-02-24
+
+### Added
+- **Automated mavlink-router Integration**: Dashboard binary auto-download, systemd service setup via `mavlink_setup.sh`
+
+---
+
+## [4.4] - 2026-01-30
+
+### Changed
+- Version bump for enterprise services and configuration improvements
+
+---
+
 ## [4.3] - 2026-01-28
 
 ### Added

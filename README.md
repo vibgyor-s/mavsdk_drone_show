@@ -2,7 +2,7 @@
 
 **All-in-One Drone Show & Smart Swarm Framework for PX4**
 
-[![Version](https://img.shields.io/badge/version-4.3.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
@@ -253,16 +253,13 @@ All project documentation is organized in the `docs/` folder:
 
 ## Version & Changelog
 
-**Current Version: 4.4.0** (January 2026)
+**Current Version: 5.0** (February 2026)
 
 Major updates in this version:
+- **QuickScout SAR Module**: Cooperative multi-drone search & rescue survey mode with boustrophedon coverage planning, PX4 Mission Mode execution, and real-time progress monitoring
+- **Automated mavlink-router Integration**: Dashboard binary auto-download, systemd service setup
 - **RPi Bootstrap Installer**: One-line curl installation for fresh Raspbian
-- **Fork Selection Flow**: Interactive fork vs default repository selection
-- **Enhanced Network Config**: Comprehensive DHCP/Static IP and NetBird VPN options
-- **SSH Port Detection**: Automatic SSH port detection before enabling firewall
 - **Flask Removed**: Backend is now FastAPI only
-- Unified ASCII art branding across all scripts
-- Version and git info (branch, commit) displayed at startup
 
 📖 **[Full Changelog](CHANGELOG.md)** - Complete version history from v0.1 to current
 
