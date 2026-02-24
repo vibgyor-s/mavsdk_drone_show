@@ -198,7 +198,7 @@ class DroneSetup:
                 self._reset_mission_state(success=False)
                 return (False, f"Script '{script_name}' not found.")
 
-            command = [python_exec_path, script_path] + action.split()
+            command = [python_exec_path, script_path] + (action if isinstance(action, list) else action.split())
             logger.info(f"Executing mission script asynchronously: {' '.join(command)}")
 
             try:
@@ -631,6 +631,18 @@ class DroneSetup:
 
     async def _execute_quickscout(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """Handler for Mission.QUICKSCOUT."""
+        if current_time is None:
+            current_time = int(time.time())
+        if earlier_trigger_time is None:
+            earlier_trigger_time = 0
+
+        if not (
+            self.drone_config.state == State.MISSION_READY.value
+            and current_time >= earlier_trigger_time
+        ):
+            logger.debug("Conditions NOT met for QuickScout (state or trigger time).")
+            return (False, "Conditions not met for QuickScout.")
+
         mission_id = getattr(self.drone_config, 'quickscout_mission_id', '')
         waypoints_file = getattr(self.drone_config, 'quickscout_waypoints_file', '')
         return_behavior = getattr(self.drone_config, 'quickscout_return_behavior', 'return_home')
@@ -638,9 +650,14 @@ class DroneSetup:
 
         if not waypoints_file or not os.path.isfile(waypoints_file):
             logger.error(f"QuickScout waypoints file not found: {waypoints_file}")
+            self._reset_mission_state(False)
             return (False, "Waypoints file not found")
 
-        args = f"--waypoints-file {waypoints_file} --mission-id {mission_id} --hw-id {hw_id} --return-behavior {return_behavior}"
+        self.drone_config.state = State.MISSION_EXECUTING.value
+        self.drone_config.trigger_time = 0
+
+        args = ["--waypoints-file", waypoints_file, "--mission-id", mission_id,
+                "--hw-id", hw_id, "--return-behavior", return_behavior]
         logger.info(f"Starting QuickScout mission {mission_id}")
         return await self.execute_mission_script("quickscout_mission.py", args)
 

@@ -6,6 +6,7 @@ import struct
 import logging
 import select
 import time
+import re
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
@@ -236,8 +237,10 @@ class DroneCommunicator:
         if not waypoints:
             raise ValueError("QuickScout command missing waypoints")
 
-        # Write waypoints to temp JSON file
-        waypoints_file = f"/tmp/quickscout_{hw_id}_{mission_id}.json"
+        # Sanitize identifiers to prevent path traversal
+        safe_hw_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(hw_id))
+        safe_mission_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(mission_id))
+        waypoints_file = f"/tmp/quickscout_{safe_hw_id}_{safe_mission_id}.json"
         with open(waypoints_file, 'w') as f:
             json.dump(waypoints, f)
         logging.info(f"QuickScout waypoints written to {waypoints_file} ({len(waypoints)} waypoints)")

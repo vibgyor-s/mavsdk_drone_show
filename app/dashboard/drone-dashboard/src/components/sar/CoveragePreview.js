@@ -21,9 +21,8 @@ try {
 const DRONE_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#ef4444', '#a855f7', '#06b6d4', '#eab308', '#ec4899'];
 
 const CoveragePreview = ({ plans, missionStatus }) => {
-  if (!mapboxAvailable || !plans || plans.length === 0) return null;
-
   const geojsonData = useMemo(() => {
+    if (!plans || plans.length === 0) return null;
     const features = [];
 
     plans.forEach((plan, droneIdx) => {
@@ -71,6 +70,8 @@ const CoveragePreview = ({ plans, missionStatus }) => {
 
     return { type: 'FeatureCollection', features };
   }, [plans, missionStatus]);
+
+  if (!mapboxAvailable || !geojsonData) return null;
 
   return (
     <>

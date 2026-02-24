@@ -33,11 +33,23 @@ def get_mission_manager() -> 'MissionManager':
 class MissionManager:
     """In-memory mission state store and lifecycle manager."""
 
+    MAX_MISSIONS = 50  # Evict oldest missions beyond this limit
+
     def __init__(self):
         self._missions: Dict[str, MissionStatus] = {}
         self._plans: Dict[str, List[DroneCoveragePlan]] = {}
         self._configs: Dict[str, SurveyConfig] = {}
+        self._mission_order: List[str] = []  # Track insertion order for LRU eviction
         self._lock = threading.Lock()
+
+    def _evict_oldest(self):
+        """Remove oldest missions if over limit. Must be called under lock."""
+        while len(self._mission_order) > self.MAX_MISSIONS:
+            oldest_id = self._mission_order.pop(0)
+            self._missions.pop(oldest_id, None)
+            self._plans.pop(oldest_id, None)
+            self._configs.pop(oldest_id, None)
+            logger.info(f"Evicted old mission {oldest_id} (limit: {self.MAX_MISSIONS})")
 
     def create_mission(
         self, mission_id: str, plans: List[DroneCoveragePlan], config: SurveyConfig
@@ -58,6 +70,8 @@ class MissionManager:
             self._missions[mission_id] = status
             self._plans[mission_id] = plans
             self._configs[mission_id] = config
+            self._mission_order.append(mission_id)
+            self._evict_oldest()
         logger.info(f"Mission {mission_id} created with {len(plans)} drones")
         return status
 
@@ -116,39 +130,39 @@ class MissionManager:
                 status.state = SurveyState.COMPLETED
             return True
 
-    def pause_mission(self, mission_id: str, pos_ids: Optional[List[int]] = None) -> bool:
+    def pause_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
         with self._lock:
             status = self._missions.get(mission_id)
             if not status:
                 return False
             for hw_id, ds in status.drone_states.items():
-                if pos_ids is None or int(hw_id) in pos_ids:
+                if hw_ids is None or hw_id in hw_ids:
                     if ds.state == SurveyState.EXECUTING:
                         ds.state = SurveyState.PAUSED
             if all(ds.state == SurveyState.PAUSED for ds in status.drone_states.values()):
                 status.state = SurveyState.PAUSED
             return True
 
-    def resume_mission(self, mission_id: str, pos_ids: Optional[List[int]] = None) -> bool:
+    def resume_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
         with self._lock:
             status = self._missions.get(mission_id)
             if not status:
                 return False
             for hw_id, ds in status.drone_states.items():
-                if pos_ids is None or int(hw_id) in pos_ids:
+                if hw_ids is None or hw_id in hw_ids:
                     if ds.state == SurveyState.PAUSED:
                         ds.state = SurveyState.EXECUTING
             if any(ds.state == SurveyState.EXECUTING for ds in status.drone_states.values()):
                 status.state = SurveyState.EXECUTING
             return True
 
-    def abort_mission(self, mission_id: str, pos_ids: Optional[List[int]] = None, return_behavior: str = "return_home") -> bool:
+    def abort_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None, return_behavior: str = "return_home") -> bool:
         with self._lock:
             status = self._missions.get(mission_id)
             if not status:
                 return False
             for hw_id, ds in status.drone_states.items():
-                if pos_ids is None or int(hw_id) in pos_ids:
+                if hw_ids is None or hw_id in hw_ids:
                     ds.state = SurveyState.ABORTED
             if all(ds.state == SurveyState.ABORTED for ds in status.drone_states.values()):
                 status.state = SurveyState.ABORTED

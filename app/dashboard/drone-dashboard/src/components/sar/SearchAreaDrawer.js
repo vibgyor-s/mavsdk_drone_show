@@ -51,10 +51,9 @@ const DrawControl = ({ onAreaChange }) => {
     onAreaChange([], 0);
   }, [onAreaChange]);
 
-  if (!mapboxDrawAvailable || !useControl) return null;
-
   useControl(
     () => {
+      if (!mapboxDrawAvailable) return null;
       const draw = new MapboxDraw({
         displayControlsDefault: false,
         controls: {
@@ -67,11 +66,13 @@ const DrawControl = ({ onAreaChange }) => {
       return draw;
     },
     ({ map }) => {
+      if (!mapboxDrawAvailable) return;
       map.on('draw.create', handleCreate);
       map.on('draw.update', handleUpdate);
       map.on('draw.delete', handleDelete);
     },
     ({ map }) => {
+      if (!mapboxDrawAvailable) return;
       map.off('draw.create', handleCreate);
       map.off('draw.update', handleUpdate);
       map.off('draw.delete', handleDelete);
@@ -99,4 +100,10 @@ export const MapboxSetupInstructions = () => (
   </div>
 );
 
-export default DrawControl;
+// Safe wrapper: only renders DrawControl when Mapbox Draw is available
+const SafeDrawControl = (props) => {
+  if (!mapboxDrawAvailable || !useControl) return null;
+  return <DrawControl {...props} />;
+};
+
+export default SafeDrawControl;

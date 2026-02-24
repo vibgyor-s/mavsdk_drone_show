@@ -8,6 +8,7 @@ Reuses the existing get_elevation() from gcs-server/get_elevation.py.
 
 import os
 import sys
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -20,9 +21,10 @@ from sar.schemas import CoverageWaypoint
 logger = logging.getLogger(__name__)
 
 
-def batch_get_elevations(points: List[dict], chunk_size: int = 100) -> List[Optional[float]]:
+async def batch_get_elevations(points: List[dict], chunk_size: int = 100) -> List[Optional[float]]:
     """
     Batch elevation queries for a list of points.
+    Runs synchronous get_elevation() in a thread to avoid blocking the event loop.
 
     Args:
         points: List of dicts with 'lat' and 'lng' keys.
@@ -34,7 +36,7 @@ def batch_get_elevations(points: List[dict], chunk_size: int = 100) -> List[Opti
     results = []
     for point in points:
         try:
-            data = get_elevation(point['lat'], point['lng'])
+            data = await asyncio.to_thread(get_elevation, point['lat'], point['lng'])
             if data and 'results' in data and data['results']:
                 elev = data['results'][0].get('elevation')
                 results.append(elev)
@@ -46,7 +48,7 @@ def batch_get_elevations(points: List[dict], chunk_size: int = 100) -> List[Opti
     return results
 
 
-def apply_terrain_following(
+async def apply_terrain_following(
     waypoints: List[CoverageWaypoint],
     survey_alt_agl: float,
     cruise_alt_msl: float,
@@ -70,7 +72,7 @@ def apply_terrain_following(
     survey_indices = [i for i, wp in enumerate(waypoints) if wp.is_survey_leg]
     survey_points = [{'lat': waypoints[i].lat, 'lng': waypoints[i].lng} for i in survey_indices]
 
-    elevations = batch_get_elevations(survey_points) if survey_points else []
+    elevations = await batch_get_elevations(survey_points) if survey_points else []
 
     # Build elevation map
     elev_map = {}

@@ -36,6 +36,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sar", tags=["QuickScout SAR"])
 
 
+def _resolve_pos_ids_to_hw_ids(pos_ids: Optional[List[int]]) -> Optional[List[str]]:
+    """Resolve pos_ids to hw_ids using drone config. Returns None if pos_ids is None (= all drones)."""
+    if pos_ids is None:
+        return None
+    try:
+        drones_config = load_config()
+        hw_ids = []
+        for d in drones_config:
+            pid = int(d.get('pos_id', -1))
+            if pid in pos_ids:
+                hw_ids.append(str(d.get('hw_id', '')))
+        return hw_ids if hw_ids else [str(p) for p in pos_ids]  # Fallback: treat pos_ids as hw_ids
+    except Exception:
+        return [str(p) for p in pos_ids]
+
+
+def _send_control_command(mission_type_value: int, hw_ids: Optional[List[str]] = None):
+    """Send a control command (HOLD, RTL, etc.) to drones via MDS command infrastructure."""
+    try:
+        drones_config = load_config()
+    except Exception as e:
+        logger.error(f"Failed to load drone config for control command: {e}")
+        return
+    if hw_ids is None:
+        target_ids = [str(d.get('hw_id', '')) for d in drones_config]
+    else:
+        target_ids = hw_ids
+    command_data = {'missionType': mission_type_value}
+    for hw_id in target_ids:
+        try:
+            send_commands_to_selected(drones_config, command_data, [hw_id])
+        except Exception as e:
+            logger.warning(f"Control command {mission_type_value} to {hw_id} failed: {e}")
+
+
 def _get_drone_gps_positions(pos_ids: Optional[List[int]] = None) -> dict:
     """Get current GPS positions from telemetry. Returns {pos_id_str: (lat, lng)}."""
     positions = {}
@@ -80,7 +115,7 @@ async def plan_mission(request: QuickScoutMissionRequest):
 
         if request.survey_config.use_terrain_following:
             for plan in plans:
-                plan.waypoints = apply_terrain_following(
+                plan.waypoints = await apply_terrain_following(
                     plan.waypoints,
                     request.survey_config.survey_altitude_agl,
                     request.survey_config.cruise_altitude_msl,
@@ -131,7 +166,9 @@ async def launch_mission(mission_id: str = Query(..., description="Mission ID to
         raise HTTPException(status_code=500, detail=f"Failed to load drone config: {e}")
 
     trigger_time = int(time.time()) + 5
-    target_hw_ids = []
+    return_behavior = config.return_behavior if config and hasattr(config, 'return_behavior') else 'return_home'
+    successes = 0
+    failures = 0
 
     for plan in plans:
         waypoints_data = [wp.model_dump() for wp in plan.waypoints]
@@ -140,22 +177,30 @@ async def launch_mission(mission_id: str = Query(..., description="Mission ID to
             'triggerTime': trigger_time,
             'mission_id': mission_id,
             'waypoints': waypoints_data,
-            'return_behavior': 'return_home',
+            'return_behavior': return_behavior,
             'survey_config': config.model_dump() if config else {},
         }
         hw_id = plan.hw_id
-        target_hw_ids.append(hw_id)
         try:
             result = send_commands_to_selected(drones_config, command_data, [hw_id])
             logger.info(f"Command sent to drone {hw_id}: {result.get('result_summary', 'unknown')}")
+            successes += 1
         except Exception as e:
             logger.error(f"Failed to send command to drone {hw_id}: {e}")
+            failures += 1
+
+    if successes == 0:
+        raise HTTPException(
+            status_code=502,
+            detail=f"All {failures} drone(s) failed to accept mission command"
+        )
 
     manager.start_mission(mission_id)
     return {
         "success": True, "mission_id": mission_id,
-        "drones_launched": len(target_hw_ids), "trigger_time": trigger_time,
-        "message": f"Mission launched with {len(target_hw_ids)} drones",
+        "drones_launched": successes, "drones_failed": failures,
+        "trigger_time": trigger_time,
+        "message": f"Mission launched with {successes}/{successes + failures} drones",
     }
 
 
@@ -170,25 +215,35 @@ async def get_mission_status(mission_id: str):
 
 @router.post("/mission/{mission_id}/pause")
 async def pause_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
+    hw_ids = _resolve_pos_ids_to_hw_ids(pos_ids)
     manager = get_mission_manager()
-    if not manager.pause_mission(mission_id, pos_ids):
+    if not manager.pause_mission(mission_id, hw_ids):
         raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+    # Send HOLD command to actual drones
+    _send_control_command(Mission.HOLD.value, hw_ids)
     return {"success": True, "message": "Mission paused"}
 
 
 @router.post("/mission/{mission_id}/resume")
 async def resume_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
+    hw_ids = _resolve_pos_ids_to_hw_ids(pos_ids)
     manager = get_mission_manager()
-    if not manager.resume_mission(mission_id, pos_ids):
+    if not manager.resume_mission(mission_id, hw_ids):
         raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
-    return {"success": True, "message": "Mission resumed"}
+    # Note: PX4 Mission Mode resume from HOLD requires drone.mission.start_mission()
+    # For PoC, the operator can re-arm the mission from the flight controller.
+    # Full resume support requires drone-side command handler extension.
+    return {"success": True, "message": "Mission resumed (GCS state updated, drone resume requires FC interaction)"}
 
 
 @router.post("/mission/{mission_id}/abort")
 async def abort_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None), return_behavior: str = Query("return_home")):
+    hw_ids = _resolve_pos_ids_to_hw_ids(pos_ids)
     manager = get_mission_manager()
-    if not manager.abort_mission(mission_id, pos_ids, return_behavior):
+    if not manager.abort_mission(mission_id, hw_ids, return_behavior):
         raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+    # Send RTL command to actual drones
+    _send_control_command(Mission.RETURN_RTL.value, hw_ids)
     return {"success": True, "message": "Mission aborted", "return_behavior": return_behavior}
 
 
@@ -234,7 +289,7 @@ async def delete_poi(poi_id: str):
 @router.post("/elevation/batch")
 async def batch_elevation(points: List[dict]):
     try:
-        elevations = batch_get_elevations(points)
+        elevations = await batch_get_elevations(points)
         return {"elevations": elevations, "count": len(elevations)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Elevation query failed: {str(e)}")

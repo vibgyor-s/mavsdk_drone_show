@@ -132,7 +132,9 @@ async def run_mission(args):
     if led:
         led.set_color(255, 255, 0)  # Yellow: building mission
 
+    MIN_SURVEY_ALT_AGL = 10.0  # Safety floor: minimum relative altitude (meters)
     mission_items = []
+    camera_running = False
     for i, wp in enumerate(waypoints):
         lat = wp['lat']
         lng = wp['lng']
@@ -143,18 +145,21 @@ async def run_mission(args):
 
         relative_alt = alt_msl - home_alt_msl
 
+        # Camera control: start on first survey waypoint, stop when leaving survey
         camera_action = MissionItem.CameraAction.NONE
-        if is_survey and i == 0:
+        if is_survey and not camera_running:
             camera_action = MissionItem.CameraAction.START_PHOTO_INTERVAL
-        elif is_survey and i == total_waypoints - 1:
+            camera_running = True
+        elif not is_survey and camera_running:
             camera_action = MissionItem.CameraAction.STOP_PHOTO_INTERVAL
+            camera_running = False
 
         camera_interval = wp.get('camera_interval_s', 2.0) if camera_action == MissionItem.CameraAction.START_PHOTO_INTERVAL else float('nan')
 
         item = MissionItem(
             latitude_deg=lat,
             longitude_deg=lng,
-            relative_altitude_m=max(relative_alt, 5.0),
+            relative_altitude_m=max(relative_alt, MIN_SURVEY_ALT_AGL),
             speed_m_s=speed,
             is_fly_through=True,
             gimbal_pitch_deg=float('nan'),
