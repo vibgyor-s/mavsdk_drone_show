@@ -90,10 +90,15 @@ verify_fork_config() {
 
     if [[ $mismatches -gt 0 ]]; then
         echo ""
-        echo -e "  ${DIM}Note: /etc/mds/gcs.env settings override params.py for this GCS.${NC}"
-        echo -e "  ${DIM}Drones use their own params.py for git sync configuration.${NC}"
+        echo -e "  ${WHITE}What this means:${NC}"
+        echo -e "  ${DIM}• GCS dashboard startup uses /etc/mds/gcs.env (your selection above)${NC}"
+        echo -e "  ${DIM}• params.py defaults are only used when env vars are not set${NC}"
+        echo -e "  ${DIM}• Drones use their own params.py — update each drone separately${NC}"
         echo ""
-        log_warn "Configuration differences noted (may be intentional)"
+        echo -e "  ${WHITE}No action needed${NC} — the dashboard start script exports your"
+        echo -e "  selection as MDS_REPO_URL / MDS_BRANCH so the backend picks it up."
+        echo ""
+        log_warn "Configuration differences noted (GCS will use your selection)"
     else
         log_success "Fork configuration verified"
     fi

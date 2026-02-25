@@ -112,6 +112,9 @@ load_gcs_system_config() {
         # Apply config values (respect CLI overrides)
         [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
+
+        # Export repo settings so Python (params.py) inherits them
+        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR 2>/dev/null || true
         return 0
     fi
     return 1
