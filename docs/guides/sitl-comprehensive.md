@@ -182,7 +182,7 @@ pip install -r requirements.txt
 
 ### Webserver Software Installations
 
-MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the [official Node.js website](https://nodejs.org/en/download/package-manager) (version 20 using nvm is recommended).
+MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the [official Node.js website](https://nodejs.org/en/download/package-manager) (version 22 LTS using nvm is recommended).
 After Installing the Node.js and npm, setup your react dashboard project using following command:
 ```bash
 cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard

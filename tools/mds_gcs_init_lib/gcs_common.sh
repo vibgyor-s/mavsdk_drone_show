@@ -73,8 +73,8 @@ readonly -a GCS_PYTHON_PACKAGES=(
 )
 
 # Node.js minimum version
-readonly GCS_NODE_MIN_VERSION="16"
-readonly GCS_NODE_TARGET_VERSION="18"
+readonly GCS_NODE_MIN_VERSION="18"
+readonly GCS_NODE_TARGET_VERSION="22"
 
 # Python minimum version
 readonly GCS_PYTHON_MIN_VERSION="3.11"
@@ -348,18 +348,95 @@ version_gte() {
     printf '%s\n%s\n' "$version2" "$version1" | sort -V -C
 }
 
-# Get Node.js version
+# =============================================================================
+# NODE.JS DISCOVERY (sudo/nvm-aware)
+# =============================================================================
+
+# Discover Node.js binary across common install locations.
+# When running as sudo, the user's nvm/volta/fnm paths are not in root's PATH.
+# This function searches all common locations and adds the best one to PATH.
+# Sets: _MDS_NODE_DIR (the directory containing node/npm)
+_MDS_NODE_DIR=""
+
+discover_nodejs() {
+    # Already discovered and in PATH
+    if [[ -n "$_MDS_NODE_DIR" ]] && command -v node &>/dev/null; then
+        return 0
+    fi
+
+    local search_paths=()
+    local invoking_user="${SUDO_USER:-$(whoami)}"
+    local invoking_home
+    invoking_home=$(eval echo "~${invoking_user}" 2>/dev/null)
+
+    # 1. nvm (most common for developers)
+    #    Check invoking user's nvm first, then root's
+    if [[ -n "$invoking_home" ]] && [[ -d "${invoking_home}/.nvm/versions/node" ]]; then
+        # Find latest nvm-installed version (highest version number)
+        local nvm_latest
+        nvm_latest=$(ls -d "${invoking_home}/.nvm/versions/node"/v* 2>/dev/null | sort -V | tail -1)
+        [[ -n "$nvm_latest" ]] && search_paths+=("${nvm_latest}/bin")
+    fi
+    if [[ -d "/root/.nvm/versions/node" ]]; then
+        local nvm_root_latest
+        nvm_root_latest=$(ls -d /root/.nvm/versions/node/v* 2>/dev/null | sort -V | tail -1)
+        [[ -n "$nvm_root_latest" ]] && search_paths+=("${nvm_root_latest}/bin")
+    fi
+
+    # 2. Official Node.js binary installer (/usr/local/bin)
+    search_paths+=("/usr/local/bin")
+
+    # 3. volta
+    [[ -n "$invoking_home" ]] && search_paths+=("${invoking_home}/.volta/bin")
+
+    # 4. fnm
+    [[ -n "$invoking_home" ]] && search_paths+=("${invoking_home}/.local/share/fnm/aliases/default/bin")
+
+    # 5. snap
+    search_paths+=("/snap/bin")
+
+    # 6. System apt (last resort)
+    search_paths+=("/usr/bin")
+
+    # Search each path for a working node binary
+    for dir in "${search_paths[@]}"; do
+        if [[ -x "${dir}/node" ]]; then
+            local ver
+            ver=$("${dir}/node" --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+')
+            if [[ -n "$ver" ]]; then
+                local major="${ver%%.*}"
+                if [[ "$major" -ge "$GCS_NODE_MIN_VERSION" ]]; then
+                    _MDS_NODE_DIR="$dir"
+                    # Add to PATH if not already there
+                    if [[ ":$PATH:" != *":${dir}:"* ]]; then
+                        export PATH="${dir}:${PATH}"
+                    fi
+                    log_debug "Discovered Node.js v${ver} at ${dir}/node"
+                    return 0
+                else
+                    log_debug "Found Node.js v${ver} at ${dir}/node (too old, need >= ${GCS_NODE_MIN_VERSION})"
+                fi
+            fi
+        fi
+    done
+
+    return 1
+}
+
+# Get Node.js version (calls discover_nodejs first)
 get_node_version() {
-    if command_exists node; then
+    discover_nodejs &>/dev/null
+    if command -v node &>/dev/null; then
         node --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo ""
     else
         echo ""
     fi
 }
 
-# Get npm version
+# Get npm version (calls discover_nodejs first)
 get_npm_version() {
-    if command_exists npm; then
+    discover_nodejs &>/dev/null
+    if command -v npm &>/dev/null; then
         npm --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo ""
     else
         echo ""
