@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Bootstrap Installer
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Bootstrap installer for remote GCS setup
 #              Downloads and runs mds_gcs_init.sh
 # Author: MDS Team
@@ -68,7 +68,7 @@ print_banner() {
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "${script_dir}/mds_banner.sh" ]]; then
         source "${script_dir}/mds_banner.sh"
-        print_mds_banner "GCS Bootstrap" "4.3.0" "$BRANCH" ""
+        print_mds_banner "GCS Bootstrap" "4.4.0" "$BRANCH" ""
     else
         # Fallback banner
         echo ""
@@ -80,7 +80,7 @@ print_banner() {
         echo ""
         echo -e "${GREEN}MAVSDK Drone Show - GCS Bootstrap${NC}"
         echo "================================================"
-        echo "Version:  4.3.0"
+        echo "Version:  4.4.0"
         echo "Branch:   $BRANCH"
         echo "================================================"
         echo ""
@@ -148,7 +148,7 @@ run_init_script() {
 
 show_help() {
     cat << EOF
-MDS GCS Bootstrap Installer (v4.3.0)
+MDS GCS Bootstrap Installer (v4.4.0)
 
 USAGE:
     curl -fsSL <url> | sudo bash

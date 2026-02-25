@@ -192,4 +192,4 @@ While NetBird is recommended, other options include:
 
 ---
 
-**Last Updated:** January 2026 (Version 4.3.0)
+**Last Updated:** February 2026 (Version 4.4.0)
