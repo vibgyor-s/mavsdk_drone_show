@@ -373,9 +373,14 @@ clone_or_update_repo() {
         log_info "Fetching from remote..."
 
         # Fetch and checkout branch
-        git fetch origin "$branch" 2>/dev/null || {
+        start_progress "Fetching from remote" "depends on network speed"
+        git fetch origin "$branch" >/dev/null 2>&1
+        local fetch_rc=$?
+        stop_progress
+
+        if [[ $fetch_rc -ne 0 ]]; then
             log_warn "Could not fetch from remote - check your access"
-        }
+        fi
 
         # Check current branch
         local current_branch
@@ -390,9 +395,14 @@ clone_or_update_repo() {
         fi
 
         # Pull latest changes
-        git pull origin "$branch" 2>/dev/null || {
+        start_progress "Pulling latest changes"
+        git pull origin "$branch" >/dev/null 2>&1
+        local pull_rc=$?
+        stop_progress
+
+        if [[ $pull_rc -ne 0 ]]; then
             log_warn "Could not pull latest changes (may have local modifications)"
-        }
+        fi
 
         local commit
         commit=$(git rev-parse --short HEAD 2>/dev/null)
@@ -407,13 +417,16 @@ clone_or_update_repo() {
         parent_dir=$(dirname "$install_dir")
         mkdir -p "$parent_dir"
 
-        if git clone -b "$branch" "$repo_url" "$install_dir" 2>/dev/null; then
+        start_progress "Cloning repository" "may take 1-3 min for first clone"
+        if git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1; then
+            stop_progress
             cd "$install_dir" || return 1
             local commit
             commit=$(git rev-parse --short HEAD 2>/dev/null)
             log_success "Repository cloned (commit: $commit)"
             gcs_state_set_value "repo_commit" "$commit"
         else
+            stop_progress
             log_error "Failed to clone repository"
             return 1
         fi

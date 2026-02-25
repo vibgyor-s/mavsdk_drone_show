@@ -252,7 +252,12 @@ update_package_lists() {
         return 0
     fi
 
-    if apt-get update -qq 2>/dev/null; then
+    start_progress "Updating package lists" "may take 1-2 min on slow connections"
+    apt-get update -qq >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Package lists updated"
         return 0
     else
@@ -287,7 +292,12 @@ install_base_packages() {
         return 0
     fi
 
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages_to_install[@]}" 2>/dev/null; then
+    start_progress "Installing ${#packages_to_install[@]} packages" "may take 1-3 min"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${packages_to_install[@]}" >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Base packages installed"
         return 0
     else

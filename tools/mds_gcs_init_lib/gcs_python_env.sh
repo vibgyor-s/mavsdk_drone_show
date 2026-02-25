@@ -79,7 +79,12 @@ upgrade_pip() {
         return 0
     fi
 
-    if "$pip_cmd" install --upgrade pip 2>/dev/null; then
+    start_progress "Upgrading pip"
+    "$pip_cmd" install --upgrade pip >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         local pip_version
         pip_version=$("$pip_cmd" --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
         log_success "pip upgraded to $pip_version"
@@ -122,11 +127,19 @@ install_requirements() {
     log_info "Installing $pkg_count packages from $(basename "$requirements_file")..."
     log_info "This may take a few minutes..."
 
-    # Install requirements with visible output for errors
-    if "$pip_cmd" install -r "$requirements_file"; then
+    # Install requirements
+    start_progress "Installing $pkg_count Python packages" "may take 3-5 min"
+    local pip_output
+    pip_output=$("$pip_cmd" install -r "$requirements_file" 2>&1)
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Python requirements installed"
         return 0
     else
+        # Show error output so user can troubleshoot
+        echo "$pip_output" | tail -20
         echo ""
         log_error "Failed to install some requirements"
         echo ""

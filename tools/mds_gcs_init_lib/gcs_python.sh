@@ -110,9 +110,16 @@ add_deadsnakes_ppa() {
     fi
 
     # Add PPA
-    if add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null; then
+    start_progress "Adding deadsnakes PPA" "may take 30-60s"
+    add-apt-repository -y ppa:deadsnakes/ppa >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "deadsnakes PPA added"
-        apt-get update -qq 2>/dev/null
+        start_progress "Updating package lists" "refreshing after PPA add"
+        apt-get update -qq >/dev/null 2>&1
+        stop_progress
         return 0
     else
         log_error "Failed to add deadsnakes PPA"
@@ -152,7 +159,12 @@ install_python() {
 
     log_info "Installing: ${packages_to_install[*]}"
 
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages_to_install[@]}" 2>&1; then
+    start_progress "Installing Python $target_version" "may take 1-2 min"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages_to_install[@]}" >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Python $target_version packages installed"
         return 0
     else
@@ -190,7 +202,13 @@ ensure_python_packages() {
     fi
 
     log_info "Installing: ${packages_to_install[*]}"
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages_to_install[@]}" 2>&1; then
+
+    start_progress "Installing Python $version packages"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages_to_install[@]}" >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Python $version packages installed"
         return 0
     else

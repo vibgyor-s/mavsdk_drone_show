@@ -160,10 +160,14 @@ run_firewall_phase() {
         if is_dry_run; then
             echo -e "  ${DIM}[DRY-RUN] Would install UFW${NC}"
         else
-            apt-get install -y -qq ufw 2>/dev/null || {
+            start_progress "Installing UFW"
+            apt-get install -y -qq ufw >/dev/null 2>&1
+            local ufw_rc=$?
+            stop_progress
+            if [[ $ufw_rc -ne 0 ]]; then
                 log_error "Failed to install UFW"
                 return 1
-            }
+            fi
         fi
     fi
 

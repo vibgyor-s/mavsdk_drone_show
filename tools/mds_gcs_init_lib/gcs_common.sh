@@ -86,6 +86,83 @@ readonly GCS_DEFAULT_BRANCH="main-candidate"
 readonly GCS_DEFAULT_REPO_OWNER="alireza787b"
 
 # =============================================================================
+# PROGRESS SPINNER (UX feedback for long operations)
+# =============================================================================
+# Usage:
+#   start_progress "Installing packages" "may take 1-2 min"
+#   apt-get install -y foo >/dev/null 2>&1
+#   stop_progress $?
+#
+# The spinner runs in background writing to /dev/tty so it doesn't
+# interfere with command output capture. Shows elapsed time so the
+# user always knows the system is alive.
+
+_PROGRESS_PID=""
+_PROGRESS_START=""
+
+start_progress() {
+    local message="$1"
+    local hint="${2:-}"
+
+    # Don't start if not a terminal or already running
+    [[ ! -t 1 ]] && return 0
+    [[ -n "$_PROGRESS_PID" ]] && stop_progress 0
+
+    _PROGRESS_START=$(date +%s)
+
+    # Subshell inherits parent variables — use them directly
+    (
+        local _sp_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+        local _sp_i=0
+        local _sp_start="$_PROGRESS_START"
+        local _sp_msg="$message"
+        local _sp_hint="$hint"
+        while true; do
+            local _sp_now=$(date +%s)
+            local _sp_elapsed=$(( _sp_now - _sp_start ))
+            local _sp_c="${_sp_chars:_sp_i%10:1}"
+            local _sp_time="${_sp_elapsed}s"
+            if [[ $_sp_elapsed -ge 60 ]]; then
+                _sp_time="$((_sp_elapsed/60))m$((_sp_elapsed%60))s"
+            fi
+            if [[ -n "$_sp_hint" ]]; then
+                printf "\r  \033[0;36m[%s]\033[0m %s \033[2m(%s, %s)\033[0m " "$_sp_c" "$_sp_msg" "$_sp_hint" "$_sp_time" >/dev/tty 2>/dev/null
+            else
+                printf "\r  \033[0;36m[%s]\033[0m %s \033[2m%s\033[0m " "$_sp_c" "$_sp_msg" "$_sp_time" >/dev/tty 2>/dev/null
+            fi
+            ((_sp_i++))
+            sleep 0.3
+        done
+    ) &
+    _PROGRESS_PID=$!
+    disown "$_PROGRESS_PID" 2>/dev/null
+}
+
+stop_progress() {
+    local exit_code="${1:-0}"
+
+    if [[ -n "$_PROGRESS_PID" ]]; then
+        kill "$_PROGRESS_PID" 2>/dev/null
+        wait "$_PROGRESS_PID" 2>/dev/null
+        _PROGRESS_PID=""
+        # Clear the spinner line
+        printf "\r%-80s\r" "" >/dev/tty 2>/dev/null || true
+    fi
+
+    return "$exit_code"
+}
+
+# Cleanup spinner on script exit (prevents orphan spinner processes)
+_cleanup_progress() {
+    if [[ -n "$_PROGRESS_PID" ]]; then
+        kill "$_PROGRESS_PID" 2>/dev/null
+        wait "$_PROGRESS_PID" 2>/dev/null
+        _PROGRESS_PID=""
+    fi
+}
+trap '_cleanup_progress' EXIT
+
+# =============================================================================
 # GCS-SPECIFIC LOGGING
 # =============================================================================
 

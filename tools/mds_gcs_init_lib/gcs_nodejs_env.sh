@@ -67,26 +67,33 @@ install_npm_dependencies() {
     # Try npm ci first (clean install), fall back to npm install
     log_info "Running npm ci (clean install)..."
 
-    # Capture output to properly detect exit code (pipelines hide exit codes)
     local output
     local exit_code
 
-    if output=$(npm ci 2>&1); then
-        # Show progress from captured output
+    start_progress "Running npm ci" "may take 2-5 min depending on network"
+    output=$(npm ci 2>&1)
+    exit_code=$?
+    stop_progress
+
+    if [[ $exit_code -eq 0 ]]; then
         echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
         log_success "npm dependencies installed"
         return 0
     else
-        exit_code=$?
         log_warn "npm ci failed (exit code: $exit_code), trying npm install..."
 
-        if output=$(npm install 2>&1); then
+        start_progress "Running npm install (fallback)" "may take 2-5 min"
+        output=$(npm install 2>&1)
+        exit_code=$?
+        stop_progress
+
+        if [[ $exit_code -eq 0 ]]; then
             echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
             log_success "npm dependencies installed (via npm install)"
             return 0
         else
             log_error "Failed to install npm dependencies"
-            log_debug "npm install output: $output"
+            echo "$output" | tail -10
             return 1
         fi
     fi
@@ -144,17 +151,20 @@ build_dashboard() {
         fi
     fi
 
-    log_info "Building... (this may take a while)"
-
-    # Capture output to properly detect exit code
     local output
-    if output=$(npm run build 2>&1); then
+
+    start_progress "Building React dashboard" "may take 2-5 min, needs 2GB+ RAM"
+    output=$(npm run build 2>&1)
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Production bundle built"
         gcs_state_set_value "dashboard_built" "true"
         return 0
     else
         log_warn "Build failed (dashboard can still run in development mode)"
-        log_debug "Build output: $output"
+        log_debug "Build output: $(echo "$output" | tail -5)"
         return 0
     fi
 }

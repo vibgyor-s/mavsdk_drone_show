@@ -71,9 +71,12 @@ install_via_nvm() {
 
     # Install nvm if not present
     if [[ ! -d "$nvm_dir" ]]; then
-        log_info "Installing nvm..."
-        # Run nvm installer as the invoking user
-        if sudo -u "$invoking_user" bash -c "curl -fsSL '${NVM_INSTALL_URL}' | bash" 2>&1; then
+        start_progress "Installing nvm" "downloading from GitHub"
+        sudo -u "$invoking_user" bash -c "curl -fsSL '${NVM_INSTALL_URL}' | bash" >/dev/null 2>&1
+        local rc=$?
+        stop_progress
+
+        if [[ $rc -eq 0 ]]; then
             log_success "nvm installed"
         else
             log_error "Failed to install nvm"
@@ -84,13 +87,17 @@ install_via_nvm() {
     fi
 
     # Install the target Node.js version via nvm as the invoking user
-    log_step "Installing Node.js ${GCS_NODE_TARGET_VERSION} via nvm..."
-    if sudo -u "$invoking_user" bash -c "
+    start_progress "Installing Node.js ${GCS_NODE_TARGET_VERSION} via nvm" "downloading and compiling, may take 1-2 min"
+    sudo -u "$invoking_user" bash -c "
         export NVM_DIR='${nvm_dir}'
         source '${nvm_dir}/nvm.sh'
         nvm install ${GCS_NODE_TARGET_VERSION}
         nvm alias default ${GCS_NODE_TARGET_VERSION}
-    " 2>&1; then
+    " >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Node.js ${GCS_NODE_TARGET_VERSION} installed via nvm"
     else
         log_error "Failed to install Node.js via nvm"
@@ -139,7 +146,9 @@ add_nodesource_repo() {
     fi
 
     # Run the setup script and capture exit code properly
-    if bash "$tmp_script" 2>&1; then
+    start_progress "Running NodeSource setup" "configuring apt repository"
+    if bash "$tmp_script" >/dev/null 2>&1; then
+        stop_progress
         rm -f "$tmp_script"
         # Verify the repo was actually added
         if [[ -f /etc/apt/sources.list.d/nodesource.list ]] || \
@@ -151,6 +160,7 @@ add_nodesource_repo() {
             return 1
         fi
     else
+        stop_progress
         rm -f "$tmp_script"
         log_error "Failed to run NodeSource setup script"
         return 1
@@ -170,7 +180,12 @@ install_via_apt() {
     add_nodesource_repo
 
     # Install nodejs (and npm separately in case using Ubuntu repos)
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs 2>&1; then
+    start_progress "Installing Node.js via apt" "may take 1-2 min"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs >/dev/null 2>&1
+    local rc=$?
+    stop_progress
+
+    if [[ $rc -eq 0 ]]; then
         log_success "Node.js installed"
     else
         log_error "Failed to install Node.js"
@@ -180,7 +195,12 @@ install_via_apt() {
     # Ensure npm is available (NodeSource bundles it, Ubuntu repos don't)
     if ! command -v npm &>/dev/null; then
         log_info "npm not bundled, installing separately..."
-        if DEBIAN_FRONTEND=noninteractive apt-get install -y npm 2>&1; then
+        start_progress "Installing npm"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y npm >/dev/null 2>&1
+        rc=$?
+        stop_progress
+
+        if [[ $rc -eq 0 ]]; then
             log_success "npm installed"
         else
             log_error "Failed to install npm"
