@@ -414,12 +414,12 @@ cd ~/mavsdk_drone_show/app
 
 ```bash
 # View running services (tmux)
-tmux attach -t DroneServices
+tmux attach -t MDS-GCS
 
 # Detach from tmux: Ctrl+B, then D
 
 # Stop all services
-tmux kill-session -t DroneServices
+tmux kill-session -t MDS-GCS
 ```
 
 ### Access Points
@@ -474,4 +474,4 @@ GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
 
 ---
 
-**Last Updated:** January 2026 (Version 4.3.0)
+**Last Updated:** February 2026 (Version 4.4.0)

@@ -90,11 +90,11 @@ export const MapboxSetupInstructions = () => (
       QuickScout requires a Mapbox access token for the interactive map.
       Add your token to the environment configuration:
     </p>
-    <p><code>REACT_APP_MAPBOX_TOKEN=pk.your_token_here</code></p>
+    <p><code>REACT_APP_MAPBOX_ACCESS_TOKEN=pk.your_token_here</code></p>
     <p>
       Get a free token at{' '}
-      <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer">
-        mapbox.com/access-tokens
+      <a href="https://www.mapbox.com/" target="_blank" rel="noopener noreferrer">
+        mapbox.com
       </a>
     </p>
   </div>

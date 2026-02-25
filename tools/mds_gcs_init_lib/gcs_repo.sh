@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Repository Setup
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Clone/update repository with SSH key management for WRITE access
 # Author: MDS Team
 # =============================================================================
@@ -551,6 +551,20 @@ run_repository_phase() {
         gcs_state_set_value "repo_type" "default"
     else
         gcs_state_set_value "repo_type" "fork"
+    fi
+
+    # Prompt for branch change (interactive mode, default repo only)
+    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -z "${REPO_URL:-}" ]]; then
+        local current_branch_display="${BRANCH:-$GCS_DEFAULT_BRANCH}"
+        echo -e "  Current branch: ${CYAN}${current_branch_display}${NC}"
+        local new_branch=""
+        read -p "  Change branch? [branch name or Enter to keep]: " new_branch </dev/tty
+        if [[ -n "$new_branch" ]]; then
+            BRANCH="$new_branch"
+            export BRANCH
+            log_info "Branch changed to: ${BRANCH}"
+        fi
+        echo ""
     fi
 
     # =========================================================================

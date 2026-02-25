@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Verification
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: Final verification and next steps
 # Author: MDS Team
 # =============================================================================
@@ -150,9 +150,9 @@ verify_backend() {
     local test_result
     test_result=$("${venv_path}/bin/python" -c "
 import sys
-sys.path.insert(0, '${install_dir}')
+sys.path.insert(0, '${install_dir}/gcs-server')
 try:
-    from app.gcs.gcs_main import app
+    from app_fastapi import app
     print('OK')
 except Exception as e:
     print(f'ERROR: {e}')
@@ -288,8 +288,8 @@ print_next_steps() {
 
     echo -e "  ${WHITE}3. Useful Commands:${NC}"
     echo ""
-    echo -e "     View tmux:   ${GREEN}tmux attach -t DroneServices${NC}"
-    echo -e "     Stop:        ${GREEN}tmux kill-session -t DroneServices${NC}"
+    echo -e "     View tmux:   ${GREEN}tmux attach -t MDS-GCS${NC}"
+    echo -e "     Stop:        ${GREEN}tmux kill-session -t MDS-GCS${NC}"
     echo ""
 
     echo -e "${CYAN}+==============================================================================+${NC}"

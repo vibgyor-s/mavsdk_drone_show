@@ -819,7 +819,7 @@ const TrajectoryPlanning = () => {
           <div className="setup-instructions">
             <h3>Quick Setup:</h3>
             <ol>
-              <li>Get a <strong>free</strong> token from <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer">mapbox.com</a></li>
+              <li>Get a <strong>free</strong> token from <a href="https://www.mapbox.com/" target="_blank" rel="noopener noreferrer">mapbox.com</a></li>
               <li>Add to your .env: <code>REACT_APP_MAPBOX_ACCESS_TOKEN=your_token</code></li>
               <li>Restart the application</li>
             </ol>

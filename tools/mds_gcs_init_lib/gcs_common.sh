@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.3.0
+# Version: 4.4.0
 # Description: GCS-specific constants and utilities (extends mds_init_lib/common.sh)
 # Author: MDS Team
 # =============================================================================
@@ -31,7 +31,7 @@ fi
 # GCS-SPECIFIC CONSTANTS (Override base constants)
 # =============================================================================
 
-readonly GCS_VERSION="4.3.0"
+readonly GCS_VERSION="4.4.0"
 readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
 readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
 readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
@@ -66,7 +66,6 @@ declare -A GCS_PORTS=(
 readonly -a GCS_PYTHON_PACKAGES=(
     "fastapi"
     "uvicorn"
-    "flask"
     "gunicorn"
     "aiohttp"
     "mavsdk"

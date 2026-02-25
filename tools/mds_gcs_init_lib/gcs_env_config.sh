@@ -81,7 +81,7 @@ configure_dashboard_env() {
 
 # Mapbox Token (optional - for map features)
 # Get a free token at https://www.mapbox.com/
-REACT_APP_MAPBOX_TOKEN=
+REACT_APP_MAPBOX_ACCESS_TOKEN=
 
 # Note: REACT_APP_SERVER_URL is deprecated
 # The dashboard now auto-detects the backend URL
@@ -105,7 +105,7 @@ EOF
             # Update the token in .env (escape special characters for sed)
             local escaped_token
             escaped_token=$(printf '%s\n' "$mapbox_token" | sed -e 's/[\/&|]/\\&/g')
-            sed -i "s|^REACT_APP_MAPBOX_TOKEN=.*|REACT_APP_MAPBOX_TOKEN=${escaped_token}|" "$env_file"
+            sed -i "s|^REACT_APP_MAPBOX_ACCESS_TOKEN=.*|REACT_APP_MAPBOX_ACCESS_TOKEN=${escaped_token}|" "$env_file"
             log_success "Mapbox token configured"
         else
             log_info "Mapbox token skipped (can be added later)"

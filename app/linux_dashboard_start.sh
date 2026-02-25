@@ -47,7 +47,7 @@ PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 DEV_REACT_PORT=3030
 DEV_GCS_PORT=5000  # GCS Server port for development
-SESSION_NAME="DroneServices"
+SESSION_NAME="MDS-GCS"
 
 # ===========================================
 # PATH RESOLUTION (ABSOLUTE PATHS ONLY)
@@ -941,7 +941,7 @@ display_startup_banner() {
         local git_info branch commit git_date
         git_info=$(get_git_info "$PARENT_DIR" 2>/dev/null || echo "unknown|unknown|unknown")
         IFS='|' read -r branch commit git_date <<< "$git_info"
-        print_mds_banner "Dashboard Services" "4.3.0" "$branch" "$commit"
+        print_mds_banner "Dashboard Services" "4.4.0" "$branch" "$commit"
     else
         # Fallback banner
         echo ""
@@ -953,7 +953,7 @@ display_startup_banner() {
         echo ""
         echo "MAVSDK Drone Show - Dashboard Services"
         echo "================================================"
-        echo "Version:  4.3.0"
+        echo "Version:  4.4.0"
         echo "================================================"
         echo ""
     fi

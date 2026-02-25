@@ -34,7 +34,7 @@ try {
   Map = rgl.Map || rgl.default;
   Marker = rgl.Marker;
   require('mapbox-gl/dist/mapbox-gl.css');
-  mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN || '';
+  mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN || '';
   mapboxAvailable = !!mapboxToken;
 } catch (e) {
   console.warn('Mapbox not available:', e.message);
