@@ -151,7 +151,9 @@ const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // draw.create — polygon completed; switch to direct_select for vertex editing
+  // draw.create — polygon completed; switch to direct_select for vertex editing.
+  // changeMode must be deferred: calling it synchronously inside the create handler
+  // causes DrawPolygon.onStop to fire draw.create again → infinite recursion.
   const handleCreate = useCallback((e) => {
     if (!drawRef.current) return;
     // Remove old polygons, keep only the newest
@@ -166,8 +168,17 @@ const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
       const points = coords.map(([lng, lat]) => ({ lat, lng }));
       const areaSqM = turfArea(feature);
       onAreaChange(points, areaSqM);
-      // Enter vertex-editing mode so user can drag/remove vertices
-      drawRef.current.changeMode('direct_select', { featureId: feature.id });
+      // Deferred: enter vertex-editing mode after the current event cycle completes
+      const fid = feature.id;
+      setTimeout(() => {
+        if (drawRef.current) {
+          try {
+            drawRef.current.changeMode('direct_select', { featureId: fid });
+          } catch (_) {
+            // Feature may have been deleted between event and timeout
+          }
+        }
+      }, 0);
     }
   }, [onAreaChange]);
 
