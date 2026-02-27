@@ -5,7 +5,7 @@ import {
   FaGlobe,
   FaTachometerAlt,
   FaCog,
-  FaList,
+  FaCubes,
   FaRoute,
   FaProjectDiagram,
   FaGithub,
@@ -15,7 +15,8 @@ import {
   FaLinkedin,
   FaClock,
   FaCodeBranch,
-  FaSearchLocation
+  FaSearchLocation,
+  FaMagic
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -33,16 +34,31 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
   const isCollapsed = collapsed !== undefined ? collapsed : localCollapsed;
   const handleToggle = onToggle || setLocalCollapsed;
 
-  const menuItems = [
-    { to: '/', icon: FaTachometerAlt, label: 'Dashboard', category: 'main' },
-    { to: '/mission-config', icon: FaCog, label: 'Mission Config', category: 'main' },
-    { to: '/swarm-design', icon: FaList, label: 'Swarm Design', category: 'workflow' },
-    { to: '/trajectory-planning', icon: FaRoute, label: 'Trajectory Planning', category: 'workflow' },
-    { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory', category: 'workflow' },
-    { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout', category: 'workflow' },
-    { to: '/manage-drone-show', icon: FaGithub, label: 'Drone Show Design', category: 'design' },
-    { to: '/custom-show', icon: FaGem, label: 'Custom Show', category: 'design' },
-    { to: '/globe-view', icon: FaGlobe, label: 'Drone 3D View', category: 'visualization' }
+  const menuSections = [
+    {
+      label: 'General',
+      items: [
+        { to: '/', icon: FaTachometerAlt, label: 'Dashboard' },
+        { to: '/mission-config', icon: FaCog, label: 'Mission Config' },
+        { to: '/globe-view', icon: FaGlobe, label: '3D Globe View' },
+      ],
+    },
+    {
+      label: 'Drone Show',
+      items: [
+        { to: '/manage-drone-show', icon: FaMagic, label: 'Show Design' },
+        { to: '/custom-show', icon: FaGem, label: 'Custom Show' },
+      ],
+    },
+    {
+      label: 'Smart Swarm',
+      items: [
+        { to: '/swarm-design', icon: FaCubes, label: 'Swarm Design' },
+        { to: '/trajectory-planning', icon: FaRoute, label: 'Trajectory Planning' },
+        { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory' },
+        { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout' },
+      ],
+    },
   ];
 
   const handleTooltip = (label) => {
@@ -84,29 +100,34 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
 
       {/* Navigation Menu */}
       <nav className="sidebar-nav">
-        <div className="nav-section">
-          {isCollapsed && <div className="section-divider"></div>}
-          {menuItems.map((item, index) => {
-            const IconComponent = item.icon;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`nav-item ${isCollapsed ? 'collapsed' : ''}`}
-                onMouseEnter={() => handleTooltip(item.label)}
-                data-tooltip={item.label}
-              >
-                <IconComponent className="nav-icon" />
-                {!isCollapsed && <span className="nav-label">{item.label}</span>}
+        {menuSections.map((section) => (
+          <div className="nav-section" key={section.label}>
+            {isCollapsed
+              ? <div className="section-divider" />
+              : <div className="nav-section-header">{section.label}</div>
+            }
+            {section.items.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`nav-item ${isCollapsed ? 'collapsed' : ''}`}
+                  onMouseEnter={() => handleTooltip(item.label)}
+                  data-tooltip={item.label}
+                >
+                  <IconComponent className="nav-icon" />
+                  {!isCollapsed && <span className="nav-label">{item.label}</span>}
 
-                {/* Tooltip for collapsed state */}
-                {isCollapsed && activeTooltip === item.label && (
-                  <div className="nav-tooltip">{item.label}</div>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+                  {/* Tooltip for collapsed state */}
+                  {isCollapsed && activeTooltip === item.label && (
+                    <div className="nav-tooltip">{item.label}</div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer Section */}
