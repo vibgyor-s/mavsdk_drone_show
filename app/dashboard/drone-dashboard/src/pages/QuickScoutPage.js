@@ -19,7 +19,7 @@ import MissionMonitorSidebar from '../components/sar/MissionMonitorSidebar';
 import MissionActionBar from '../components/sar/MissionActionBar';
 import CoveragePreview from '../components/sar/CoveragePreview';
 import POIMarkerSystem from '../components/sar/POIMarkerSystem';
-import DrawControl, { MapboxSetupInstructions } from '../components/sar/SearchAreaDrawer';
+import DrawControl, { MapboxSetupInstructions, SearchAreaOverlay, MapboxDrawActionBar } from '../components/sar/SearchAreaDrawer';
 
 // SearchBar
 import SearchBar from '../components/trajectory/SearchBar';
@@ -120,6 +120,7 @@ const QuickScoutPage = () => {
   });
   const poiClickRef = useRef(null);
   const mapRef = useRef(null);
+  const drawControlRef = useRef(null);
   const [flyToTarget, setFlyToTarget] = useState(null);
 
   // Telemetry polling
@@ -219,6 +220,13 @@ const QuickScoutPage = () => {
     setSearchArea(points);
     setSearchAreaSqM(areaSqM);
     setCoveragePlan(null); // Reset plan when area changes
+  }, []);
+
+  const handleResetArea = useCallback(() => {
+    setSearchArea([]);
+    setSearchAreaSqM(0);
+    setCoveragePlan(null);
+    drawControlRef.current?.reset();
   }, []);
 
   const handleDroneToggle = useCallback((posId) => {
@@ -360,7 +368,8 @@ const QuickScoutPage = () => {
                 }
               }}
             >
-              {mode === 'plan' && <DrawControl onAreaChange={handleAreaChange} />}
+              {mode === 'plan' && <DrawControl onAreaChange={handleAreaChange} controlRef={drawControlRef} />}
+              {mode === 'plan' && <SearchAreaOverlay searchArea={searchArea} />}
 
               <CoveragePreview
                 plans={coveragePlan?.plans}
@@ -423,6 +432,11 @@ const QuickScoutPage = () => {
             </LeafletMapBase>
           ) : (
             <MapboxSetupInstructions />
+          )}
+
+          {/* Mapbox draw instruction bar (plan mode) */}
+          {!useLeaflet && mode === 'plan' && (
+            <MapboxDrawActionBar searchArea={searchArea} onReset={handleResetArea} />
           )}
 
           {/* Action Bar (monitor mode) */}
