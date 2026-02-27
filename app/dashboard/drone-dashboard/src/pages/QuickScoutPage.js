@@ -38,18 +38,17 @@ import L from 'leaflet';
 // Styles
 import '../styles/QuickScout.css';
 
-// Conditional Mapbox imports
+// Conditional Mapbox imports — only checks if npm package exists;
+// actual token/connectivity detection is handled by MapContext.
 let Map, Marker;
-let mapboxAvailable = false;
-let mapboxToken = '';
+let mapboxLibAvailable = false;
 
 try {
   const rgl = require('react-map-gl');
   Map = rgl.Map || rgl.default;
   Marker = rgl.Marker;
   require('mapbox-gl/dist/mapbox-gl.css');
-  mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN || '';
-  mapboxAvailable = !!mapboxToken;
+  mapboxLibAvailable = true;
 } catch (e) {
   console.warn('Mapbox not available:', e.message);
 }
@@ -88,8 +87,8 @@ const LeafletFlyTo = ({ target }) => {
 };
 
 const QuickScoutPage = () => {
-  const { provider, isMapboxAvailable } = useMapContext();
-  const useLeaflet = provider === 'leaflet' || !isMapboxAvailable || !mapboxAvailable;
+  const { provider, isMapboxAvailable, mapboxToken } = useMapContext();
+  const useLeaflet = provider === 'leaflet' || !isMapboxAvailable || !mapboxLibAvailable;
 
   // Mode
   const [mode, setMode] = useState('plan');
@@ -348,7 +347,7 @@ const QuickScoutPage = () => {
         {/* Map */}
         <div className="qs-map-container">
           {useLeaflet && <MapFallbackBanner />}
-          {!useLeaflet && mapboxAvailable ? (
+          {!useLeaflet && mapboxLibAvailable ? (
             <Map
               ref={mapRef}
               initialViewState={viewport}

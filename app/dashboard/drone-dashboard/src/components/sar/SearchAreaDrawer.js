@@ -15,6 +15,7 @@ let mapboxDrawAvailable = false;
 try {
   MapboxDraw = require('@mapbox/mapbox-gl-draw');
   if (MapboxDraw.default) MapboxDraw = MapboxDraw.default;
+  require('@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css');
   const rgl = require('react-map-gl');
   useControl = rgl.useControl;
   mapboxDrawAvailable = true;
@@ -41,6 +42,9 @@ const DrawControl = ({ onAreaChange }) => {
       const areaSqM = turfArea(feature);
       onAreaChange(points, areaSqM);
     }
+    // Reset and re-enter draw mode so user can draw again immediately
+    drawRef.current.deleteAll();
+    drawRef.current.changeMode('draw_polygon');
   }, [onAreaChange]);
 
   const handleUpdate = useCallback((e) => {
@@ -49,6 +53,9 @@ const DrawControl = ({ onAreaChange }) => {
 
   const handleDelete = useCallback(() => {
     onAreaChange([], 0);
+    if (drawRef.current) {
+      drawRef.current.changeMode('draw_polygon');
+    }
   }, [onAreaChange]);
 
   useControl(
@@ -60,7 +67,7 @@ const DrawControl = ({ onAreaChange }) => {
           polygon: true,
           trash: true,
         },
-        defaultMode: 'simple_select',
+        defaultMode: 'draw_polygon',
       });
       drawRef.current = draw;
       return draw;

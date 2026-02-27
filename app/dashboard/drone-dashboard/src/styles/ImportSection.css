@@ -154,7 +154,7 @@
 }
 
 /* Enhanced Button Styling */
-button {
+.import-section button {
     padding: var(--spacing-base) var(--spacing-lg);
     background: linear-gradient(135deg, var(--color-success), #2e7d32);
     color: var(--color-text-primary);
@@ -177,7 +177,7 @@ button {
     min-height: 48px;
 }
 
-button::before {
+.import-section button::before {
     content: '';
     position: absolute;
     top: 0;
@@ -188,11 +188,11 @@ button::before {
     transition: var(--transition-base);
 }
 
-button:hover::before {
+.import-section button:hover::before {
     left: 100%;
 }
 
-button:disabled {
+.import-section button:disabled {
     background: var(--color-text-tertiary);
     cursor: not-allowed;
     opacity: 0.6;
@@ -200,14 +200,14 @@ button:disabled {
     box-shadow: none;
 }
 
-button:hover:not(:disabled) {
+.import-section button:hover:not(:disabled) {
     background: linear-gradient(135deg, #2e7d32, var(--color-success));
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
 
 /* Loading Spinner Alignment */
-button .MuiCircularProgress-root {
+.import-section button .MuiCircularProgress-root {
     margin-right: var(--spacing-xs);
     flex-shrink: 0;
 }
@@ -236,7 +236,7 @@ button .MuiCircularProgress-root {
     }
 
     .file-input-label,
-    button {
+    .import-section button {
         width: 100%;
         padding: var(--spacing-base);
         font-size: var(--font-size-sm);
@@ -266,21 +266,21 @@ button .MuiCircularProgress-root {
     .import-section,
     .file-upload,
     .file-input-label,
-    button {
+    .import-section button {
         transition: none;
         animation: none;
     }
 
     .file-upload:hover,
     .file-input-label:hover,
-    button:hover:not(:disabled) {
+    .import-section button:hover:not(:disabled) {
         transform: none;
     }
 }
 
 /* Focus states for accessibility */
 .file-input-label:focus-visible,
-button:focus-visible {
+.import-section button:focus-visible {
     outline: 2px solid var(--color-primary) !important;
     outline-offset: 2px !important;
 }
@@ -294,7 +294,7 @@ button:focus-visible {
     }
 
     .file-input-label,
-    button {
+    .import-section button {
         border: 1px solid var(--color-border-primary);
     }
 }
