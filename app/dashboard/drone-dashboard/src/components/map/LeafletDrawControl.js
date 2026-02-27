@@ -244,8 +244,8 @@ const LeafletDrawControl = ({ onAreaChange }) => {
 
   return (
     <>
-      {/* Instruction bar — stopPropagation prevents clicks from bubbling to map */}
-      <div className="ldc-instruction-bar" onClickCapture={e => e.stopPropagation()}>
+      {/* Instruction bar — onClick (bubble phase) stops clicks from reaching the map */}
+      <div className="ldc-instruction-bar" onClick={e => e.stopPropagation()}>
         <span className="ldc-instruction-text">{instruction}</span>
         <div className="ldc-action-group">
           {!isComplete && vertices.length > 0 && (
@@ -312,10 +312,11 @@ const LeafletDrawControl = ({ onAreaChange }) => {
           position={pos}
           icon={i === 0 ? START_ICON : VERTEX_ICON}
           draggable={true}
-          eventHandlers={{
-            click: i === 0 ? handleFirstVertexClick : undefined,
-            drag: (e) => handleVertexDrag(i, e),
-          }}
+          eventHandlers={
+            i === 0
+              ? { click: handleFirstVertexClick, drag: (e) => handleVertexDrag(i, e) }
+              : { drag: (e) => handleVertexDrag(i, e) }
+          }
         />
       ))}
     </>
