@@ -441,7 +441,11 @@ const QuickScoutPage = () => {
 
           {/* Mapbox draw instruction bar (plan mode) */}
           {!useLeaflet && mode === 'plan' && (
-            <MapboxDrawActionBar searchArea={searchArea} onReset={handleResetArea} />
+            <MapboxDrawActionBar
+              searchArea={searchArea}
+              onReset={handleResetArea}
+              onTrash={() => drawControlRef.current?.trash()}
+            />
           )}
 
           {/* Action Bar (monitor mode) */}

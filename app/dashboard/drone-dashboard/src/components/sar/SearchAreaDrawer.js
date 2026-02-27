@@ -111,7 +111,7 @@ const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
   const drawRef = useRef(null);
   const initialAreaRef = useRef(initialArea);
 
-  // Expose reset() to parent via controlRef
+  // Expose reset() and trash() to parent via controlRef
   useEffect(() => {
     if (controlRef) {
       controlRef.current = {
@@ -121,10 +121,34 @@ const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
             drawRef.current.changeMode('draw_polygon');
           }
         },
+        trash: () => {
+          if (drawRef.current) drawRef.current.trash();
+        },
       };
     }
     return () => { if (controlRef) controlRef.current = null; };
   }, [controlRef]);
+
+  // Keyboard: Delete / Backspace removes selected vertex (or polygon).
+  // Mapbox GL Draw listens on the map container, which may not have focus.
+  // This document-level handler ensures the shortcut works reliably on all
+  // platforms (macOS Backspace, Windows Delete, Linux both).
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!drawRef.current) return;
+      // Don't intercept when the user is typing in a form field
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (document.activeElement?.isContentEditable) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault(); // prevent browser back-navigation on Backspace
+        drawRef.current.trash();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Restore existing search area polygon when component mounts
   useEffect(() => {
@@ -238,17 +262,26 @@ const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
 // MapboxDrawActionBar — instruction bar with Reset button.
 // Reuses the same .ldc-* CSS classes as LeafletDrawControl for consistency.
 // ---------------------------------------------------------------------------
-export const MapboxDrawActionBar = ({ searchArea, onReset }) => {
+export const MapboxDrawActionBar = ({ searchArea, onReset, onTrash }) => {
   const hasArea = searchArea && searchArea.length >= 3;
 
   return (
     <div className="ldc-instruction-bar">
       <span className="ldc-instruction-text">
         {hasArea
-          ? 'Drag vertices to edit \u00b7 Select + Backspace to remove'
+          ? 'Drag vertices to edit \u00b7 Tap vertex then Remove'
           : 'Click to add points, double-click to finish'}
       </span>
       <div className="ldc-action-group">
+        {hasArea && (
+          <button
+            className="ldc-action-btn ldc-action-btn--undo"
+            onClick={onTrash}
+            title="Remove selected vertex (Delete / Backspace)"
+          >
+            Remove Vertex
+          </button>
+        )}
         {hasArea && (
           <button className="ldc-action-btn ldc-action-btn--reset" onClick={onReset}>
             Reset
