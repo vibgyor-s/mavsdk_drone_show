@@ -442,6 +442,15 @@ clone_or_update_repo() {
     gcs_state_set_value "repo_branch" "$branch"
     gcs_state_set_value "install_dir" "$install_dir"
 
+    # Fix repository ownership when running as sudo
+    # Without this, venv/node_modules created later inherit root ownership
+    # and the invoking user gets permission errors at runtime
+    local target_user="${SUDO_USER:-}"
+    if [[ -n "$target_user" ]] && [[ "$target_user" != "root" ]]; then
+        log_info "Fixing repository ownership for user: $target_user"
+        chown -R "$target_user":"$target_user" "$install_dir" 2>/dev/null || true
+    fi
+
     return 0
 }
 

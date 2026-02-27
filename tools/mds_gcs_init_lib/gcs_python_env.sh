@@ -221,6 +221,13 @@ run_python_env_phase() {
     venv_path=$(get_venv_path)
     gcs_state_set_value "venv_path" "$venv_path"
 
+    # Fix venv ownership when running as sudo
+    local target_user="${SUDO_USER:-}"
+    if [[ -n "$target_user" ]] && [[ "$target_user" != "root" ]] && [[ -d "$venv_path" ]]; then
+        log_info "Fixing venv ownership for user: $target_user"
+        chown -R "$target_user":"$target_user" "$venv_path" 2>/dev/null || true
+    fi
+
     echo ""
     log_success "Python environment phase completed"
     return 0

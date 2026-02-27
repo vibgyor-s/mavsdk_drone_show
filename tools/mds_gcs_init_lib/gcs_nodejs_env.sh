@@ -45,6 +45,24 @@ check_node_modules_exists() {
 # NPM OPERATIONS
 # =============================================================================
 
+# Fix node_modules ownership when running as sudo
+# npm ci/install as root creates files owned by root — the invoking user
+# can't write to .cache later (eslint, webpack, etc.)
+fix_node_modules_ownership() {
+    local dashboard_path="$1"
+    local target_user="${SUDO_USER:-}"
+
+    # Only needed when running as sudo (root with a real invoking user)
+    if [[ -z "$target_user" ]] || [[ "$target_user" == "root" ]]; then
+        return 0
+    fi
+
+    if [[ -d "${dashboard_path}/node_modules" ]]; then
+        log_info "Fixing node_modules ownership for user: $target_user"
+        chown -R "$target_user":"$target_user" "${dashboard_path}/node_modules" 2>/dev/null || true
+    fi
+}
+
 # Install npm dependencies
 install_npm_dependencies() {
     local dashboard_path
@@ -77,6 +95,7 @@ install_npm_dependencies() {
 
     if [[ $exit_code -eq 0 ]]; then
         echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
+        fix_node_modules_ownership "$dashboard_path"
         log_success "npm dependencies installed"
         return 0
     else
@@ -89,6 +108,7 @@ install_npm_dependencies() {
 
         if [[ $exit_code -eq 0 ]]; then
             echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
+            fix_node_modules_ownership "$dashboard_path"
             log_success "npm dependencies installed (via npm install)"
             return 0
         else
