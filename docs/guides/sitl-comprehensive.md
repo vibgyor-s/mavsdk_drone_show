@@ -1,5 +1,5 @@
 
-# MDS Simulation Server Setup Guide MDS 3
+# MDS Simulation Server Setup Guide
 
 ## Introduction
 
@@ -50,7 +50,7 @@ The minimum resource allocation required for running two drone instances is **2 
 
 Create a Virtual Machine (VM) based on your requirements. For example, using Linode, choose sufficient resources based on the number of drones you want to simulate.
 
-**Recommended OS:** Ubuntu 234.
+**Recommended OS:** Ubuntu 22.04 or 24.04.
 
 ### Pointing a Domain or Subdomain (Optional)
 
@@ -150,7 +150,7 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 
 The default setup works perfectly for demos and testing. For advanced users who need custom repositories or production deployments:
 
-📖 **[Advanced SITL Configuration Guide](advanced_sitl.md)** - Custom repository setup with simple copy-paste commands
+📖 **[Advanced SITL Configuration Guide](advanced-sitl.md)** - Custom repository setup with simple copy-paste commands
 
 > **⚠️ Note:** Advanced configuration requires good understanding of Git, Docker, and Linux. Contact [p30planets@gmail.com](mailto:p30planets@gmail.com) for help.
 
@@ -170,6 +170,24 @@ YoAccess Portainer via the browser using your domain, IP address, or the reverse
 
 ### GCS Server Setup
 
+#### Option A: Automated Setup (Recommended)
+
+The GCS initialization script handles everything — Python, Node.js, venv, npm, firewall, and configuration:
+
+```bash
+cd ~
+git clone https://github.com/alireza787b/mavsdk_drone_show
+cd mavsdk_drone_show
+git checkout main-candidate
+sudo bash tools/mds_gcs_init.sh
+```
+
+See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (e.g., `--dry-run`, `-y` for non-interactive).
+
+#### Option B: Manual Setup
+
+If you prefer to set things up manually:
+
 ```bash
 cd ~
 git clone https://github.com/alireza787b/mavsdk_drone_show
@@ -180,26 +198,25 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Webserver Software Installations
+Install Node.js (v22 LTS recommended via [nvm](https://nodejs.org/en/download/package-manager)), then:
 
-MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the [official Node.js website](https://nodejs.org/en/download/package-manager) (version 22 LTS using nvm is recommended).
-After Installing the Node.js and npm, setup your react dashboard project using following command:
 ```bash
 cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
 npm install
 ```
-Now you can Run the automated webserver run script anytime you need:
+
+#### Start the Dashboard
 
 ```bash
 bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ```
 
-- If it's your first time running the server, it will ask you to enter the webserver IP which is accessible by client. It can be your server public IP.
-- To change the IP next times, either remove the `.env` file or use the `--overwrite-ip "YOUR_SERVER_IP"` argument.
+- The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
+- To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 
-You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). E.g., `http://drone.YOUR_DOMAIN.com:3000`
+You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). E.g., `http://drone.YOUR_DOMAIN.com:3030`
 
-> **Note:** If you can't access the page, make sure your firewall rules allow communication on ports **3000**, **7070**, **5000** (defined in `params` and `.env`).
+> **Note:** If you can't access the page, make sure your firewall rules allow communication on ports **3030** (dashboard), **5000** (GCS API), and **14550/udp** (MAVLink). See the [GCS Setup Guide](gcs-setup.md#firewall-ports) for the full port list.
 
 ### Mission Configuration and Customization (Optional)
 
@@ -374,7 +391,7 @@ sudo ufw allow 14550/udp
 sudo ufw allow 24550/udp
 sudo ufw allow 34550/udp
 sudo ufw allow 5000
-sudo ufw allow 3000
+sudo ufw allow 3030
 ```
 or
 ```bash
@@ -383,8 +400,7 @@ sudo iptables -A INPUT -p udp --dport 24550 -j ACCEPT
 sudo iptables -A INPUT -p udp --dport 34550 -j ACCEPT
 sudo iptables -A INPUT -p udp --dport 5000 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
-sudo iptables -A INPUT -p udp --dport 3000 -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 3030 -j ACCEPT
 sudo iptables-save | sudo tee /etc/iptables/rules.v4
 ```
 

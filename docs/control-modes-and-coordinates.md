@@ -786,7 +786,7 @@ if not effective_use_global_setpoints:
 ### Related Documentation
 
 - **Origin System**: `docs/features/origin-system.md`
-- **SITL Demo**: `docs/sitl_demo_docker.md`
+- **SITL Demo**: `docs/guides/sitl-comprehensive.md`
 - **Main Guide**: `README.md`
 
 ### Key Parameters (src/params.py)
