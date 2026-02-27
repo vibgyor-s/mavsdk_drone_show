@@ -3,10 +3,14 @@
  * Polygon drawing component for search area definition (Mapbox mode).
  * Uses Mapbox GL Draw with react-map-gl useControl hook.
  *
+ * After drawing, the polygon stays in the draw control in direct_select mode
+ * so the user can drag vertices to reshape, or select + Backspace to remove.
+ * When the component re-mounts (e.g. plan→monitor→plan) the existing search
+ * area is restored into the draw control for continued editing.
+ *
  * Exports:
- *   default        – SafeDrawControl (the draw interaction)
- *   SearchAreaOverlay   – Source/Layer that renders the completed polygon
- *   MapboxDrawActionBar – Instruction bar + Reset button (reuses .ldc-* CSS)
+ *   default                – SafeDrawControl (the draw interaction)
+ *   MapboxDrawActionBar    – Instruction bar + Reset button (reuses .ldc-* CSS)
  *   MapboxSetupInstructions – Shown when no Mapbox token
  */
 
@@ -15,7 +19,6 @@ import { area as turfArea } from '@turf/turf';
 
 let MapboxDraw;
 let useControl;
-let RglSource, RglLayer;
 let mapboxDrawAvailable = false;
 
 try {
@@ -24,15 +27,13 @@ try {
   require('@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css');
   const rgl = require('react-map-gl');
   useControl = rgl.useControl;
-  RglSource = rgl.Source;
-  RglLayer = rgl.Layer;
   mapboxDrawAvailable = true;
 } catch (e) {
   console.warn('Mapbox GL Draw not available:', e.message);
 }
 
 // ---------------------------------------------------------------------------
-// Custom Mapbox GL Draw styles — blue theme matching Leaflet draw overlay
+// Custom Mapbox GL Draw styles — blue theme matching Leaflet draw overlay.
 // Replaces the default orange/gray that is nearly invisible on satellite.
 // ---------------------------------------------------------------------------
 const DRAW_STYLES = [
@@ -89,7 +90,7 @@ const DRAW_STYLES = [
     filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
     paint: { 'circle-radius': 6, 'circle-color': '#3b82f6', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
   },
-  // Midpoints
+  // Midpoints (drag to add a vertex between two existing ones)
   {
     id: 'gl-draw-polygon-midpoint',
     type: 'circle',
@@ -99,10 +100,16 @@ const DRAW_STYLES = [
 ];
 
 // ---------------------------------------------------------------------------
-// DrawControl — hooks into react-map-gl via useControl
+// DrawControl — hooks into react-map-gl via useControl.
+//
+// Props:
+//   onAreaChange(points, areaSqM) — called when polygon changes
+//   controlRef   — ref exposed to parent for reset()
+//   initialArea  — existing search area to restore on mount [{lat,lng},…]
 // ---------------------------------------------------------------------------
-const DrawControl = ({ onAreaChange, controlRef }) => {
+const DrawControl = ({ onAreaChange, controlRef, initialArea }) => {
   const drawRef = useRef(null);
+  const initialAreaRef = useRef(initialArea);
 
   // Expose reset() to parent via controlRef
   useEffect(() => {
@@ -119,31 +126,63 @@ const DrawControl = ({ onAreaChange, controlRef }) => {
     return () => { if (controlRef) controlRef.current = null; };
   }, [controlRef]);
 
+  // Restore existing search area polygon when component mounts
+  useEffect(() => {
+    const area = initialAreaRef.current;
+    if (!drawRef.current || !area || area.length < 3) return;
+
+    const coords = area.map(p => [p.lng, p.lat]);
+    coords.push(coords[0]); // close ring
+    const ids = drawRef.current.add({
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [coords] },
+    });
+    if (ids && ids[0]) {
+      // Brief delay ensures the control is fully mounted on the map
+      setTimeout(() => {
+        if (drawRef.current) {
+          try {
+            drawRef.current.changeMode('direct_select', { featureId: ids[0] });
+          } catch (_) {
+            drawRef.current.changeMode('simple_select');
+          }
+        }
+      }, 50);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // draw.create — polygon completed; switch to direct_select for vertex editing
   const handleCreate = useCallback((e) => {
     if (!drawRef.current) return;
+    // Remove old polygons, keep only the newest
     const data = drawRef.current.getAll();
     if (data.features.length > 1) {
-      // Only keep the latest polygon
       const ids = data.features.slice(0, -1).map(f => f.id);
       ids.forEach(id => drawRef.current.delete(id));
     }
-    const feature = data.features[data.features.length - 1];
+    const feature = e.features && e.features[0];
     if (feature && feature.geometry.type === 'Polygon') {
-      const coords = feature.geometry.coordinates[0].slice(0, -1); // Remove closing point
+      const coords = feature.geometry.coordinates[0].slice(0, -1);
+      const points = coords.map(([lng, lat]) => ({ lat, lng }));
+      const areaSqM = turfArea(feature);
+      onAreaChange(points, areaSqM);
+      // Enter vertex-editing mode so user can drag/remove vertices
+      drawRef.current.changeMode('direct_select', { featureId: feature.id });
+    }
+  }, [onAreaChange]);
+
+  // draw.update — vertex dragged or added via midpoint; recalculate area
+  const handleUpdate = useCallback((e) => {
+    const feature = e.features && e.features[0];
+    if (feature && feature.geometry.type === 'Polygon') {
+      const coords = feature.geometry.coordinates[0].slice(0, -1);
       const points = coords.map(([lng, lat]) => ({ lat, lng }));
       const areaSqM = turfArea(feature);
       onAreaChange(points, areaSqM);
     }
-    // Clear draw features and re-enter draw mode;
-    // the completed polygon is shown by <SearchAreaOverlay>.
-    drawRef.current.deleteAll();
-    drawRef.current.changeMode('draw_polygon');
   }, [onAreaChange]);
 
-  const handleUpdate = useCallback((e) => {
-    handleCreate(e);
-  }, [handleCreate]);
-
+  // draw.delete — polygon removed (vertex delete made it invalid, or reset)
   const handleDelete = useCallback(() => {
     onAreaChange([], 0);
     if (drawRef.current) {
@@ -154,10 +193,13 @@ const DrawControl = ({ onAreaChange, controlRef }) => {
   useControl(
     () => {
       if (!mapboxDrawAvailable) return null;
+      const hasInitial = initialAreaRef.current && initialAreaRef.current.length >= 3;
       const draw = new MapboxDraw({
         displayControlsDefault: false,
         controls: { polygon: false, trash: false },
-        defaultMode: 'draw_polygon',
+        // Start in simple_select when restoring (useEffect will switch to direct_select),
+        // otherwise start in draw_polygon for immediate drawing.
+        defaultMode: hasInitial ? 'simple_select' : 'draw_polygon',
         styles: DRAW_STYLES,
       });
       drawRef.current = draw;
@@ -182,37 +224,6 @@ const DrawControl = ({ onAreaChange, controlRef }) => {
 };
 
 // ---------------------------------------------------------------------------
-// SearchAreaOverlay — renders the completed polygon as a Source + Layer
-// so it persists on the map after drawing (DrawControl clears its features).
-// ---------------------------------------------------------------------------
-export const SearchAreaOverlay = ({ searchArea }) => {
-  if (!RglSource || !RglLayer || !searchArea || searchArea.length < 3) return null;
-
-  const coordinates = searchArea.map(p => [p.lng, p.lat]);
-  coordinates.push(coordinates[0]); // Close ring for GeoJSON
-
-  const geojson = {
-    type: 'Feature',
-    geometry: { type: 'Polygon', coordinates: [coordinates] },
-  };
-
-  return (
-    <RglSource id="search-area-overlay" type="geojson" data={geojson}>
-      <RglLayer
-        id="search-area-fill"
-        type="fill"
-        paint={{ 'fill-color': '#3b82f6', 'fill-opacity': 0.15 }}
-      />
-      <RglLayer
-        id="search-area-stroke"
-        type="line"
-        paint={{ 'line-color': '#3b82f6', 'line-width': 2 }}
-      />
-    </RglSource>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // MapboxDrawActionBar — instruction bar with Reset button.
 // Reuses the same .ldc-* CSS classes as LeafletDrawControl for consistency.
 // ---------------------------------------------------------------------------
@@ -223,7 +234,7 @@ export const MapboxDrawActionBar = ({ searchArea, onReset }) => {
     <div className="ldc-instruction-bar">
       <span className="ldc-instruction-text">
         {hasArea
-          ? `Search area defined \u2014 ${searchArea.length} points`
+          ? 'Drag vertices to edit \u00b7 Select + Backspace to remove'
           : 'Click to add points, double-click to finish'}
       </span>
       <div className="ldc-action-group">

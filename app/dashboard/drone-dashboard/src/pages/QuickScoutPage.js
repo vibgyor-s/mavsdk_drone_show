@@ -19,7 +19,7 @@ import MissionMonitorSidebar from '../components/sar/MissionMonitorSidebar';
 import MissionActionBar from '../components/sar/MissionActionBar';
 import CoveragePreview from '../components/sar/CoveragePreview';
 import POIMarkerSystem from '../components/sar/POIMarkerSystem';
-import DrawControl, { MapboxSetupInstructions, SearchAreaOverlay, MapboxDrawActionBar } from '../components/sar/SearchAreaDrawer';
+import DrawControl, { MapboxSetupInstructions, MapboxDrawActionBar } from '../components/sar/SearchAreaDrawer';
 
 // SearchBar
 import SearchBar from '../components/trajectory/SearchBar';
@@ -368,8 +368,13 @@ const QuickScoutPage = () => {
                 }
               }}
             >
-              {mode === 'plan' && <DrawControl onAreaChange={handleAreaChange} controlRef={drawControlRef} />}
-              {mode === 'plan' && <SearchAreaOverlay searchArea={searchArea} />}
+              {mode === 'plan' && (
+                <DrawControl
+                  onAreaChange={handleAreaChange}
+                  controlRef={drawControlRef}
+                  initialArea={searchArea}
+                />
+              )}
 
               <CoveragePreview
                 plans={coveragePlan?.plans}
