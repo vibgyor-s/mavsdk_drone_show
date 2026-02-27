@@ -1,10 +1,11 @@
 /* src/styles/GlobeControlBox.css */
+@import './DesignTokens.css';
 
 .globe-control-box {
     position: absolute;
     top: 60px;
     right: 15px;
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: var(--color-bg-tertiary);
     backdrop-filter: blur(10px);
     padding: 20px;
     border-radius: 10px;
@@ -29,7 +30,7 @@
 
 .globe-control-box h4 {
     margin-top: 0;
-    color: #ffffff;
+    color: var(--color-text-primary);
     font-size: 18px;
     text-align: center;
     margin-bottom: 15px;
@@ -42,7 +43,7 @@
 .control-label {
     display: flex;
     align-items: center;
-    color: #ffffff;
+    color: var(--color-text-primary);
     font-size: 14px;
 }
 
@@ -60,7 +61,7 @@
 }
 
 .get-terrain-button {
-    background-color: #4CAF50;
+    background-color: var(--color-success);
     color: white;
     padding: 8px 12px;
     font-size: 14px;

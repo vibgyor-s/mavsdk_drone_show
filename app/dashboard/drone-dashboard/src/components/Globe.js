@@ -19,7 +19,7 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosition }) => (
+const DroneTooltip = ({ hw_id, state, follow_mode, altitude, opacity, localPosition }) => (
   <div
     className="drone-tooltip"
     style={{
@@ -28,7 +28,7 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosit
     }}
   >
     <ul className="tooltip-list">
-      <li><strong>HW_ID:</strong> {hw_ID}</li>
+      <li><strong>HW_ID:</strong> {hw_id}</li>
       <li><strong>State:</strong> {state}</li>
       <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
       <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
@@ -37,19 +37,18 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosit
   </div>
 );
 
-const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
+const Drone = ({ position, hw_id, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
 
   useEffect(() => {
-    console.log(`Rendering Drone ${hw_ID} at Position:`, position);
     if (isHovered) {
       setOpacity(1);
     } else {
       const timeout = setTimeout(() => setOpacity(0), 150);
       return () => clearTimeout(timeout);
     }
-  }, [isHovered, position, hw_ID]);
+  }, [isHovered, position, hw_id]);
 
   return (
     <mesh
@@ -67,7 +66,7 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
       />
       <Html>
         <DroneTooltip
-          hw_ID={hw_ID}
+          hw_id={hw_id}
           state={state}
           follow_mode={follow_mode}
           altitude={altitude}
@@ -81,7 +80,7 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
 
 Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
-  hw_ID: PropTypes.string.isRequired,
+  hw_id: PropTypes.string.isRequired,
   state: PropTypes.string.isRequired,
   follow_mode: PropTypes.number.isRequired,
   altitude: PropTypes.number.isRequired,
@@ -103,7 +102,7 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
       controlsRef.current.target.set(...targetPosition);
       controlsRef.current.update();
     }
-  }, [targetPosition]);
+  }, [targetPosition, camera]);
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };
@@ -176,27 +175,21 @@ export default function Globe({ drones }) {
       });
       setDroneVisibility(newDroneVisibility);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit droneVisibility to avoid infinite loop
   }, [drones]);
 
   useEffect(() => {
-    if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
-      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
-    }
+    setReferencePoint(prev => {
+      if (prev && groundLevel !== null && groundLevel !== prev[2]) {
+        return [prev[0], prev[1], groundLevel];
+      }
+      return prev;
+    });
   }, [groundLevel]);
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
-      console.log('Initial Drone Positions:', drones.map(drone => ({
-        hw_ID: drone[FIELD_NAMES.HW_ID],
-        position: drone.position,
-      })));
-      
       const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
-      // Log converted positions
-      console.log('Converted Drone Positions:', convertedPositions.map((pos, index) => ({
-        hw_ID: drones[index].hw_ID,
-        position: pos,
-      })));
 
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
@@ -313,7 +306,7 @@ export default function Globe({ drones }) {
 
 Globe.propTypes = {
   drones: PropTypes.arrayOf(PropTypes.shape({
-    hw_ID: PropTypes.string.isRequired,
+    hw_id: PropTypes.string.isRequired,
     position: PropTypes.arrayOf(PropTypes.number).isRequired,
     state: PropTypes.string,
     follow_mode: PropTypes.number,

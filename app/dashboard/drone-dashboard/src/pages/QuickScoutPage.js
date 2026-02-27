@@ -64,6 +64,7 @@ const DEFAULT_SURVEY_CONFIG = {
 };
 
 // Create simple drone icon for Leaflet markers
+// Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
 const createDroneIcon = (hwId) =>
   L.divIcon({
     html: `<div style="width:20px;height:20px;background:var(--color-primary,#00d4ff);border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${hwId}</div>`,
@@ -304,14 +305,7 @@ const QuickScoutPage = () => {
                   longitude={drone.position_long}
                   anchor="center"
                 >
-                  <div style={{
-                    width: 20, height: 20,
-                    background: 'var(--color-primary)',
-                    borderRadius: '50%',
-                    border: '2px solid white',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, fontWeight: 700, color: '#000',
-                  }}>
+                  <div className="qs-drone-marker-icon">
                     {drone.hw_ID}
                   </div>
                 </Marker>

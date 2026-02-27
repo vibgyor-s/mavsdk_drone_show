@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import PropTypes from 'prop-types';
 
 import Globe from '../components/Globe';
+import GlobeMapView from '../components/GlobeMapView';
+import ViewModeToggle, { VIEW_MODES } from '../components/map/ViewModeToggle';
 import '../styles/GlobeView.css';
 import axios from 'axios';
 
@@ -13,6 +14,7 @@ const GlobeView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState(VIEW_MODES.SCENE_3D);
 
   const fetchDrones = useCallback(async () => {
     const url = getTelemetryURL();
@@ -24,7 +26,7 @@ const GlobeView = () => {
       const dronesData = Object.entries(response.data)
         .filter(([id, drone]) => Object.keys(drone).length > 0)
         .map(([id, drone]) => ({
-          hw_ID: id,
+          hw_id: id,
           position: [
             drone[FIELD_NAMES.POSITION_LAT] || 0,
             drone[FIELD_NAMES.POSITION_LONG] || 0,
@@ -34,12 +36,6 @@ const GlobeView = () => {
           follow_mode: drone[FIELD_NAMES.FOLLOW_MODE] || 0,
           altitude: drone[FIELD_NAMES.POSITION_ALT] || 0,
         }));
-
-      // Log received positions
-      console.log('Received Drone Positions:', dronesData.map(drone => ({
-        hw_ID: drone[FIELD_NAMES.HW_ID],
-        position: drone.position,
-      })));
 
       setDrones(dronesData);
 
@@ -63,7 +59,8 @@ const GlobeView = () => {
   if (isLoading) {
     return (
       <div className="globe-view-container">
-        <h2>Drone 3D Map View</h2>
+        <h2>Drone Visualization</h2>
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="loading-container">
           <div className="loading-spinner"></div>
           <div className="loading-message">Loading drones...</div>
@@ -75,7 +72,8 @@ const GlobeView = () => {
   if (error) {
     return (
       <div className="globe-view-container">
-        <h2>Drone 3D Map View</h2>
+        <h2>Drone Visualization</h2>
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="error-message">
           <p>{error}</p>
           <button onClick={fetchDrones}>Retry</button>
@@ -87,7 +85,8 @@ const GlobeView = () => {
   if (drones.length === 0) {
     return (
       <div className="globe-view-container">
-        <h2>Drone 3D Map View</h2>
+        <h2>Drone Visualization</h2>
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="no-data-message">
           No drone data available.
         </div>
@@ -97,8 +96,13 @@ const GlobeView = () => {
 
   return (
     <div className="globe-view-container">
-      <h2>Drone 3D Map View</h2>
-      <Globe drones={drones} />
+      <h2>Drone Visualization</h2>
+      <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+      {viewMode === VIEW_MODES.SCENE_3D ? (
+        <Globe drones={drones} />
+      ) : (
+        <GlobeMapView drones={drones} />
+      )}
     </div>
   );
 };

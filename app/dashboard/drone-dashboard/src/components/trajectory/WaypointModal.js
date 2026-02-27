@@ -486,10 +486,4 @@ WaypointModal.defaultProps = {
   waypointIndex: 1,
 };
 
-// Add PropTypes for waypointIndex
-WaypointModal.propTypes = {
-  ...WaypointModal.propTypes,
-  waypointIndex: PropTypes.number,
-};
-
 export default WaypointModal;
