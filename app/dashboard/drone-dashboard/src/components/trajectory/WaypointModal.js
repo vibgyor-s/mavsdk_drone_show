@@ -384,10 +384,28 @@ const WaypointModal = ({
               </div>
             )}
 
-            {/* Fallback message after elevation resolves */}
+            {/* Fallback message + editable ground elevation after API unavailable */}
             {!isLoadingTerrain && terrainFallbackMsg && (
               <div className="wm-terrain-fallback-msg">
-                {terrainFallbackMsg}
+                <div>{terrainFallbackMsg}</div>
+                <div className="wm-ground-elevation-edit">
+                  <label htmlFor="groundElevationOverride" className="wm-ground-elevation-label">
+                    Ground elevation (m MSL):
+                  </label>
+                  <input
+                    id="groundElevationOverride"
+                    type="number"
+                    className="wm-ground-elevation-input"
+                    value={groundElevation}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) setGroundElevation(val);
+                    }}
+                    step="1"
+                    min="0"
+                    max="9000"
+                  />
+                </div>
               </div>
             )}
 

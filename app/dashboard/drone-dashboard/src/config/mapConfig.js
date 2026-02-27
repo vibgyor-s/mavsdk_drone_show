@@ -19,22 +19,26 @@ export const TILE_LAYERS = {
     name: 'OpenStreetMap',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
+    maxNativeZoom: 19,
   },
   esriSatellite: {
     name: 'Satellite (Esri)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+    maxNativeZoom: 18,
   },
   openTopoMap: {
     name: 'OpenTopoMap',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenTopoMap contributors',
+    maxNativeZoom: 17,
   },
   googleSatellite: {
     name: 'Google Satellite',
     url: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
     attribution: 'Map data &copy; Google',
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    maxNativeZoom: 20,
   },
 };
 

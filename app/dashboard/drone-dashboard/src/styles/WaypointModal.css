@@ -619,6 +619,36 @@
   margin-bottom: 0.75rem;
 }
 
+.wm-ground-elevation-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.wm-ground-elevation-label {
+  font-size: 0.8rem;
+  color: #e0e4e7;
+  white-space: nowrap;
+}
+
+.wm-ground-elevation-input {
+  width: 90px;
+  padding: 0.3rem 0.5rem;
+  background: #2a2d3a;
+  border: 1px solid #4a4f5b;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.wm-ground-elevation-input:focus {
+  outline: none;
+  border-color: #ffc107;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15);
+}
+
 @keyframes wmProgressSlide {
   0% {
     left: -40%;

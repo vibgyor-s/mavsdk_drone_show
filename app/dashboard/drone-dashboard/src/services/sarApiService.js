@@ -10,7 +10,9 @@ import { getBackendURL } from '../utilities/utilities';
 const sarAPI = () => `${getBackendURL()}/api/sar`;
 
 export const computePlan = async (missionRequest) => {
-  const response = await axios.post(`${sarAPI()}/mission/plan`, missionRequest);
+  const response = await axios.post(`${sarAPI()}/mission/plan`, missionRequest, {
+    timeout: 30000,
+  });
   return response.data;
 };
 

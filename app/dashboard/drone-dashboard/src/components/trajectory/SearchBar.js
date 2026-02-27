@@ -5,7 +5,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import '../../styles/SearchBar.css';
 
-
+// Module-level geocode result cache (max 50 entries)
+const geocodeCache = new Map();
+const CACHE_MAX = 50;
 
 const SearchBar = ({ onLocationSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,6 +20,7 @@ const SearchBar = ({ onLocationSelect }) => {
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
   const debounceRef = useRef(null);
+  const lastRequestTimeRef = useRef(0);
 
   // PHASE 2: Enhanced geocoding with multiple providers
   const geocodeLocation = async (query) => {
@@ -44,11 +47,16 @@ const SearchBar = ({ onLocationSelect }) => {
       // Try Nominatim (OpenStreetMap) geocoding
       const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`;
       
+      lastRequestTimeRef.current = Date.now();
       const response = await fetch(nominatimUrl, {
         headers: {
           'User-Agent': 'Drone-Trajectory-Planning/1.0'
         }
       });
+
+      if (response.status === 429) {
+        throw new Error('Search rate limited — wait a moment and try again');
+      }
 
       if (!response.ok) {
         throw new Error('Geocoding service unavailable');
@@ -90,7 +98,7 @@ const SearchBar = ({ onLocationSelect }) => {
     }
   };
 
-  // PHASE 2: Debounced search for better UX
+  // Debounced search — 1000ms to respect Nominatim's 1 req/sec policy
   const debouncedSearch = useCallback((query) => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -103,9 +111,29 @@ const SearchBar = ({ onLocationSelect }) => {
         return;
       }
 
+      // Check cache first
+      if (geocodeCache.has(query)) {
+        const cached = geocodeCache.get(query);
+        setSuggestions(cached);
+        setShowSuggestions(cached.length > 0);
+        setSelectedIndex(-1);
+        return;
+      }
+
+      // Rate limit safety net — skip if <1s since last request
+      if (Date.now() - lastRequestTimeRef.current < 1000) {
+        return;
+      }
+
       setIsLoading(true);
       try {
         const results = await geocodeLocation(query);
+        // Store in cache (evict oldest if full)
+        if (geocodeCache.size >= CACHE_MAX) {
+          const firstKey = geocodeCache.keys().next().value;
+          geocodeCache.delete(firstKey);
+        }
+        geocodeCache.set(query, results);
         setSuggestions(results);
         setShowSuggestions(results.length > 0);
         setSelectedIndex(-1);
@@ -116,7 +144,7 @@ const SearchBar = ({ onLocationSelect }) => {
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 1000);
   }, []);
 
   // Handle input changes

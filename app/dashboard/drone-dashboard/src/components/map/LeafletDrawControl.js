@@ -197,30 +197,43 @@ const LeafletDrawControl = ({ onAreaChange }) => {
   }, [vertices, closePolygon]);
 
   // Close on first vertex click (when >=3 vertices)
-  const handleFirstVertexClick = useCallback(() => {
+  const handleFirstVertexClick = useCallback((e) => {
+    e.originalEvent?.stopPropagation?.();
     if (vertices.length >= 3 && !isComplete) {
       closePolygon(vertices);
     }
   }, [vertices, isComplete, closePolygon]);
 
-  // Ctrl+Z undo handler
+  // Ctrl+Z undo and Escape key handler
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === 'z' && !isComplete && vertices.length > 0) {
         e.preventDefault();
         handleUndo();
       }
+      if (e.key === 'Escape' && !isComplete) {
+        // Cancel any pending deferred click
+        if (clickTimerRef.current) {
+          clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = null;
+        }
+        pendingClickRef.current = null;
+        // Reset drawing if vertices exist
+        if (vertices.length > 0) {
+          handleClear();
+        }
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isComplete, vertices.length, handleUndo]);
+  }, [isComplete, vertices.length, handleUndo, handleClear]);
 
   // Instruction text based on state
   const instruction = useMemo(() => {
     if (isComplete) return 'Polygon complete. Click Reset to start over.';
     if (vertices.length === 0) return 'Click to place first point';
-    if (vertices.length < 3) return `Click to add points (${vertices.length}/3 min)`;
-    return 'Click to add points, double-click or click first point to close';
+    if (vertices.length < 3) return `Click to add points (${vertices.length}/3 min) · Esc to cancel`;
+    return 'Click to add points, double-click or click first point to close · Esc to reset';
   }, [isComplete, vertices.length]);
 
   // Preview line from last vertex to mouse cursor
@@ -231,14 +244,14 @@ const LeafletDrawControl = ({ onAreaChange }) => {
 
   return (
     <>
-      {/* Instruction bar */}
-      <div className="ldc-instruction-bar">
+      {/* Instruction bar — stopPropagation prevents clicks from bubbling to map */}
+      <div className="ldc-instruction-bar" onClickCapture={e => e.stopPropagation()}>
         <span className="ldc-instruction-text">{instruction}</span>
         <div className="ldc-action-group">
           {!isComplete && vertices.length > 0 && (
             <button
               className="ldc-action-btn ldc-action-btn--undo"
-              onClick={handleUndo}
+              onClick={(e) => { e.stopPropagation(); handleUndo(); }}
               title="Undo last point (Ctrl+Z)"
             >
               Undo
@@ -247,7 +260,7 @@ const LeafletDrawControl = ({ onAreaChange }) => {
           {!isComplete && vertices.length >= 3 && (
             <button
               className="ldc-action-btn ldc-action-btn--close"
-              onClick={handleClose}
+              onClick={(e) => { e.stopPropagation(); handleClose(); }}
             >
               Close Polygon
             </button>
@@ -255,7 +268,7 @@ const LeafletDrawControl = ({ onAreaChange }) => {
           {vertices.length > 0 && (
             <button
               className="ldc-action-btn ldc-action-btn--reset"
-              onClick={handleClear}
+              onClick={(e) => { e.stopPropagation(); handleClear(); }}
             >
               Reset
             </button>

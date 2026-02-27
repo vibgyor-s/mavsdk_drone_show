@@ -39,6 +39,8 @@ const LeafletMapBase = ({
               <TileLayer
                 url={TILE_LAYERS.osm.url}
                 attribution={TILE_LAYERS.osm.attribution}
+                maxNativeZoom={TILE_LAYERS.osm.maxNativeZoom}
+                maxZoom={LEAFLET_DEFAULTS.maxZoom}
                 noWrap={true}
               />
             </BaseLayer>
@@ -46,6 +48,8 @@ const LeafletMapBase = ({
               <TileLayer
                 url={TILE_LAYERS.esriSatellite.url}
                 attribution={TILE_LAYERS.esriSatellite.attribution}
+                maxNativeZoom={TILE_LAYERS.esriSatellite.maxNativeZoom}
+                maxZoom={LEAFLET_DEFAULTS.maxZoom}
                 noWrap={true}
               />
             </BaseLayer>
@@ -53,6 +57,8 @@ const LeafletMapBase = ({
               <TileLayer
                 url={TILE_LAYERS.openTopoMap.url}
                 attribution={TILE_LAYERS.openTopoMap.attribution}
+                maxNativeZoom={TILE_LAYERS.openTopoMap.maxNativeZoom}
+                maxZoom={LEAFLET_DEFAULTS.maxZoom}
                 noWrap={true}
               />
             </BaseLayer>
@@ -61,6 +67,8 @@ const LeafletMapBase = ({
                 url={TILE_LAYERS.googleSatellite.url}
                 attribution={TILE_LAYERS.googleSatellite.attribution}
                 subdomains={TILE_LAYERS.googleSatellite.subdomains}
+                maxNativeZoom={TILE_LAYERS.googleSatellite.maxNativeZoom}
+                maxZoom={LEAFLET_DEFAULTS.maxZoom}
                 noWrap={true}
               />
             </BaseLayer>
@@ -69,6 +77,8 @@ const LeafletMapBase = ({
           <TileLayer
             url={TILE_LAYERS[defaultLayer]?.url || TILE_LAYERS.osm.url}
             attribution={TILE_LAYERS[defaultLayer]?.attribution || TILE_LAYERS.osm.attribution}
+            maxNativeZoom={TILE_LAYERS[defaultLayer]?.maxNativeZoom || TILE_LAYERS.osm.maxNativeZoom}
+            maxZoom={LEAFLET_DEFAULTS.maxZoom}
             noWrap={true}
           />
         )}

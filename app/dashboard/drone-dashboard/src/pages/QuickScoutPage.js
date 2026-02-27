@@ -245,8 +245,12 @@ const QuickScoutPage = () => {
       setMissionId(response.mission_id);
       toast.success(`Plan computed: ${response.plans.length} drones, ${(response.total_area_sq_m / 10000).toFixed(1)} ha`);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
-      toast.error(`Planning failed: ${detail}`);
+      if (err.code === 'ECONNABORTED') {
+        toast.error('Planning timed out — try disabling terrain following or reducing area size');
+      } else {
+        const detail = err.response?.data?.detail || err.message;
+        toast.error(`Planning failed: ${detail}`);
+      }
     } finally {
       setComputing(false);
     }

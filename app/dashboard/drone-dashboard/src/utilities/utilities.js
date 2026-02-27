@@ -40,26 +40,60 @@ export const TEXTURE_REPEAT = 10;
 export const POLLING_RATE_HZ = 1;
 export const STALE_DATA_THRESHOLD_SECONDS = 5;
 
-// Fetch the elevation based on latitude and longitude
+// In-memory elevation cache — grid-snap to ~20 m to deduplicate nearby points
+const _elevationCache = new Map();
+const _ELEV_CACHE_MAX = 200;
+const _ELEV_GRID = 0.0002; // ~20 m
+
+function _snapElev(v) { return Math.round(v / _ELEV_GRID) * _ELEV_GRID; }
+function _elevKey(lat, lon) { return `${_snapElev(lat).toFixed(4)},${_snapElev(lon).toFixed(4)}`; }
+
+// In-flight request deduplication — prevents parallel fetches for the same point
+const _elevInflight = new Map();
+
+// Fetch the elevation based on latitude and longitude (cached + deduped)
 export const getElevation = async (lat, lon) => {
-  // Validate coordinates before making API call
   if (lat === null || lat === undefined || lon === null || lon === undefined) {
-    console.warn('getElevation called with invalid coordinates:', { lat, lon });
     return null;
   }
 
-  try {
-      const url = getElevationURL(lat, lon);  // Use the updated function to get the elevation URL
-      console.log(`Fetching elevation data from URL: ${url}`);  // Log the URL
+  const key = _elevKey(lat, lon);
+
+  // Return cached result
+  if (_elevationCache.has(key)) {
+    return _elevationCache.get(key);
+  }
+
+  // Return in-flight promise if already fetching this point
+  if (_elevInflight.has(key)) {
+    return _elevInflight.get(key);
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const url = getElevationURL(lat, lon);
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
+      const elevation = data.results[0]?.elevation || null;
 
-      return data.results[0]?.elevation || null;
-  } catch (error) {
+      // Store in cache (evict oldest if full)
+      if (_elevationCache.size >= _ELEV_CACHE_MAX) {
+        const first = _elevationCache.keys().next().value;
+        _elevationCache.delete(first);
+      }
+      _elevationCache.set(key, elevation);
+      return elevation;
+    } catch (error) {
       console.error(`Failed to fetch elevation data: ${error}`);
       return null;
-  }
+    } finally {
+      _elevInflight.delete(key);
+    }
+  })();
+
+  _elevInflight.set(key, fetchPromise);
+  return fetchPromise;
 };
 
 // Convert Latitude, Longitude, Altitude to local coordinates

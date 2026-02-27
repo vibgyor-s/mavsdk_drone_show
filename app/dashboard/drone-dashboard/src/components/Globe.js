@@ -145,27 +145,31 @@ export default function Globe({ drones }) {
     }
   };
 
+  // Set reference point once when drones first connect — elevation is fetched once
+  // and cached. The effect skips when referencePoint is already set.
+  const hasDrones = drones?.length > 0;
   useEffect(() => {
-    if (drones?.length && !referencePoint) {
-      setIsLoading(true);
-      
-      const setReferencePointAsync = async () => {
-        const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-        const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-        const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+    if (!hasDrones || referencePoint) return;
 
-        const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
-        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
-        setReferencePoint(localReference);
+    setIsLoading(true);
 
-        if (groundLevel === 0) {
-          setGroundLevel(elevation ?? avgAlt);
-        }
-        setIsLoading(false);
-      };
-      setReferencePointAsync();
-    }
-  }, [drones, referencePoint]);
+    const setReferencePointAsync = async () => {
+      const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
+      const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
+      const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+
+      const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
+      const localReference = [avgLat, avgLon, elevation ?? avgAlt];
+      setReferencePoint(localReference);
+
+      if (groundLevel === 0) {
+        setGroundLevel(elevation ?? avgAlt);
+      }
+      setIsLoading(false);
+    };
+    setReferencePointAsync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when drones first arrive; referencePoint guard prevents re-fetch
+  }, [hasDrones]);
 
   useEffect(() => {
     if (drones?.length) {
