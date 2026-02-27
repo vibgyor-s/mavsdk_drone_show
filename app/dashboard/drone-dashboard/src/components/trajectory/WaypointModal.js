@@ -32,13 +32,16 @@ const WaypointModal = ({
   const [groundElevation, setGroundElevation] = useState(0);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
-  
+  const [terrainElapsed, setTerrainElapsed] = useState(0);
+  const [terrainFallbackMsg, setTerrainFallbackMsg] = useState(null);
+
   // Heading state (aviation standard)
   const [heading, setHeading] = useState(0);
   const [headingMode, setHeadingMode] = useState(YAW_CONSTANTS.AUTO);
   const [calculatedHeading, setCalculatedHeading] = useState(0);
 
   const altitudeRef = useRef(null);
+  const elevationAbortRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && altitudeRef.current) {
@@ -46,6 +49,19 @@ const WaypointModal = ({
       altitudeRef.current.select();
     }
   }, [isOpen]);
+
+  // Elapsed timer while loading terrain
+  useEffect(() => {
+    if (!isLoadingTerrain) {
+      setTerrainElapsed(0);
+      return;
+    }
+    setTerrainElapsed(0);
+    const interval = setInterval(() => {
+      setTerrainElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLoadingTerrain]);
 
   // Enhanced pre-population logic based on waypoint index and previous waypoint data
   useEffect(() => {
@@ -96,18 +112,32 @@ const WaypointModal = ({
   }, [isOpen, previousWaypoint, position, waypointIndex]);
 
   useEffect(() => {
+    if (!isOpen || !position) return;
+
+    // Abort any previous in-flight fetch
+    if (elevationAbortRef.current) {
+      elevationAbortRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    elevationAbortRef.current = abortController;
+
     const fetchElevation = async (latitude, longitude) => {
       try {
         setIsLoadingTerrain(true);
         setTerrainError(null);
+        setTerrainFallbackMsg(null);
 
         const result = await getTerrainElevation(latitude, longitude);
+
+        // Check if aborted during fetch
+        if (abortController.signal.aborted) return;
+
         const elevation = result.elevation;
 
         if (elevation !== null && elevation !== undefined) {
           setGroundElevation(elevation);
 
-          // Only override altitude if it would be below ground level
           setAltitude(prev => {
             if (prev < elevation + 50) {
               return elevation + 100;
@@ -117,6 +147,7 @@ const WaypointModal = ({
 
           if (result.error) {
             setTerrainError(result.error);
+            setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
           }
 
           console.info(`Terrain elevation (${result.source}): Ground ${elevation.toFixed(1)}m MSL`);
@@ -124,6 +155,7 @@ const WaypointModal = ({
           setTerrainError('No elevation data available');
           const estimatedGround = estimateBasicElevation(latitude, longitude);
           setGroundElevation(estimatedGround);
+          setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
           setAltitude(prev => {
             if (prev < estimatedGround + 50) {
               return estimatedGround + 100;
@@ -132,8 +164,10 @@ const WaypointModal = ({
           });
         }
       } catch (error) {
+        if (abortController.signal.aborted) return;
         console.error('Elevation fetch failed:', error);
         setTerrainError('Query failed, using estimated data');
+        setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
         setAltitude(prev => {
@@ -143,13 +177,17 @@ const WaypointModal = ({
           return prev;
         });
       } finally {
-        setIsLoadingTerrain(false);
+        if (!abortController.signal.aborted) {
+          setIsLoadingTerrain(false);
+        }
       }
     };
 
-    if (isOpen && position) {
-      fetchElevation(position.latitude, position.longitude);
-    }
+    fetchElevation(position.latitude, position.longitude);
+
+    return () => {
+      abortController.abort();
+    };
   }, [isOpen, position]);
 
   useEffect(() => {
@@ -167,20 +205,23 @@ const WaypointModal = ({
     }
   }, [position, previousWaypoint, timeFromStart, altitude]);
 
+  // Use refs to hold latest handler versions, avoiding stale closures in keydown listener
+  const handleConfirmRef = useRef(null);
+  const handleCancelRef = useRef(null);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
-
       if (e.key === 'Escape') {
-        handleCancel();
+        handleCancelRef.current?.();
       } else if (e.key === 'Enter' && e.ctrlKey) {
-        handleConfirm();
+        handleConfirmRef.current?.();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, altitude, timeFromStart]);
+  }, [isOpen]);
 
   const estimateBasicElevation = (latitude, longitude) => {
     if (Math.abs(latitude) > 60) return 300; // Polar regions
@@ -190,6 +231,27 @@ const WaypointModal = ({
     if (latitude > 25 && latitude < 45 && longitude > 65 && longitude < 105) return 2000;   // Himalayas
 
     return 150; // Default continental
+  };
+
+  const handleSkipElevation = () => {
+    // Cancel in-flight fetch
+    if (elevationAbortRef.current) {
+      elevationAbortRef.current.abort();
+    }
+    setIsLoadingTerrain(false);
+    const estimatedGround = estimateBasicElevation(
+      position?.latitude || 0,
+      position?.longitude || 0
+    );
+    setGroundElevation(estimatedGround);
+    setTerrainError('Using estimate (skipped API)');
+    setTerrainFallbackMsg('Using estimated elevation (skipped by user)');
+    setAltitude((prev) => {
+      if (prev < estimatedGround + 50) {
+        return estimatedGround + 100;
+      }
+      return prev;
+    });
   };
 
   const handleConfirm = () => {
@@ -219,6 +281,10 @@ const WaypointModal = ({
   const handleCancel = () => {
     onClose();
   };
+
+  // Keep refs in sync for keyboard handler
+  handleConfirmRef.current = handleConfirm;
+  handleCancelRef.current = handleCancel;
 
   const handleAltitudeChange = (e) => {
     const newAltitude = parseFloat(e.target.value) || 0;
@@ -299,6 +365,32 @@ const WaypointModal = ({
           </div>
 
           <div className="altitude-section">
+            {/* Terrain loading banner */}
+            {isLoadingTerrain && (
+              <div className="wm-terrain-banner">
+                <div className="wm-terrain-progress" />
+                <div className="wm-terrain-banner-content">
+                  <span className="wm-terrain-banner-text">
+                    Loading terrain elevation... {terrainElapsed > 0 && `(${terrainElapsed}s)`}
+                  </span>
+                  <button
+                    className="wm-terrain-skip-btn"
+                    onClick={handleSkipElevation}
+                    type="button"
+                  >
+                    Use Estimate
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Fallback message after elevation resolves */}
+            {!isLoadingTerrain && terrainFallbackMsg && (
+              <div className="wm-terrain-fallback-msg">
+                {terrainFallbackMsg}
+              </div>
+            )}
+
             <div className="altitude-input-group">
               <label htmlFor="altitude" className="input-label">
                 🏔️ Altitude (MSL)

@@ -61,14 +61,14 @@ const MissionPlanSidebar = ({
                   onChange={() => onDroneToggle(drone.pos_id ?? drone.pos_ID)}
                 />
                 <span className="qs-drone-id">#{drone.hw_ID || drone.hw_id}</span>
-                <span className={`qs-drone-status ${drone.position_lat ? 'online' : 'offline'}`}>
-                  {drone.position_lat ? 'Online' : 'Offline'}
+                <span className={`qs-drone-status ${drone.online ? 'online' : 'offline'}`}>
+                  {drone.online ? 'Online' : 'Offline'}
                 </span>
               </label>
             ))}
             {drones.length === 0 && (
               <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                No drones detected
+                No drones configured &mdash; add drones to config.csv
               </div>
             )}
           </div>

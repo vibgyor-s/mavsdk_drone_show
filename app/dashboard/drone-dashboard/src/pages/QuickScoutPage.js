@@ -5,10 +5,10 @@
  * Monitor mode: watch mission progress, manage POIs, control drones.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { getTelemetryURL } from '../utilities/utilities';
+import { getTelemetryURL, getBackendURL } from '../utilities/utilities';
 import * as sarApi from '../services/sarApiService';
 
 // SAR components
@@ -21,6 +21,9 @@ import CoveragePreview from '../components/sar/CoveragePreview';
 import POIMarkerSystem from '../components/sar/POIMarkerSystem';
 import DrawControl, { MapboxSetupInstructions } from '../components/sar/SearchAreaDrawer';
 
+// SearchBar
+import SearchBar from '../components/trajectory/SearchBar';
+
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from '../components/map/LeafletMapBase';
@@ -29,7 +32,7 @@ import LeafletCoveragePreview from '../components/map/LeafletCoveragePreview';
 import LeafletPOIMarkers from '../components/map/LeafletPOIMarkers';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
-import { Marker as LeafletMarker } from 'react-leaflet';
+import { Marker as LeafletMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 // Styles
@@ -73,6 +76,17 @@ const createDroneIcon = (hwId) =>
     iconAnchor: [10, 10],
   });
 
+// Leaflet flyTo controller — bridges React state to Leaflet imperative API
+const LeafletFlyTo = ({ target }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (target) {
+      map.flyTo([target.latitude, target.longitude], target.zoom || 15, { duration: 1.5 });
+    }
+  }, [target, map]);
+  return null;
+};
+
 const QuickScoutPage = () => {
   const { provider, isMapboxAvailable } = useMapContext();
   const useLeaflet = provider === 'leaflet' || !isMapboxAvailable || !mapboxAvailable;
@@ -98,11 +112,16 @@ const QuickScoutPage = () => {
   // Telemetry
   const [drones, setDrones] = useState([]);
 
+  // Config drones (from config.csv)
+  const [configDrones, setConfigDrones] = useState([]);
+
   // Map
   const [viewport, setViewport] = useState({
     longitude: 0, latitude: 0, zoom: 3,
   });
   const poiClickRef = useRef(null);
+  const mapRef = useRef(null);
+  const [flyToTarget, setFlyToTarget] = useState(null);
 
   // Telemetry polling
   useEffect(() => {
@@ -121,6 +140,47 @@ const QuickScoutPage = () => {
     const interval = setInterval(fetchTelemetry, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch config.csv drones on mount
+  useEffect(() => {
+    const fetchConfigDrones = async () => {
+      try {
+        const response = await axios.get(`${getBackendURL()}/get-config-data`);
+        if (Array.isArray(response.data)) {
+          setConfigDrones(response.data);
+        }
+      } catch (e) {
+        // Config not available — not critical
+      }
+    };
+    fetchConfigDrones();
+  }, []);
+
+  // Merge config drones with live telemetry
+  const mergedDrones = useMemo(() => {
+    // Start with config entries
+    const merged = configDrones.map((cfg) => {
+      const hwId = String(cfg.hw_id);
+      const telemetry = drones.find((d) => String(d.hw_ID) === hwId);
+      return {
+        hw_ID: hwId,
+        hw_id: hwId,
+        pos_id: cfg.pos_id,
+        pos_ID: cfg.pos_id,
+        ip: cfg.ip,
+        online: !!telemetry,
+        ...(telemetry || {}),
+      };
+    });
+    // Add any telemetry drones not in config
+    for (const d of drones) {
+      const inConfig = configDrones.some((c) => String(c.hw_id) === String(d.hw_ID));
+      if (!inConfig) {
+        merged.push({ ...d, online: true });
+      }
+    }
+    return merged;
+  }, [configDrones, drones]);
 
   // Mission status polling (monitor mode)
   useEffect(() => {
@@ -242,6 +302,17 @@ const QuickScoutPage = () => {
     setAddingPOI(false);
   }, []);
 
+  // SearchBar location select handler
+  const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
+    const zoom = 15;
+    setViewport({ longitude, latitude, zoom });
+    if (!useLeaflet && mapRef.current) {
+      mapRef.current.flyTo({ center: [longitude, latitude], zoom });
+    } else {
+      setFlyToTarget({ latitude, longitude, zoom });
+    }
+  }, [useLeaflet]);
+
   return (
     <div className="quickscout-page">
       {/* Top Bar */}
@@ -250,6 +321,9 @@ const QuickScoutPage = () => {
           <span className="qs-page-title">QuickScout SAR</span>
           <PlanMonitorToggle mode={mode} onModeChange={setMode} />
           <MapProviderToggle />
+          <div className="qs-search-wrapper">
+            <SearchBar onLocationSelect={handleLocationSelect} />
+          </div>
         </div>
         {mode === 'monitor' && missionId && (
           <button
@@ -272,6 +346,7 @@ const QuickScoutPage = () => {
           {useLeaflet && <MapFallbackBanner />}
           {!useLeaflet && mapboxAvailable ? (
             <Map
+              ref={mapRef}
               initialViewState={viewport}
               mapboxAccessToken={mapboxToken}
               mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
@@ -297,8 +372,8 @@ const QuickScoutPage = () => {
                 onMapClick={poiClickRef}
               />
 
-              {/* Drone position markers */}
-              {drones.filter(d => d.position_lat && d.position_long).map((drone) => (
+              {/* Drone position markers (online drones only) */}
+              {mergedDrones.filter(d => d.online && d.position_lat && d.position_long).map((drone) => (
                 <Marker
                   key={drone.hw_ID}
                   latitude={drone.position_lat}
@@ -318,6 +393,8 @@ const QuickScoutPage = () => {
               defaultLayer="esriSatellite"
               style={{ width: '100%', height: '100%' }}
             >
+              <LeafletFlyTo target={flyToTarget} />
+
               {mode === 'plan' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
 
               <LeafletCoveragePreview
@@ -332,8 +409,8 @@ const QuickScoutPage = () => {
                 addingPOI={addingPOI}
               />
 
-              {/* Drone position markers */}
-              {drones.filter(d => d.position_lat && d.position_long).map((drone) => (
+              {/* Drone position markers (online drones only) */}
+              {mergedDrones.filter(d => d.online && d.position_lat && d.position_long).map((drone) => (
                 <LeafletMarker
                   key={drone.hw_ID}
                   position={[drone.position_lat, drone.position_long]}
@@ -360,7 +437,7 @@ const QuickScoutPage = () => {
         {/* Sidebar */}
         {mode === 'plan' ? (
           <MissionPlanSidebar
-            drones={drones}
+            drones={mergedDrones}
             selectedDrones={selectedDrones}
             onDroneToggle={handleDroneToggle}
             surveyConfig={surveyConfig}
@@ -378,7 +455,7 @@ const QuickScoutPage = () => {
             pois={pois}
             onDroneClick={(hwId) => {
               // Center map on drone
-              const drone = drones.find(d => d.hw_ID === hwId);
+              const drone = mergedDrones.find(d => d.hw_ID === hwId);
               if (drone?.position_lat && drone?.position_long) {
                 setViewport({
                   longitude: drone.position_long,

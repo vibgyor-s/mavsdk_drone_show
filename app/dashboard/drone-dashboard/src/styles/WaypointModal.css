@@ -555,6 +555,80 @@
 }
 
 /* =============================================== */
+/* TERRAIN LOADING BANNER */
+/* =============================================== */
+
+.wm-terrain-banner {
+  position: relative;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.wm-terrain-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+  animation: wmProgressSlide 1.5s ease-in-out infinite;
+}
+
+.wm-terrain-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+}
+
+.wm-terrain-banner-text {
+  font-size: 0.85rem;
+  color: #00d4ff;
+  font-weight: 500;
+}
+
+.wm-terrain-skip-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: #3a3f4b;
+  border: 1px solid #4a4f5b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.wm-terrain-skip-btn:hover {
+  background: #4a4f5b;
+  border-color: #00d4ff;
+}
+
+.wm-terrain-fallback-msg {
+  font-size: 0.8rem;
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.08);
+  border-left: 3px solid #ffc107;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+
+@keyframes wmProgressSlide {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* =============================================== */
 /* ANIMATIONS */
 /* =============================================== */
 
@@ -641,7 +715,8 @@
 @media (prefers-reduced-motion: reduce) {
   .waypoint-modal-overlay,
   .waypoint-modal,
-  .loading-indicator {
+  .loading-indicator,
+  .wm-terrain-progress {
     animation: none;
   }
   
