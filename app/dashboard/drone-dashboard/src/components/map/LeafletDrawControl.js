@@ -36,7 +36,20 @@ const LeafletDrawControl = ({ onAreaChange }) => {
   const clickTimerRef = useRef(null);
   const pendingClickRef = useRef(null);
   const rafRef = useRef(null);
+  const instructionBarRef = useRef(null);
   const map = useMap();
+
+  // Prevent native DOM clicks on the instruction bar from reaching Leaflet's
+  // map click handler. React's stopPropagation only affects synthetic events;
+  // Leaflet listens on native DOM events. L.DomEvent.disableClickPropagation
+  // is the canonical solution (same as Leaflet's own zoom/layer controls).
+  useEffect(() => {
+    const el = instructionBarRef.current;
+    if (el) {
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+    }
+  }, []);
 
   // Calculate area and notify parent
   const notifyArea = useCallback(
@@ -244,14 +257,14 @@ const LeafletDrawControl = ({ onAreaChange }) => {
 
   return (
     <>
-      {/* Instruction bar — onClick (bubble phase) stops clicks from reaching the map */}
-      <div className="ldc-instruction-bar" onClick={e => e.stopPropagation()}>
+      {/* Instruction bar — ref used by L.DomEvent.disableClickPropagation */}
+      <div className="ldc-instruction-bar" ref={instructionBarRef}>
         <span className="ldc-instruction-text">{instruction}</span>
         <div className="ldc-action-group">
           {!isComplete && vertices.length > 0 && (
             <button
               className="ldc-action-btn ldc-action-btn--undo"
-              onClick={(e) => { e.stopPropagation(); handleUndo(); }}
+              onClick={handleUndo}
               title="Undo last point (Ctrl+Z)"
             >
               Undo
@@ -260,7 +273,7 @@ const LeafletDrawControl = ({ onAreaChange }) => {
           {!isComplete && vertices.length >= 3 && (
             <button
               className="ldc-action-btn ldc-action-btn--close"
-              onClick={(e) => { e.stopPropagation(); handleClose(); }}
+              onClick={handleClose}
             >
               Close Polygon
             </button>
@@ -268,7 +281,7 @@ const LeafletDrawControl = ({ onAreaChange }) => {
           {vertices.length > 0 && (
             <button
               className="ldc-action-btn ldc-action-btn--reset"
-              onClick={(e) => { e.stopPropagation(); handleClear(); }}
+              onClick={handleClear}
             >
               Reset
             </button>
