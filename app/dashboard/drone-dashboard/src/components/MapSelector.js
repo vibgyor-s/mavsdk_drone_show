@@ -68,6 +68,10 @@ const MapSelector = ({ onSelect, initialPosition }) => {
         center={[mapCenter.lat, mapCenter.lon]}
         zoom={13}
         maxZoom={22}
+        minZoom={2}
+        maxBounds={[[-90,-180],[90,180]]}
+        maxBoundsViscosity={1.0}
+        worldCopyJump={true}
         scrollWheelZoom
       >
         <LayersControl position="topright">
@@ -75,6 +79,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             <TileLayer
               attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              noWrap={true}
             />
           </LayersControl.BaseLayer>
 
@@ -82,6 +87,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             <TileLayer
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
               attribution="&copy; OpenTopoMap"
+              noWrap={true}
             />
           </LayersControl.BaseLayer>
 
@@ -94,6 +100,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
+              noWrap={true}
             />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Google Satellite">
@@ -101,6 +108,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
               url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
               attribution="Map data &copy; Google"
+              noWrap={true}
             />
         </LayersControl.BaseLayer>
         </LayersControl>

@@ -21,6 +21,17 @@ import CoveragePreview from '../components/sar/CoveragePreview';
 import POIMarkerSystem from '../components/sar/POIMarkerSystem';
 import DrawControl, { MapboxSetupInstructions } from '../components/sar/SearchAreaDrawer';
 
+// Leaflet fallback components
+import { useMapContext } from '../contexts/MapContext';
+import LeafletMapBase from '../components/map/LeafletMapBase';
+import LeafletDrawControl from '../components/map/LeafletDrawControl';
+import LeafletCoveragePreview from '../components/map/LeafletCoveragePreview';
+import LeafletPOIMarkers from '../components/map/LeafletPOIMarkers';
+import MapFallbackBanner from '../components/map/MapFallbackBanner';
+import MapProviderToggle from '../components/map/MapProviderToggle';
+import { Marker as LeafletMarker } from 'react-leaflet';
+import L from 'leaflet';
+
 // Styles
 import '../styles/QuickScout.css';
 
@@ -52,7 +63,19 @@ const DEFAULT_SURVEY_CONFIG = {
   camera_interval_s: 2,
 };
 
+// Create simple drone icon for Leaflet markers
+const createDroneIcon = (hwId) =>
+  L.divIcon({
+    html: `<div style="width:20px;height:20px;background:var(--color-primary,#00d4ff);border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${hwId}</div>`,
+    className: '',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+
 const QuickScoutPage = () => {
+  const { provider, isMapboxAvailable } = useMapContext();
+  const useLeaflet = provider === 'leaflet' || !isMapboxAvailable || !mapboxAvailable;
+
   // Mode
   const [mode, setMode] = useState('plan');
 
@@ -225,6 +248,7 @@ const QuickScoutPage = () => {
         <div className="qs-top-bar-left">
           <span className="qs-page-title">QuickScout SAR</span>
           <PlanMonitorToggle mode={mode} onModeChange={setMode} />
+          <MapProviderToggle />
         </div>
         {mode === 'monitor' && missionId && (
           <button
@@ -244,7 +268,8 @@ const QuickScoutPage = () => {
       <div className="qs-main-layout">
         {/* Map */}
         <div className="qs-map-container">
-          {mapboxAvailable ? (
+          {useLeaflet && <MapFallbackBanner />}
+          {!useLeaflet && mapboxAvailable ? (
             <Map
               initialViewState={viewport}
               mapboxAccessToken={mapboxToken}
@@ -292,6 +317,36 @@ const QuickScoutPage = () => {
                 </Marker>
               ))}
             </Map>
+          ) : useLeaflet ? (
+            <LeafletMapBase
+              center={[viewport.latitude || 0, viewport.longitude || 0]}
+              zoom={viewport.zoom || 3}
+              defaultLayer="esriSatellite"
+              style={{ width: '100%', height: '100%' }}
+            >
+              {mode === 'plan' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
+
+              <LeafletCoveragePreview
+                plans={coveragePlan?.plans}
+                missionStatus={missionStatus}
+              />
+
+              <LeafletPOIMarkers
+                pois={pois}
+                missionId={missionId}
+                onPOIAdded={handlePOIAdded}
+                addingPOI={addingPOI}
+              />
+
+              {/* Drone position markers */}
+              {drones.filter(d => d.position_lat && d.position_long).map((drone) => (
+                <LeafletMarker
+                  key={drone.hw_ID}
+                  position={[drone.position_lat, drone.position_long]}
+                  icon={createDroneIcon(drone.hw_ID)}
+                />
+              ))}
+            </LeafletMapBase>
           ) : (
             <MapboxSetupInstructions />
           )}

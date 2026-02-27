@@ -1,5 +1,8 @@
 // src/services/TerrainService.js
 // PHASE 3: Complete terrain integration with MapGL terrain source
+// PHASE 4: Added backend OpenTopoData fallback via ElevationService
+
+import { getTerrainElevation } from './ElevationService';
 
 /**
  * TerrainService - Complete AGL/MSL conversion with real terrain data
@@ -9,6 +12,7 @@
  * - Performance-optimized caching system
  * - Batch elevation processing
  * - User preference management
+ * PHASE 4: Backend OpenTopoData fallback when Mapbox unavailable
  */
 export class TerrainService {
     constructor() {
@@ -103,11 +107,31 @@ export class TerrainService {
           // PHASE 3: Query MapGL terrain elevation
           elevation = await this.queryMapboxTerrain(latitude, longitude);
         } catch (error) {
-          console.warn('Real terrain query failed, using estimation:', error);
-          elevation = this.estimateElevation(latitude, longitude);
+          console.warn('Real terrain query failed, trying backend fallback:', error);
+          // PHASE 4: Try backend OpenTopoData before falling back to estimation
+          try {
+            const result = await getTerrainElevation(latitude, longitude);
+            if (result.elevation !== null && result.source !== 'static') {
+              elevation = result.elevation;
+            } else {
+              elevation = this.estimateElevation(latitude, longitude);
+            }
+          } catch {
+            elevation = this.estimateElevation(latitude, longitude);
+          }
         }
       } else {
-        elevation = this.estimateElevation(latitude, longitude);
+        // PHASE 4: Try backend elevation when Mapbox is not available
+        try {
+          const result = await getTerrainElevation(latitude, longitude);
+          if (result.elevation !== null && result.source !== 'static') {
+            elevation = result.elevation;
+          } else {
+            elevation = this.estimateElevation(latitude, longitude);
+          }
+        } catch {
+          elevation = this.estimateElevation(latitude, longitude);
+        }
       }
   
       // Cache result

@@ -1,0 +1,123 @@
+/* src/styles/MapCommon.css */
+/* Shared map styles for dual-provider (Mapbox + Leaflet) system */
+
+.mds-map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--border-radius-lg, 8px);
+  overflow: hidden;
+  background: var(--color-bg-secondary, #2a2d3a);
+}
+
+.mds-map-container .leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-secondary, #2a2d3a);
+}
+
+.mds-map-overlay {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.mds-map-attribution {
+  font-size: 10px;
+  color: var(--color-text-tertiary, #6c757d);
+}
+
+/* Loading state */
+.mds-map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-overlay, rgba(0, 0, 0, 0.75));
+  z-index: 1001;
+}
+
+.mds-map-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-primary, #3a3f4b);
+  border-top-color: var(--brand-primary, #00d4ff);
+  border-radius: 50%;
+  animation: mds-spin 0.8s linear infinite;
+}
+
+@keyframes mds-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Fallback banner */
+.mds-map-fallback-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--color-warning-light, rgba(255, 193, 7, 0.15));
+  border: 1px solid var(--status-warning, #ffc107);
+  border-radius: var(--border-radius-md, 6px);
+  font-size: 13px;
+  color: var(--color-text-primary, #ffffff);
+}
+
+.mds-map-fallback-banner-text {
+  flex: 1;
+}
+
+.mds-map-fallback-banner-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mds-map-fallback-banner-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--color-text-secondary, #a2a5b9);
+}
+
+.mds-map-fallback-banner-actions button:hover {
+  background: var(--color-bg-tertiary, #3a3f4b);
+}
+
+/* Provider toggle */
+.mds-provider-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--color-bg-tertiary, #3a3f4b);
+  border: 1px solid var(--color-border-primary, #3a3f4b);
+  border-radius: var(--border-radius-md, 6px);
+  font-size: 12px;
+  color: var(--color-text-secondary, #a2a5b9);
+}
+
+.mds-provider-toggle select {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  outline: none;
+  padding: 0 2px;
+}
+
+.mds-provider-toggle select option {
+  background: var(--color-bg-secondary, #2a2d3a);
+  color: var(--color-text-primary, #ffffff);
+}
+
+/* Leaflet-specific overrides to fix white-on-zoom-out */
+.mds-map-container .leaflet-tile-pane {
+  background: var(--color-bg-secondary, #2a2d3a);
+}

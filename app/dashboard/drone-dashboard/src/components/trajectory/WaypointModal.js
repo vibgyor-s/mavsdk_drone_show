@@ -13,9 +13,8 @@ import {
   normalizeHeading,
   formatHeading
 } from '../../utilities/SpeedCalculator';
+import { getTerrainElevation } from '../../services/ElevationService';
 import '../../styles/WaypointModal.css';
-
-const MAPBOX_ACCESS_TOKEN = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
 
 const WaypointModal = ({
   isOpen,
@@ -97,71 +96,51 @@ const WaypointModal = ({
   }, [isOpen, previousWaypoint, position, waypointIndex]);
 
   useEffect(() => {
-    const fetchElevationFromTilequery = async (latitude, longitude) => {
-      if (!MAPBOX_ACCESS_TOKEN) {
-        console.error('Mapbox access token is missing.');
-        setTerrainError('Missing Mapbox access token');
+    const fetchElevation = async (latitude, longitude) => {
+      try {
+        setIsLoadingTerrain(true);
+        setTerrainError(null);
+
+        const result = await getTerrainElevation(latitude, longitude);
+        const elevation = result.elevation;
+
+        if (elevation !== null && elevation !== undefined) {
+          setGroundElevation(elevation);
+
+          // Only override altitude if it would be below ground level
+          setAltitude(prev => {
+            if (prev < elevation + 50) {
+              return elevation + 100;
+            }
+            return prev;
+          });
+
+          if (result.error) {
+            setTerrainError(result.error);
+          }
+
+          console.info(`Terrain elevation (${result.source}): Ground ${elevation.toFixed(1)}m MSL`);
+        } else {
+          setTerrainError('No elevation data available');
+          const estimatedGround = estimateBasicElevation(latitude, longitude);
+          setGroundElevation(estimatedGround);
+          setAltitude(prev => {
+            if (prev < estimatedGround + 50) {
+              return estimatedGround + 100;
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.error('Elevation fetch failed:', error);
+        setTerrainError('Query failed, using estimated data');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        
-        // Only override altitude if it would be below estimated ground level
         setAltitude(prev => {
           if (prev < estimatedGround + 50) {
             return estimatedGround + 100;
           }
           return prev;
-        });
-        setIsLoadingTerrain(false);
-        return;
-      }
-
-      try {
-        setIsLoadingTerrain(true);
-        setTerrainError(null);
-
-        const url = `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${longitude},${latitude}.json?layers=contour&limit=50&access_token=${MAPBOX_ACCESS_TOKEN}`;
-
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Tilequery API error: ${response.status}`);
-
-        const data = await response.json();
-
-        if (!data.features || data.features.length === 0) {
-          throw new Error('No elevation data found');
-        }
-
-        const elevations = data.features
-          .map(f => f.properties.ele)
-          .filter(ele => typeof ele === 'number');
-
-        if (elevations.length === 0) {
-          throw new Error('Elevation property missing in features');
-        }
-
-        const maxElevation = Math.max(...elevations);
-        setGroundElevation(maxElevation);
-        
-        // Only override altitude if it would be below ground level
-        setAltitude(prev => {
-          if (prev < maxElevation + 50) { // Ensure at least 50m above ground
-            return maxElevation + 100;
-          }
-          return prev; // Keep the pre-populated altitude from previous waypoint
-        });
-
-        console.info(`✅ Tilequery terrain: Ground ${maxElevation.toFixed(1)}m MSL, Suggested ${maxElevation + 100}m MSL`);
-      } catch (error) {
-        console.error('❌ Elevation fetch failed:', error);
-        setTerrainError('Query failed, using estimated data');
-        const estimatedGround = estimateBasicElevation(latitude, longitude);
-        setGroundElevation(estimatedGround);
-        
-        // Only override altitude if it would be below estimated ground level
-        setAltitude(prev => {
-          if (prev < estimatedGround + 50) { // Ensure at least 50m above estimated ground
-            return estimatedGround + 100;
-          }
-          return prev; // Keep the pre-populated altitude
         });
       } finally {
         setIsLoadingTerrain(false);
@@ -169,7 +148,7 @@ const WaypointModal = ({
     };
 
     if (isOpen && position) {
-      fetchElevationFromTilequery(position.latitude, position.longitude);
+      fetchElevation(position.latitude, position.longitude);
     }
   }, [isOpen, position]);
 

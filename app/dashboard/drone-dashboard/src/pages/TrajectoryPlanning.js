@@ -27,6 +27,14 @@ import {
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
 
+// Leaflet fallback components
+import { useMapContext } from '../contexts/MapContext';
+import LeafletMapBase from '../components/map/LeafletMapBase';
+import MapFallbackBanner from '../components/map/MapFallbackBanner';
+import MapProviderToggle from '../components/map/MapProviderToggle';
+import { Marker as LMarker, Polyline as LPolyline, CircleMarker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+
 // Import styles
 import '../styles/TrajectoryPlanning.css';
 
@@ -107,7 +115,32 @@ const estimateGroundElevation = (latitude, longitude) => {
  * - Basic elevation estimation (ground + 100m) for new waypoints
  * - Consistent integration with existing app architecture
  */
+// Leaflet click handler component for adding waypoints
+const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick }) => {
+  useMapEvents({
+    click(e) {
+      if (!isAddingWaypoint || isDragging) return;
+      onMapClick({
+        lngLat: { lng: e.latlng.lng, lat: e.latlng.lat },
+      });
+    },
+  });
+  return null;
+};
+
+// Create numbered waypoint icon for Leaflet
+const createWaypointIcon = (index, color) =>
+  L.divIcon({
+    html: `<div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${index + 1}</div>`,
+    className: '',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  });
+
 const TrajectoryPlanning = () => {
+  const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
+  const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable;
+
   // Enhanced state management with state manager
   const mapRef = useRef(null);
   const stateManagerRef = useRef(new TrajectoryStateManager());
@@ -571,7 +604,7 @@ const TrajectoryPlanning = () => {
 
   // Navigation functions
   const flyToWaypoint = useCallback((waypoint) => {
-    if (mapRef.current && mapboxAvailable) {
+    if (mapRef.current && mapboxAvailable && !useLeaflet) {
       try {
         mapRef.current.flyTo({
           center: [waypoint.longitude, waypoint.latitude],
@@ -582,12 +615,20 @@ const TrajectoryPlanning = () => {
       } catch (err) {
         console.warn('Navigation error:', err);
       }
+    } else {
+      // Leaflet mode: update viewState so map re-centers
+      setViewState(prev => ({
+        ...prev,
+        latitude: waypoint.latitude,
+        longitude: waypoint.longitude,
+        zoom: 15,
+      }));
     }
-  }, []);
+  }, [useLeaflet]);
 
   // Enhanced location select with elevation estimation
   const handleLocationSelect = useCallback(async (longitude, latitude, altitude = null) => {
-    if (mapRef.current && mapboxAvailable) {
+    if (mapRef.current && mapboxAvailable && !useLeaflet) {
       try {
         mapRef.current.flyTo({
           center: [longitude, latitude],
@@ -597,6 +638,14 @@ const TrajectoryPlanning = () => {
       } catch (err) {
         console.warn('Location select error:', err);
       }
+    } else {
+      // Leaflet mode: update viewState
+      setViewState(prev => ({
+        ...prev,
+        latitude,
+        longitude,
+        zoom: 12,
+      }));
     }
 
     // PHASE 3: Log estimated elevation for user awareness
@@ -679,14 +728,15 @@ const TrajectoryPlanning = () => {
     return '#007bff'; // Default - Blue
   }, [waypoints.length]);
 
-  // Error boundary - graceful degradation  
-  if (!mapboxAvailable && !mapboxToken) {
+  // Leaflet fallback: show Leaflet map when Mapbox unavailable
+  if (useLeaflet || (!mapboxAvailable && !mapboxToken) || !mapboxToken) {
     return (
       <div className="trajectory-planning">
         <div className="trajectory-header">
           <div className="header-left">
             <h1>Trajectory Planning</h1>
             <SearchBar onLocationSelect={handleLocationSelect} />
+            <MapProviderToggle />
           </div>
           <TrajectoryStats stats={trajectoryStats} />
         </div>
@@ -698,10 +748,10 @@ const TrajectoryPlanning = () => {
               onToggleAddWaypoint={() => setIsAddingWaypoint(!isAddingWaypoint)}
               onClearTrajectory={clearTrajectory}
               onExportTrajectory={exportTrajectory}
-              showTerrain={showTerrain}
-              onToggleTerrain={toggleTerrain}
-              sceneMode={sceneMode}
-              onSceneModeChange={handleSceneModeChange}
+              showTerrain={false}
+              onToggleTerrain={() => {}}
+              sceneMode="2D"
+              onSceneModeChange={() => {}}
               waypointCount={waypoints.length}
               canUndo={historyStatus.canUndo}
               canRedo={historyStatus.canRedo}
@@ -712,75 +762,59 @@ const TrajectoryPlanning = () => {
               saveStatus={saveStatus}
             />
 
-            <div className="trajectory-fallback-container">
-              <div className="trajectory-fallback-content">
-                <div className="fallback-header">
-                  <span className="fallback-icon">🎯</span>
-                  <h2>3D Trajectory Planning</h2>
-                </div>
-                <p className="fallback-description">Enhanced trajectory planning with 3D terrain visualization requires a free Mapbox token.</p>
-                
-                <div className="fallback-features">
-                  <h3>✨ Enhanced Features:</h3>
-                  <div className="features-grid">
-                    <div className="feature-item">
-                      <span className="feature-icon">🗺️</span>
-                      <span>Real terrain elevation</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">⚡</span>
-                      <span>Smart speed calculations</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">📱</span>
-                      <span>Responsive design</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">🔄</span>
-                      <span>Undo/redo system</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">💾</span>
-                      <span>Save/load trajectories</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">🎨</span>
-                      <span>Professional UI</span>
-                    </div>
+            <div className="map-container">
+              <MapFallbackBanner />
+              <LeafletMapBase
+                center={[viewState.latitude || 35.7262, viewState.longitude || 51.2721]}
+                zoom={viewState.zoom || 12}
+                defaultLayer="osm"
+                style={{ width: '100%', height: '100%' }}
+              >
+                <LeafletClickHandler
+                  isAddingWaypoint={isAddingWaypoint}
+                  isDragging={isDragging}
+                  onMapClick={handleMapClick}
+                />
+
+                {/* Trajectory line */}
+                {waypoints.length >= 2 && (
+                  <LPolyline
+                    positions={waypoints.map((wp) => [wp.latitude, wp.longitude])}
+                    pathOptions={{ color: '#00d4ff', weight: 4, opacity: 0.8 }}
+                  />
+                )}
+
+                {/* Waypoint markers */}
+                {waypoints.map((waypoint, index) => (
+                  <LMarker
+                    key={waypoint.id}
+                    position={[waypoint.latitude, waypoint.longitude]}
+                    icon={createWaypointIcon(index, getWaypointColor(waypoint, index))}
+                    draggable={true}
+                    eventHandlers={{
+                      dragstart: () => {
+                        setIsDragging(true);
+                        setDraggedWaypointId(waypoint.id);
+                      },
+                      dragend: (e) => {
+                        const { lat, lng } = e.target.getLatLng();
+                        handleMarkerDragEnd(waypoint.id, { latitude: lat, longitude: lng });
+                      },
+                      click: () => handleMarkerClick(waypoint.id),
+                    }}
+                  />
+                ))}
+              </LeafletMapBase>
+
+              {/* Instruction overlays */}
+              {isAddingWaypoint && !isDragging && (
+                <div className="map-instruction-overlay">
+                  <div className="instruction-content">
+                    <span className="instruction-icon">📍</span>
+                    <span className="instruction-text">Click on the map to add waypoint</span>
                   </div>
                 </div>
-
-                <div className="manual-waypoint-entry">
-                  <h3>Add Waypoint Manually:</h3>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target);
-                    const lat = parseFloat(formData.get('latitude'));
-                    const lng = parseFloat(formData.get('longitude'));
-                    let alt = parseFloat(formData.get('altitude'));
-                    
-                    // If no altitude provided, use estimation
-                    if (isNaN(alt)) {
-                      const groundElevation = estimateGroundElevation(lat, lng);
-                      alt = groundElevation + 100;
-                    }
-                    
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                      handleManualWaypointAdd(lat, lng, alt);
-                      e.target.reset();
-                    } else {
-                      alert('Please enter valid coordinates');
-                    }
-                  }}>
-                    <div className="form-row">
-                      <input name="latitude" type="number" step="any" placeholder="Latitude" required />
-                      <input name="longitude" type="number" step="any" placeholder="Longitude" required />
-                      <input name="altitude" type="number" step="1" placeholder="Altitude MSL (auto if empty)" />
-                      <button type="submit">Add Waypoint</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -795,7 +829,6 @@ const TrajectoryPlanning = () => {
           />
         </div>
 
-        {/* FIXED: Enhanced Waypoint Modal with real terrain integration */}
         <WaypointModal
           isOpen={modalOpen}
           onClose={handleModalClose}
@@ -803,29 +836,61 @@ const TrajectoryPlanning = () => {
           position={pendingWaypointPosition}
           previousWaypoint={getPreviousWaypoint()}
           waypointIndex={waypoints.length + 1}
-          mapRef={mapRef} // CRITICAL: Pass map reference for real terrain queries
+          mapRef={mapRef}
         />
-      </div>
-    );
-  }
 
-  // Token missing but Mapbox available
-  if (!mapboxToken) {
-    return (
-      <div className="trajectory-error">
-        <div className="error-content">
-          <h2>Mapbox Token Required</h2>
-          <p>3D trajectory planning with real terrain elevation requires a Mapbox access token.</p>
-          <div className="setup-instructions">
-            <h3>Quick Setup:</h3>
-            <ol>
-              <li>Get a <strong>free</strong> token from <a href="https://www.mapbox.com/" target="_blank" rel="noopener noreferrer">mapbox.com</a></li>
-              <li>Add to your .env: <code>REACT_APP_MAPBOX_ACCESS_TOKEN=your_token</code></li>
-              <li>Restart the application</li>
-            </ol>
-            <p><strong>Free tier:</strong> 50,000 map loads/month</p>
+        {/* Save Dialog */}
+        {showSaveDialog && (
+          <div className="dialog-overlay" onClick={() => setShowSaveDialog(false)}>
+            <div className="dialog-content" onClick={e => e.stopPropagation()}>
+              <h3>Save Trajectory</h3>
+              <input
+                type="text"
+                placeholder="Enter trajectory name"
+                defaultValue={trajectoryName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSave(e.target.value);
+                  else if (e.key === 'Escape') setShowSaveDialog(false);
+                }}
+                autoFocus
+              />
+              <div className="dialog-buttons">
+                <button onClick={() => setShowSaveDialog(false)}>Cancel</button>
+                <button onClick={(e) => {
+                  const input = e.target.parentElement.parentElement.querySelector('input');
+                  handleSave(input.value);
+                }}>Save</button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Load Dialog */}
+        {showLoadDialog && (
+          <div className="dialog-overlay" onClick={() => setShowLoadDialog(false)}>
+            <div className="dialog-content" onClick={e => e.stopPropagation()}>
+              <h3>Load Trajectory</h3>
+              <div className="trajectory-list">
+                {availableTrajectories.length === 0 ? (
+                  <p>No saved trajectories found</p>
+                ) : (
+                  availableTrajectories.map(traj => (
+                    <div key={traj.id} className="trajectory-item">
+                      <div className="trajectory-info">
+                        <strong>{traj.name}</strong>
+                        <small>{traj.waypoints.length} waypoints</small>
+                      </div>
+                      <button onClick={() => handleLoad(traj.id)}>Load</button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="dialog-buttons">
+                <button onClick={() => setShowLoadDialog(false)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -837,6 +902,7 @@ const TrajectoryPlanning = () => {
         <div className="header-left">
           <h1>Trajectory Planning</h1>
           <SearchBar onLocationSelect={handleLocationSelect} />
+          <MapProviderToggle />
         </div>
         <TrajectoryStats stats={trajectoryStats} />
       </div>

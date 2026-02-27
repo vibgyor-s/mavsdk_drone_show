@@ -108,18 +108,22 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map (Heading = {forwardHeading}°)</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} scrollWheelZoom>
+      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22}
+        minZoom={2} maxBounds={[[-90,-180],[90,180]]} maxBoundsViscosity={1.0}
+        worldCopyJump={true} scrollWheelZoom>
         <LayersControl position="topright">
           <BaseLayer checked name="Satellite">
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
+              noWrap={true}
             />
           </BaseLayer>
           <BaseLayer name="OpenStreetMap">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
+              noWrap={true}
             />
           </BaseLayer>
         </LayersControl>

@@ -15,6 +15,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import theme system
 import { ThemeProvider } from './contexts/ThemeContext';
+import { MapProvider } from './contexts/MapContext';
 
 // Import design tokens first
 import './styles/DesignTokens.css';
@@ -54,6 +55,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
+      <MapProvider>
       <Router>
       <div className="app-container">
         <SidebarMenu
@@ -100,6 +102,7 @@ const App = () => {
         progressClassName="toast-progress"
       />
       </Router>
+      </MapProvider>
     </ThemeProvider>
   );
 };

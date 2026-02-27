@@ -383,30 +383,38 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <MapContainer
           center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
           zoom={13}
+          minZoom={2}
+          maxBounds={[[-90,-180],[90,180]]}
+          maxBoundsViscosity={1.0}
+          worldCopyJump={true}
           style={{ height: '100%', width: '100%' }}
         >
           {currentTileLayer === 'OSM' && (
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              noWrap={true}
             />
           )}
           {currentTileLayer === 'OTM' && (
             <TileLayer
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
               attribution='&copy; OpenTopoMap contributors'
+              noWrap={true}
             />
           )}
           {currentTileLayer === 'ESRI' && (
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
               attribution='&copy; Esri'
+              noWrap={true}
             />
           )}
           {currentTileLayer === 'STAMEN' && (
             <TileLayer
               url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png"
               attribution='Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
+              noWrap={true}
             />
           )}
           <Marker
