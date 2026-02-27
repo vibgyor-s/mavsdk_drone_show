@@ -116,6 +116,8 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
+              maxNativeZoom={17}
+              maxZoom={22}
               noWrap={true}
             />
           </BaseLayer>
@@ -123,6 +125,8 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
+              maxNativeZoom={19}
+              maxZoom={22}
               noWrap={true}
             />
           </BaseLayer>

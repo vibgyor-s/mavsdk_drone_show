@@ -393,6 +393,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              maxNativeZoom={19}
+              maxZoom={22}
               noWrap={true}
             />
           )}
@@ -400,6 +402,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             <TileLayer
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
               attribution='&copy; OpenTopoMap contributors'
+              maxNativeZoom={17}
+              maxZoom={22}
               noWrap={true}
             />
           )}
@@ -407,6 +411,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
               attribution='&copy; Esri'
+              maxNativeZoom={17}
+              maxZoom={22}
               noWrap={true}
             />
           )}
@@ -414,6 +420,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             <TileLayer
               url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png"
               attribution='Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
+              maxNativeZoom={18}
+              maxZoom={22}
               noWrap={true}
             />
           )}

@@ -79,6 +79,8 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             <TileLayer
               attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxNativeZoom={19}
+              maxZoom={22}
               noWrap={true}
             />
           </LayersControl.BaseLayer>
@@ -87,19 +89,18 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             <TileLayer
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
               attribution="&copy; OpenTopoMap"
+              maxNativeZoom={17}
+              maxZoom={22}
               noWrap={true}
             />
           </LayersControl.BaseLayer>
 
-          {/*
-            "Google Satellite" is tricky, as official direct tiles from Google 
-            are behind paywalls or usage restrictions. We'll use a known 
-            'gdal2tiles' style server or fallback to an alternative satellite provider.
-          */}
-          <LayersControl.BaseLayer name="Satellite (gdal2tiles)">
+          <LayersControl.BaseLayer name="Satellite (Esri)">
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
+              maxNativeZoom={17}
+              maxZoom={22}
               noWrap={true}
             />
           </LayersControl.BaseLayer>
@@ -108,6 +109,8 @@ const MapSelector = ({ onSelect, initialPosition }) => {
               url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
               attribution="Map data &copy; Google"
+              maxNativeZoom={20}
+              maxZoom={22}
               noWrap={true}
             />
         </LayersControl.BaseLayer>

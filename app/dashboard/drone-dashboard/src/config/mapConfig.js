@@ -25,7 +25,7 @@ export const TILE_LAYERS = {
     name: 'Satellite (Esri)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-    maxNativeZoom: 18,
+    maxNativeZoom: 17, // varies by location (15-19); 17 is universally safe
   },
   openTopoMap: {
     name: 'OpenTopoMap',
