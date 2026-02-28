@@ -122,10 +122,17 @@ Load the downloaded image into Docker:
 
 ```bash
 docker load < drone-template.tar
+```
+
+This outputs something like: `Loaded image: drone-template:v3.0`
+
+Tag it as `latest` so the drone creation scripts can find it:
+
+```bash
 docker tag drone-template:v3.0 drone-template:latest
 ```
 
-> **Note:** Replace `v3.0` with the version tag of the image you downloaded. The `latest` tag is used by the drone creation scripts.
+> **Important:** Replace `v3.0` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required.
 
 #### Image Features and Components
 
