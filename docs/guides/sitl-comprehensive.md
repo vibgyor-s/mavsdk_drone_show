@@ -94,28 +94,21 @@ sudo apt update
 sudo apt install -y python3 python3-venv python3-pip tmux lsof git
 ```
 
-#### Installing Mediafire Downloader
-
-Install the Mediafire downloader to fetch the specialized drone image:
-
-```bash
-pip3 install git+https://github.com/Juvenal-Yescas/mediafire-dl
-```
-
 #### Downloading the Custom Drone Image
 
-In your home directory, download the latest image:
-
-```bash
-mediafire-dl 
-```
-
-If the script failed to download automatically from Mediafire (Mediafire Limitation), open [this link](http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar) in your browser, start downloading the file. Then pause the download and copy the download link. Now you can use `wget` to download the file as a workaround.
+Download the latest SITL drone image from the [MDS Releases page](https://github.com/alireza787b/mavsdk_drone_show/releases) or the link provided in the repository README. The image file is named `drone-template_v<VERSION>.tar` (e.g., `drone-template_v3.tar`).
 
 ```bash
 cd ~
-http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar
+wget <DOWNLOAD_URL> -O drone-template.tar
 ```
+
+> **Example** (v3 image via Mediafire):
+> ```bash
+> # If direct download doesn't work, open the link in a browser,
+> # start the download, pause it, and copy the actual download URL:
+> wget "http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar" -O drone-template.tar
+> ```
 
 ### Docker Installation
 
@@ -128,9 +121,11 @@ sudo apt install docker.io
 Load the downloaded image into Docker:
 
 ```bash
-docker load < drone-template_v3.
+docker load < drone-template.tar
 docker tag drone-template:v3.0 drone-template:latest
 ```
+
+> **Note:** Replace `v3.0` with the version tag of the image you downloaded. The `latest` tag is used by the drone creation scripts.
 
 #### Image Features and Components
 
