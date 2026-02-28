@@ -808,6 +808,8 @@ async def submit_command(request: Request):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        log_system_error(f"submit_command failed: {e}\n{traceback.format_exc()}", "command")
         raise HTTPException(status_code=500, detail=str(e))
 
 

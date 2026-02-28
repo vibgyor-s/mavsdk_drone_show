@@ -353,10 +353,11 @@ setup_python_env() {
         source "$VENV_DIR/bin/activate"
 
         log_message "Installing Python requirements..."
-        if pip install --upgrade pip && pip install -r "$BASE_DIR/requirements.txt"; then
+        local pip_log="$BASE_DIR/logs/pip_install.log"
+        if pip install --upgrade pip -q &>"$pip_log" && pip install -q -r "$BASE_DIR/requirements.txt" &>>"$pip_log"; then
             log_message "Python requirements installed successfully."
         else
-            log_message "ERROR: Failed to install Python requirements."
+            log_message "ERROR: Failed to install Python requirements. See $pip_log for details."
             exit 1
         fi
     else
@@ -552,7 +553,13 @@ log_message "  Git Remote: $GIT_REMOTE"
 log_message "  Git Branch: $GIT_BRANCH"
 log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
 log_message "  Base Directory: $BASE_DIR"
-log_message "  Simulation Mode: $SIMULATION_MODE"
+case $SIMULATION_MODE in
+    g) sim_mode_desc="Graphics Enabled (Gazebo)" ;;
+    j) sim_mode_desc="jMAVSim" ;;
+    h) sim_mode_desc="Headless (Graphics Disabled)" ;;
+    *) sim_mode_desc="Unknown ($SIMULATION_MODE)" ;;
+esac
+log_message "  Simulation Mode: $sim_mode_desc"
 log_message "  Verbose Mode: $VERBOSE_MODE"
 log_message ""
 

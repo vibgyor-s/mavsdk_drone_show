@@ -18,6 +18,8 @@ class HeartbeatSender:
     # Class-level flags to prevent log spam for expected SITL failures
     _network_info_error_logged = False
     _netbird_error_logged = False
+    _gcs_connection_error_logged = False
+    _gcs_connected = False
 
     def __init__(self, drone_config: DroneConfig):
         self.drone_config = drone_config
@@ -101,11 +103,21 @@ class HeartbeatSender:
         try:
             resp = requests.post(url, json=data, timeout=3)
             if resp.status_code == 200:
-                logging.info(f"Heartbeat OK: hw_id={hw_id}, ip={netbird_ip}")
+                if not HeartbeatSender._gcs_connected:
+                    HeartbeatSender._gcs_connected = True
+                    HeartbeatSender._gcs_connection_error_logged = False
+                    logging.info(f"Heartbeat connected to GCS: hw_id={hw_id}, ip={netbird_ip}")
+                else:
+                    logging.debug(f"Heartbeat OK: hw_id={hw_id}, ip={netbird_ip}")
             else:
                 logging.warning(f"Heartbeat failed with status {resp.status_code}: {resp.text}")
         except requests.RequestException as e:
-            logging.error(f"Heartbeat request exception: {e}")
+            HeartbeatSender._gcs_connected = False
+            if not HeartbeatSender._gcs_connection_error_logged:
+                HeartbeatSender._gcs_connection_error_logged = True
+                logging.warning(f"GCS unreachable (will retry silently): {e}")
+            else:
+                logging.debug(f"Heartbeat request exception: {e}")
 
     def _get_netbird_ip(self):
         """
