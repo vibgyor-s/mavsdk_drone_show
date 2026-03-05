@@ -11,9 +11,11 @@
 
 **CSV Structure:**
 ```
-OLD: hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip (8 columns)
-NEW: hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate (10 columns)
+OLD: hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate (10 columns)
+NEW: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate (6 columns)
 ```
+
+> **Note:** Positions (x,y) are no longer in config.csv. They come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`).
 
 ---
 
@@ -39,11 +41,11 @@ python3 test_config_simple.py
 **If you have Raspberry Pi 5 drones, update their entries:**
 ```csv
 # Change from:
-5,5,-2.5,-10.0,100.96.177.73,14555,13545,100.96.32.75,/dev/ttyS0,57600
+5,5,100.96.177.73,14555,/dev/ttyS0,57600
 
 # To:
-5,5,-2.5,-10.0,100.96.177.73,14555,13545,100.96.32.75,/dev/ttyAMA0,57600
-                                                          ^^^^^^^^^^^^
+5,5,100.96.177.73,14555,/dev/ttyAMA0,57600
+                        ^^^^^^^^^^^^
 ```
 
 **Then restart drone service:**
@@ -88,7 +90,7 @@ sed -i 's|/dev/ttyS0|/dev/ttyAMA0|g' config.csv
 ### Verify CSV Structure
 ```bash
 head -1 config.csv
-# Should show: hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate
+# Should show: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 ```
 
 ---
@@ -128,7 +130,6 @@ cp config_sitl.csv.backup config_sitl.csv
 
 # Revert code changes
 git checkout HEAD~1 gcs-server/config.py
-git checkout HEAD~1 functions/read_config.py
 git checkout HEAD~1 src/drone_config.py
 # ... (or just git reset --hard HEAD~1)
 
@@ -141,7 +142,7 @@ sudo systemctl restart coordinator
 
 ## 📖 Full Documentation
 
-- **Migration Guide:** `docs/CONFIG_CSV_MIGRATION_GUIDE.md`
+- **Migration Guide:** `docs/guides/csv-migration.md`
 - **Implementation Summary:** `IMPLEMENTATION_SUMMARY.md`
 - **Test Script:** `test_config_simple.py`
 
@@ -152,7 +153,7 @@ sudo systemctl restart coordinator
 1. **All RP4 drones work immediately** (defaults to `/dev/ttyS0`)
 2. **RP5 drones need manual update** to `/dev/ttyAMA0`
 3. **SITL mode unaffected** (uses N/A values, ignored)
-4. **Backward compatible** - old CSVs auto-upgrade with defaults
+4. **Not backward compatible** - old CSVs must be migrated to 6-column format
 5. **Git sync works** - changes commit normally
 
 ---
@@ -166,16 +167,16 @@ ssh drone_ip
 ls -la /dev/tty* | grep -E "ttyS0|ttyAMA0|ttyTHS1"
 
 # Verify config loaded
-cat config.csv | grep "^DRONE_HW_ID,"
+head -2 config.csv
 ```
 
 **Issue:** CSV upload fails
-- Ensure header has exactly 10 columns
+- Ensure header has exactly 6 columns: `hw_id,pos_id,ip,mavlink_port,serial_port,baudrate`
 - No spaces around commas
 - All rows have same column count
 
 **Issue:** Git auto-commit fails
-- Check CSV format (10 columns)
+- Check CSV format (6 columns)
 - Verify no syntax errors
 - Review `git status` for details
 

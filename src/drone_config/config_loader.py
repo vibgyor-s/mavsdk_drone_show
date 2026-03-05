@@ -28,29 +28,45 @@ class ConfigLoader:
     """
     Static utilities for loading drone configuration data.
 
+    TODO(deferred): Move from CSV to JSON/YAML configuration.
+    CSV is fragile (column order dependent, no nesting, no schema validation).
+    See docs/TODO_deferred.md #3
+
+    TODO(deferred): Central config service (pull-based).
+    Drones pull config from GCS API on boot instead of reading local CSV.
+    See docs/TODO_deferred.md #4
+
     All methods are class methods that don't require instance state,
     making them easy to test and use independently.
     """
 
     @staticmethod
-    def get_hw_id(hw_id: Optional[str] = None) -> Optional[str]:
+    def get_hw_id(hw_id: Optional[int] = None) -> Optional[int]:
         """
         Retrieve the hardware ID from provided value or .hwID file.
 
         Args:
-            hw_id: Optional hardware ID. If provided, returned as-is.
+            hw_id: Optional hardware ID (int). If provided, returned as-is.
 
         Returns:
-            Hardware ID string, or None if not found.
+            Hardware ID as int, or None if not found.
         """
         if hw_id is not None:
-            return hw_id
+            try:
+                return int(hw_id)
+            except (ValueError, TypeError):
+                logger.error(f"Provided hw_id is not a valid integer: {hw_id}")
+                return None
 
         hw_id_files = glob.glob("*.hwID")
         if hw_id_files:
             hw_id_file = hw_id_files[0]
             logger.info(f"Hardware ID file found: {hw_id_file}")
-            hw_id = hw_id_file.split(".")[0]
+            try:
+                hw_id = int(hw_id_file.split(".")[0])
+            except ValueError:
+                logger.error(f"Hardware ID filename is not a valid integer: {hw_id_file}")
+                return None
             logger.info(f"Hardware ID: {hw_id}")
             return hw_id
         else:
@@ -58,14 +74,14 @@ class ConfigLoader:
             return None
 
     @staticmethod
-    def read_file(filename: str, source: str, hw_id: str) -> Optional[Dict[str, Any]]:
+    def read_file(filename: str, source: str, hw_id: int) -> Optional[Dict[str, Any]]:
         """
         Read a CSV configuration file and return config for given hardware ID.
 
         Args:
             filename: Path to CSV file
             source: Description of file source (for logging)
-            hw_id: Hardware ID to find in CSV
+            hw_id: Hardware ID (int) to find in CSV
 
         Returns:
             Dictionary with configuration data, or None if not found.
@@ -74,7 +90,7 @@ class ConfigLoader:
             with open(filename, newline='') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
-                    if row['hw_id'] == hw_id:
+                    if row['hw_id'] == str(hw_id):
                         logger.info(f"Configuration for HW_ID {hw_id} found in {source}.")
                         return dict(row)
         except FileNotFoundError:
@@ -84,14 +100,14 @@ class ConfigLoader:
         return None
 
     @staticmethod
-    def fetch_online_config(url: str, local_filename: str, hw_id: str) -> Optional[Dict[str, Any]]:
+    def fetch_online_config(url: str, local_filename: str, hw_id: int) -> Optional[Dict[str, Any]]:
         """
         Fetch configuration from online source and save locally.
 
         Args:
             url: URL to fetch configuration from
             local_filename: Local file path to save fetched config
-            hw_id: Hardware ID to find in fetched config
+            hw_id: Hardware ID (int) to find in fetched config
 
         Returns:
             Dictionary with configuration data, or None if fetch failed.
@@ -114,14 +130,14 @@ class ConfigLoader:
             return None
 
     @staticmethod
-    def read_config(hw_id: str) -> Optional[Dict[str, Any]]:
+    def read_config(hw_id: int) -> Optional[Dict[str, Any]]:
         """
         Read configuration from local CSV file or online source.
 
         Uses Params.offline_config to determine source.
 
         Args:
-            hw_id: Hardware ID to load config for
+            hw_id: Hardware ID (int) to load config for
 
         Returns:
             Dictionary with configuration data, or None if not found.
@@ -132,14 +148,14 @@ class ConfigLoader:
             return ConfigLoader.fetch_online_config(Params.config_url, 'online_config.csv', hw_id)
 
     @staticmethod
-    def read_swarm(hw_id: str) -> Optional[Dict[str, Any]]:
+    def read_swarm(hw_id: int) -> Optional[Dict[str, Any]]:
         """
         Read swarm configuration from local CSV file or online source.
 
         Uses Params.offline_swarm to determine source.
 
         Args:
-            hw_id: Hardware ID to load swarm config for
+            hw_id: Hardware ID (int) to load swarm config for
 
         Returns:
             Dictionary with swarm configuration data, or None if not found.

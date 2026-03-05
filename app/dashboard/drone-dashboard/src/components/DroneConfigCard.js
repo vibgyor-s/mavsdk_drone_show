@@ -18,18 +18,9 @@ import {
   faSignal,
   faCheckCircle,
   faQuestionCircle,
+  faExchangeAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import '../styles/DroneConfigCard.css';
-
-/**
- * Utility: Finds a drone (other than the current one) that already uses `targetPosId`.
- * Returns the matched drone object or null if none is found.
- */
-function findDroneByPositionId(configData, targetPosId, excludeHwId) {
-  return configData.find(
-    (d) => d.pos_id === targetPosId && d.hw_id !== excludeHwId
-  );
-}
 
 /**
  * Compare config, assigned, and auto-detected pos_ids to decide how to display them.
@@ -91,6 +82,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   networkInfo,
   onEdit,
   onRemove,
+  onReplace,
   configPosId,
   assignedPosId,
   autoPosId,
@@ -319,11 +311,15 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       {/* Card Header */}
       <div className="drone-card-header">
         <div className="drone-id-section">
-          <h3 className="drone-title">Drone {drone.hw_id}</h3>
+          <h3 className="drone-title">Position {drone.pos_id}</h3>
           <div className="drone-subtitle">
-            <span className="drone-hardware-id">Hardware ID: {drone.hw_id}</span>
+            <span className="drone-hardware-id">
+              Hardware ID: {drone.hw_id}
+              <span className="info-tooltip" title="Unique physical identifier for this drone hardware. Set during initial setup.">&#8505;</span>
+            </span>
             <span className="drone-position-id">
               Position ID: {drone.pos_id}
+              <span className="info-tooltip" title={`Which show slot this drone flies. Maps to trajectory file 'Drone ${drone.pos_id}.csv'. Can be reassigned for hot-swap replacements.`}>&#8505;</span>
               {parseInt(drone.hw_id) !== parseInt(drone.pos_id) && (
                 <span className="role-swap-badge" title={`This drone is flying Position ${drone.pos_id}'s show instead of its own`}>
                   ⚠️ Role Swap
@@ -440,7 +436,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
       </div>
 
-      {/* Edit / Remove action buttons */}
+      {/* Edit / Remove / Replace action buttons */}
       <div className="button-group">
         <button
           className="action-button secondary"
@@ -450,6 +446,16 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         >
           <FontAwesomeIcon icon={faEdit} /> Edit
         </button>
+        {(heartbeatStatus === 'Offline (>60s)' || heartbeatStatus === 'No heartbeat') && onReplace && (
+          <button
+            className="action-button replace"
+            onClick={onReplace}
+            title="Replace this drone with a spare"
+            aria-label="Replace this drone"
+          >
+            <FontAwesomeIcon icon={faExchangeAlt} /> Replace
+          </button>
+        )}
         <button
           className="action-button danger"
           onClick={onRemove}
@@ -569,7 +575,7 @@ const DroneEditForm = memo(function DroneEditForm({
 
       <div className="drone-edit-form">
         <div className="form-header">
-          <h3>Edit Drone {droneData.hw_id}</h3>
+          <h3>Edit Position {droneData.pos_id} (HW {droneData.hw_id})</h3>
         </div>
 
         {/* Form Section */}
@@ -577,7 +583,10 @@ const DroneEditForm = memo(function DroneEditForm({
 
         {/* Hardware ID Field */}
         <div className="form-field">
-          <label className="form-label">Hardware ID</label>
+          <label className="form-label">
+            Hardware ID
+            <span className="info-tooltip" title="Unique physical identifier for this drone hardware. Set during initial setup.">&#8505;</span>
+          </label>
           <select
             name="hw_id"
             value={droneData.hw_id ? String(droneData.hw_id) : ''}
@@ -749,7 +758,10 @@ const DroneEditForm = memo(function DroneEditForm({
 
         {/* Position ID with toggle for custom vs. existing */}
         <div className="form-field">
-          <label className="form-label">Position ID</label>
+          <label className="form-label">
+            Position ID
+            <span className="info-tooltip" title={`Which show slot this drone flies. Maps to trajectory file 'Drone ${droneData.pos_id}.csv'. Can be reassigned for hot-swap replacements.`}>&#8505;</span>
+          </label>
           <div className="input-with-icon">
             {isCustomPosId ? (
               // A text field for entering a brand-new pos_id
@@ -807,6 +819,17 @@ const DroneEditForm = memo(function DroneEditForm({
             </div>
           </div>
           {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
+          {/* Real-time duplicate pos_id warning */}
+          {(() => {
+            const duplicateDrone = configData && configData.find(d =>
+              String(d.pos_id) === String(droneData.pos_id) && String(d.hw_id) !== String(droneData.hw_id)
+            );
+            return duplicateDrone ? (
+              <div style={{color: 'var(--color-danger)', fontSize: '0.85em', marginTop: '4px'}}>
+                ⚠ Position {droneData.pos_id} is already assigned to Hardware {duplicateDrone.hw_id}
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* If assigned pos_id != config pos_id, allow accept */}
@@ -884,6 +907,7 @@ export default function DroneConfigCard({
   setEditingDroneId,
   saveChanges,
   removeDrone,
+  onReplace,
   networkInfo,
   heartbeatData = null, // might be null or undefined
 }) {
@@ -1069,6 +1093,7 @@ export default function DroneConfigCard({
           autoPosId={autoPosId}
           onEdit={() => setEditingDroneId(drone.hw_id)}
           onRemove={() => removeDrone(drone.hw_id)}
+          onReplace={onReplace ? () => onReplace(drone.hw_id) : undefined}
           onAcceptConfigFromAuto={(detectedValue) => {
             if (!detectedValue || detectedValue === '0') return;
             // Note: x,y positions come from trajectory CSV - not stored in config
@@ -1114,6 +1139,9 @@ DroneConfigCard.propTypes = {
 
   /** Callback to remove the drone entirely. */
   removeDrone: PropTypes.func.isRequired,
+
+  /** Optional: callback to open the Replace Drone wizard for this drone. */
+  onReplace: PropTypes.func,
 
   /** Optional: network info object, if available. */
   networkInfo: PropTypes.object,

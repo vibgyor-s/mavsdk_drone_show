@@ -67,16 +67,15 @@ class GitStatus(str, Enum):
 # ============================================================================
 
 class DroneConfig(BaseModel):
-    """Individual drone configuration"""
+    """Individual drone configuration matching 6-column config.csv format"""
     model_config = ConfigDict(extra='ignore')  # Ignore unknown fields for forward compatibility
 
-    pos_id: int = Field(..., ge=0, description="Position ID (0-based)")
-    hw_id: str = Field(..., min_length=1, description="Hardware ID")
+    hw_id: int = Field(..., ge=1, description="Hardware ID (unique physical drone identifier)")
+    pos_id: int = Field(..., ge=1, description="Position ID (1-based, maps to trajectory 'Drone {pos_id}.csv')")
     ip: str = Field(..., pattern=r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', description="IP address")
-    connection_str: str = Field(..., description="MAVLink connection string")
-    x: Optional[float] = Field(None, description="X coordinate (meters)")
-    y: Optional[float] = Field(None, description="Y coordinate (meters)")
-    z: Optional[float] = Field(None, description="Z coordinate (meters)")
+    mavlink_port: str = Field(..., description="MAVLink UDP port")
+    serial_port: str = Field('', description="Serial port device path (empty for SITL)")
+    baudrate: str = Field('', description="Serial baudrate (empty for SITL)")
 
     @validator('ip')
     def validate_ip(cls, v):
@@ -233,7 +232,7 @@ class HeartbeatPostResponse(BaseModel):
 
 class DroneGitStatus(BaseModel):
     """Git status for individual drone"""
-    pos_id: int = Field(..., ge=0, description="Position ID")
+    pos_id: int = Field(..., ge=1, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
     ip: str = Field(..., description="Drone IP")
 
@@ -292,7 +291,7 @@ class TrajectoryPoint(BaseModel):
 
 class DroneTrajectory(BaseModel):
     """Complete trajectory for one drone"""
-    pos_id: int = Field(..., ge=0, description="Position ID")
+    pos_id: int = Field(..., ge=1, description="Position ID")
     hw_id: Optional[str] = Field(None, description="Hardware ID")
     waypoints: List[TrajectoryPoint] = Field(..., min_length=1, description="Trajectory waypoints")
     total_duration: float = Field(..., ge=0, description="Total trajectory duration (s)")
@@ -427,7 +426,7 @@ class GPSGlobalOriginResponse(BaseModel):
 
 class NetworkStatus(BaseModel):
     """Network connectivity status"""
-    pos_id: int = Field(..., ge=0, description="Position ID")
+    pos_id: int = Field(..., ge=1, description="Position ID")
     ip: str = Field(..., description="IP address")
     reachable: bool = Field(..., description="Network reachable")
     latency_ms: Optional[float] = Field(None, ge=0, description="Ping latency (ms)")

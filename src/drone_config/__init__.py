@@ -12,7 +12,7 @@ This package provides:
 
 Usage (backward compatible):
     from src.drone_config import DroneConfig
-    config = DroneConfig(drones, hw_id='1')
+    config = DroneConfig(drones, hw_id=1)
 
 Usage (new modular approach):
     from src.drone_config import ConfigLoader, DroneConfigData, DroneState
@@ -42,7 +42,7 @@ class DroneConfig:
     All existing code using DroneConfig continues to work unchanged.
     """
 
-    def __init__(self, drones: Optional[Dict] = None, hw_id: Optional[str] = None):
+    def __init__(self, drones: Optional[Dict] = None, hw_id: Optional[int] = None):
         """
         Initialize drone configuration.
 
@@ -50,6 +50,10 @@ class DroneConfig:
             drones: Dictionary of all drones in the swarm
             hw_id: Optional hardware ID. If not provided, read from .hwID file.
         """
+        # TODO(deferred): Validate config on drone boot — query GCS for
+        # duplicate pos_ids and refuse to arm if collision detected.
+        # See docs/TODO_deferred.md #5
+
         # Load configuration using static loader
         self._hw_id = ConfigLoader.get_hw_id(hw_id)
         config = ConfigLoader.read_config(self._hw_id) if self._hw_id else None
@@ -61,7 +65,7 @@ class DroneConfig:
 
         # Create immutable config data
         self._config_data = DroneConfigData(
-            hw_id=self._hw_id or '',
+            hw_id=self._hw_id or 0,
             config=config or {},
             swarm=swarm,
             pos_id=pos_id,
@@ -77,7 +81,7 @@ class DroneConfig:
     # =========================================================================
 
     @property
-    def hw_id(self) -> str:
+    def hw_id(self) -> int:
         """Hardware ID of this drone."""
         return self._config_data.hw_id
 
@@ -371,11 +375,11 @@ class DroneConfig:
     # Methods (delegating to appropriate component)
     # =========================================================================
 
-    def get_hw_id(self, hw_id: Optional[str] = None) -> Optional[str]:
+    def get_hw_id(self, hw_id: Optional[int] = None) -> Optional[int]:
         """Get hardware ID (static method wrapper for backward compatibility)."""
         return ConfigLoader.get_hw_id(hw_id)
 
-    def read_file(self, filename: str, source: str, hw_id: str) -> Optional[Dict[str, Any]]:
+    def read_file(self, filename: str, source: str, hw_id: int) -> Optional[Dict[str, Any]]:
         """Read CSV file (static method wrapper for backward compatibility)."""
         return ConfigLoader.read_file(filename, source, hw_id)
 

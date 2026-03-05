@@ -73,12 +73,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faTimesCircle} /> Missing Trajectory Files
             </h4>
             <p className="error-text">
-              Cannot save: The following drones have pos_id values without corresponding trajectory files:
+              Cannot save: The following drones have Position values without corresponding trajectory files:
             </p>
             <ul className="error-list">
               {warnings.missing_trajectories.map((item, idx) => (
                 <li key={idx}>
-                  <strong>Drone {item.hw_id}</strong> → pos_id {item.pos_id}: {item.message}
+                  <strong>Hardware {item.hw_id}</strong> → Position {item.pos_id}: {item.message}
                 </li>
               ))}
             </ul>
@@ -95,12 +95,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faExclamationTriangle} /> COLLISION RISK: Duplicate Position IDs
             </h4>
             <p className="warning-text">
-              Multiple drones are assigned the same pos_id! They will fly IDENTICAL trajectories and COLLIDE!
+              Multiple drones are assigned the same Position! They will fly IDENTICAL trajectories and COLLIDE!
             </p>
             <ul className="warning-list">
               {warnings.duplicates.map((dup, idx) => (
                 <li key={idx}>
-                  <strong>pos_id {dup.pos_id}</strong> assigned to drones: {dup.hw_ids.join(', ')}
+                  <strong>Position {dup.pos_id}</strong> assigned to Hardware IDs: {dup.hw_ids.join(', ')}
                 </li>
               ))}
             </ul>
@@ -146,10 +146,10 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             <table className="changes-table">
               <thead>
                 <tr>
-                  <th>Drone (hw_id)</th>
-                  <th>Old pos_id</th>
+                  <th>Hardware ID</th>
+                  <th>Old Position</th>
                   <th></th>
-                  <th>New pos_id</th>
+                  <th>New Position</th>
                 </tr>
               </thead>
               <tbody>

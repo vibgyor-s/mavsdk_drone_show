@@ -284,18 +284,17 @@ class DroneCommunicator:
         except struct.error as e:
             logging.error(f"Failed to unpack telemetry data: {e}")
 
-    def _update_drone_config_from_telemetry(self, hw_id: str, telemetry_data: tuple) -> None:
+    def _update_drone_config_from_telemetry(self, hw_id: int, telemetry_data: tuple) -> None:
         """
         Update drone configuration based on received telemetry data.
 
         Args:
-            hw_id (str): Hardware ID of the drone.
+            hw_id (int): Hardware ID of the drone.
             telemetry_data (tuple): Unpacked telemetry data.
         """
         position = {'lat': telemetry_data[6], 'long': telemetry_data[7], 'alt': telemetry_data[8]}
         velocity = {'north': telemetry_data[9], 'east': telemetry_data[10], 'down': telemetry_data[11]}
         self.drones[hw_id].update(
-            pos_id=telemetry_data[2],
             state=telemetry_data[3],
             mission=telemetry_data[4],
             trigger_time=telemetry_data[5],

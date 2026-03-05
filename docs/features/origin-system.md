@@ -36,7 +36,7 @@ A comprehensive origin coordinate system was implemented for a professional dron
 
 ### Critical Bug Fixed
 
-**OriginModal.js lines 128-129**: Coordinates were swapped - was sending `intended_east=drone.x`, `intended_north=drone.y`. Now correctly sends `intended_north=drone.x`, `intended_east=drone.y` to match the config.csv schema where **x=North, y=East** (NED coordinate system).
+**OriginModal.js lines 128-129**: Coordinates were swapped - was sending `intended_east=drone.x`, `intended_north=drone.y`. Now correctly sends `intended_north=drone.x`, `intended_east=drone.y` to match the trajectory CSV schema where **x=North, y=East** (NED coordinate system). Note: x,y positions now come from trajectory CSV files, not config.csv.
 
 ### Why This Matters
 
@@ -53,16 +53,22 @@ The show can go wrong because the execution loop zeros out CSV offsets from the 
 
 ## Critical Coordinate System Analysis
 
-### The Ground Truth: config.csv Schema
+### The Ground Truth: Trajectory CSV Files
+
+> **Note (v3.4):** The `x` and `y` columns have been removed from `config.csv`. Positions now come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`), where the first row contains `px` (North) and `py` (East).
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip
-1,1,10.5,5.2,192.168.1.101,14551,13541,192.168.1.1
+# config.csv (6 columns — no x,y):
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,192.168.1.101,14551,/dev/ttyS0,57600
+
+# Positions from trajectory file (Drone 1.csv first row):
+# px=10.5 (North), py=5.2 (East)
 ```
 
-**Definitive Mapping:**
-- `x` column = **North** (meters)
-- `y` column = **East** (meters)
+**Definitive Mapping (from trajectory CSV):**
+- `px` / `x` = **North** (meters)
+- `py` / `y` = **East** (meters)
 - This is **NED coordinate system** (North-East-Down)
 
 ### Evidence Trail
@@ -85,12 +91,13 @@ hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip
 
 There are **THREE distinct coordinate systems** in this project:
 
-#### 1. Config.csv Coordinates (NED Ground Truth)
-- **x = North** (meters)
-- **y = East** (meters)
-- Stored in `config.csv`
-- Represents desired launch positions relative to formation origin
+#### 1. Trajectory CSV Coordinates (NED Ground Truth)
+- **x / px = North** (meters)
+- **y / py = East** (meters)
+- Stored in trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`)
+- First row represents desired launch positions relative to formation origin
 - Used by: UI plots, backend calculations, trajectory planning
+- **Note:** These are NOT in config.csv (removed in v3.4)
 
 #### 2. PX4 GPS Global Origin (MAVLink Convention)
 - Set by PX4 autopilot at **first GPS lock** or when armed
@@ -119,7 +126,7 @@ Launch Position:      Where a specific drone should physically be (calculated)
 ### Coordinate Transformation Flow
 
 ```
-Formation Space (config.csv)
+Formation Space (trajectory CSV files)
     x=North, y=East (meters from formation origin)
               ↓
     Apply pymap3d.ned2geodetic()
@@ -638,25 +645,26 @@ The `drone_show.py` script orchestrates autonomous drone shows with these key ph
 ```python
 def read_config(filename: str) -> Drone:
     """
-    Read the drone configuration from a CSV file.
-    This CSV is assumed to store real NED coordinates directly:
-      - initial_x => North
-      - initial_y => East
+    Read the drone configuration from a CSV file and trajectory CSV.
+    Positions (initial_x, initial_y) come from trajectory CSV first row:
+      - px => North (initial_x)
+      - py => East (initial_y)
     """
-    # ...
-    initial_x = float(row["x"])  # North
-    initial_y = float(row["y"])  # East
+    # config.csv provides: hw_id, pos_id, ip, mavlink_port, serial_port, baudrate
+    # Trajectory CSV (Drone {pos_id}.csv) provides: px (North), py (East)
+    initial_x = first_trajectory_row["px"]  # North — from trajectory CSV
+    initial_y = first_trajectory_row["py"]  # East — from trajectory CSV
 
     drone = Drone(
         hw_id, pos_id,
-        initial_x, initial_y,  # ← Launch offsets
-        ip, mavlink_port, debug_port, gcs_ip
+        initial_x, initial_y,  # ← Launch offsets from trajectory CSV
+        ip, mavlink_port
     )
 ```
 
 **What It Does:**
-- Reads config.csv
-- Extracts `x` (North) and `y` (East) as **launch position offsets**
+- Reads config.csv for hardware/network configuration
+- Reads trajectory CSV (`Drone {pos_id}.csv`) for position offsets (px=North, py=East)
 - These represent where the drone **should be** relative to formation origin
 
 **Current Assumption:** Operator places drone exactly at `(initial_x, initial_y)`.
@@ -680,8 +688,8 @@ if auto_launch_position:
 **Mode B: Auto Launch Position = False** (DEFAULT)
 ```python
 else:
-    # Use config.csv initial_x, initial_y
-    # Shift trajectory so it starts from config position
+    # Use initial_x, initial_y from trajectory CSV first row
+    # Shift trajectory so it starts from that position
     waypoints = adjust_waypoints(waypoints, initial_x, initial_y, 0.0)
 ```
 
@@ -822,7 +830,7 @@ async for pos in drone.telemetry.position():
 
 ```python
 # Positioning modes
-AUTO_LAUNCH_POSITION = False  # Use config.csv positions vs first waypoint
+AUTO_LAUNCH_POSITION = False  # Use trajectory CSV first-row positions vs first waypoint
 ENABLE_INITIAL_POSITION_CORRECTION = True  # Apply PX4 origin drift
 
 # Offboard mode
@@ -838,7 +846,7 @@ REQUIRE_GLOBAL_POSITION = True  # Require GPS lock for pre-flight
 
 ```
 1. Operator places drone (assume it's at correct position)
-2. Script reads config.csv: initial_x=10.5, initial_y=5.2
+2. Script reads trajectory CSV: initial_x=10.5, initial_y=5.2 (from first row px, py)
 3. Script captures launch_lat/lon/alt = wherever drone is now
 4. Trajectory CSV is loaded and adjusted to start from (0,0,0)
 5. During execution:
@@ -859,7 +867,7 @@ REQUIRE_GLOBAL_POSITION = True  # Require GPS lock for pre-flight
 
 ```
 1. Operator places drones (doesn't need to be perfect)
-2. Script reads config.csv: initial_x=10.5, initial_y=5.2
+2. Script reads trajectory CSV: initial_x=10.5, initial_y=5.2 (from first row px, py)
 3. Script reads formation origin: origin_lat, origin_lon, origin_alt
 4. Calculate expected GPS position for this drone:
    expected_lat, expected_lon, expected_alt = ned2geodetic(
@@ -900,7 +908,7 @@ Integrate the origin system into `drone_show.py` to enable **origin-based execut
 
 2. **Calculate Expected Launch Position**
    - Read formation origin from backend API
-   - Calculate expected GPS position for this drone using config.csv offsets
+   - Calculate expected GPS position for this drone using trajectory CSV offsets
    - Compare with actual launch position
    - Log discrepancies
 
@@ -1144,7 +1152,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 │  │  └─ /get-position-deviations: Monitor deviations           │ │
 │  │                                                              │ │
 │  │  Data Store: origin.json (formation origin)                │ │
-│  │              config.csv (drone offsets)                     │ │
+│  │              config.csv (drone hw/network config)            │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                             ↓ WiFi/Network
@@ -1153,7 +1161,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ drone_show.py (Python)                          [PHASE 2]  │ │
 │  │  ├─ Read origin.json (formation origin)         [NEW]     │ │
-│  │  ├─ Read config.csv (this drone's offsets)                 │ │
+│  │  ├─ Read config.csv + trajectory CSV (offsets)             │ │
 │  │  ├─ Calculate expected GPS position              [NEW]     │ │
 │  │  ├─ Capture actual GPS position                            │ │
 │  │  ├─ Calculate correction vector                  [NEW]     │ │
@@ -1192,9 +1200,9 @@ def calculate_expected_position(config_north: float, config_east: float,
 ┌──────────────────────────────────────────────────────────────────┐
 │ STEP 2: Drone Startup (drone_show.py)                            │
 └──────────────────────────────────────────────────────────────────┘
-  Read config.csv for this drone (HW_ID=1):
-    config_north = 10.5m  (x column)
-    config_east = 5.2m    (y column)
+  Read config.csv for this drone (HW_ID=1) + trajectory CSV (Drone 1.csv):
+    config_north = 10.5m  (from trajectory CSV px column)
+    config_east = 5.2m    (from trajectory CSV py column)
 
   Read origin.json:
     origin_lat = 37.7749
@@ -1296,7 +1304,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 ```
 mavsdk_drone_show/
 ├── drone_show.py                 # Main execution script [PHASE 2 CHANGES]
-├── config.csv                    # Drone configuration (x=North, y=East)
+├── config.csv                    # Drone configuration (hw/network, no x,y)
 │
 ├── gcs-server/                   # Ground Control Server
 │   ├── app.py                    # Flask server
@@ -1327,7 +1335,7 @@ mavsdk_drone_show/
 │       └── Drone 1.csv           # px=North, py=East, pz=Down (NED)
 │
 └── docs/
-    └── ORIGIN_SYSTEM_IMPLEMENTATION_GUIDE.md  # This document
+    └── features/origin-system.md  # This document
 ```
 
 ---
@@ -1602,7 +1610,7 @@ time curl http://localhost:5000/get-position-deviations
 | **Formation Origin** | GPS coordinates defining (0,0,0) for the drone formation. Set by operator. | Our new system from Phase 1 |
 | **PX4 GPS Origin** | GPS coordinates where PX4 thinks (0,0,0) is. Auto-set at arming/first GPS lock. | **NOT the same as formation origin!** |
 | **Launch Position** | Actual GPS coordinates where a drone is physically located at startup. | Captured from telemetry |
-| **Expected Position** | GPS coordinates where a drone **should be** based on config.csv offsets. | Calculated from formation origin + offsets |
+| **Expected Position** | GPS coordinates where a drone **should be** based on trajectory CSV offsets. | Calculated from formation origin + offsets |
 
 ### Modes and Parameters
 
@@ -1822,8 +1830,8 @@ def calculate_expected_position(config_north: float, config_east: float,
         dict: Expected GPS position with keys 'lat', 'lon', 'alt'
 
     Example:
-        config_north = 10.5  # From config.csv x column
-        config_east = 5.2    # From config.csv y column
+        config_north = 10.5  # From trajectory CSV px column
+        config_east = 5.2    # From trajectory CSV py column
         origin = {'lat': 37.7749, 'lon': -122.4194, 'alt': 45.5}
 
         expected = calculate_expected_position(config_north, config_east, origin)

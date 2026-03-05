@@ -151,7 +151,7 @@ const DroneWidget = ({
       }}>
         <div className="drone-header">
           <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
-          <span>Drone {drone[FIELD_NAMES.HW_ID] || 'Unknown'}</span>
+          <span>Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
         </div>
       </h3>
 

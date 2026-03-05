@@ -6,7 +6,6 @@ import sys
 from typing import Optional
 from functions.plot_drone_paths import plot_drone_paths
 from functions.process_drone_files import process_drone_files
-from functions.update_config_file import update_config_file
 from src.params import Params
 
 def setup_logging(log_level: int = logging.INFO) -> None:
@@ -76,15 +75,11 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         logging.info(f"[run_formation_process] Input drone count: {input_count}")
 
         # 1) Process new CSV (this will raise exception if any file fails)
-        logging.info(f"[run_formation_process] Step 1/3: Processing drone trajectory files...")
+        logging.info(f"[run_formation_process] Step 1/2: Processing drone trajectory files...")
         processed_files = process_drone_files(skybrush_dir, processed_dir, method='cubic', dt=Params.csv_dt)
 
-        # 2) Update config
-        logging.info(f"[run_formation_process] Step 2/3: Updating configuration file...")
-        update_config_file(skybrush_dir, config_file)
-
-        # 3) Plot
-        logging.info(f"[run_formation_process] Step 3/3: Generating 3D visualizations...")
+        # 2) Plot
+        logging.info(f"[run_formation_process] Step 2/2: Generating 3D visualizations...")
         plot_drone_paths(base_dir, show_plots=False)
 
         # ====================================================================

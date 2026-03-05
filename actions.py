@@ -50,7 +50,6 @@ This script executes various drone actions using MAVSDK:
 import argparse
 import asyncio
 import csv
-import glob
 import logging
 import logging.handlers
 import os
@@ -62,6 +61,7 @@ import time
 import psutil
 from mavsdk import System, telemetry, action
 from mavsdk.action import ActionError
+from src.drone_config import ConfigLoader
 from src.led_controller import LEDController
 from src.params import Params
 
@@ -169,59 +169,6 @@ async def log_mavsdk_output(mavsdk_server):
                 logger.error(f"MAVSDK Server Error: {msg}")
     except Exception:
         logger.exception("Error reading MAVSDK server stderr")
-
-def read_hw_id():
-    """
-    Attempts to read the first *.hwID file in the current directory
-    and parse it as an integer hardware ID.
-    """
-    hwid_files = glob.glob('*.hwID')
-    if hwid_files:
-        filename = hwid_files[0]
-        hw_id_str = os.path.splitext(filename)[0]
-        logger.info(f"Hardware ID file detected: {filename}")
-        try:
-            hw_id = int(hw_id_str)
-            logger.info(f"Hardware ID {hw_id} detected.")
-            return hw_id
-        except ValueError:
-            logger.error(f"Invalid hardware ID format in {filename}. Expected an integer.")
-            return None
-    else:
-        logger.warning("No .hwID file found.")
-        return None
-
-def read_config(filename=Params.config_csv_name):
-    """
-    Reads the drone configuration from a CSV file matching the HW_ID.
-    Returns a dictionary with drone_config or None if not found/failed.
-    """
-    global HW_ID
-    logger.info("Reading drone configuration...")
-    try:
-        with open(filename, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                hw_id = int(row.get('hw_id', -1))
-                if hw_id == HW_ID:
-                    drone_config = {
-                        'hw_id': hw_id,
-                        'pos_id': int(row.get('pos_id', -1)),
-                        'x': float(row.get('x', 0.0)),
-                        'y': float(row.get('y', 0.0)),
-                        'ip': row.get('ip', ''),
-                        'udp_port': int(row.get('mavlink_port', UDP_PORT)),
-                        'grpc_port': 50040 + hw_id,  # Standard GRPC port calculation
-                        # Note: gcs_ip removed - now centralized in Params.GCS_IP
-                    }
-                    logger.info(f"Drone configuration: {drone_config}")
-                    return drone_config
-        logger.warning(f"No matching HW_ID {HW_ID} found in config file.")
-    except FileNotFoundError:
-        logger.error(f"Config file '{filename}' not found.")
-    except Exception:
-        logger.exception("Error reading config file")
-    return None
 
 def stop_mavsdk_server(mavsdk_server):
     """
@@ -337,7 +284,7 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
 
     # For init_sysid, we do need a valid HW_ID. That is checked later in init_sysid logic.
     # For apply_common_params or normal flight actions, we also read HW_ID for consistency.
-    HW_ID = read_hw_id()
+    HW_ID = ConfigLoader.get_hw_id()
 
     if action not in ["init_sysid", "update_code"]:
         # For normal flight actions (and apply_common_params), we also read config
@@ -346,7 +293,7 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
             fail()
             return
 
-        drone_config = read_config()
+        drone_config = ConfigLoader.read_config(HW_ID)  # Returns raw CSV row dict (keys: hw_id, pos_id, ip, mavlink_port, serial_port, baudrate)
         if not drone_config:
             logger.error("Drone config not found, cannot proceed.")
             fail()
@@ -755,7 +702,7 @@ async def test(drone):
         led_controller.set_color(255, 0, 0)
         await asyncio.sleep(1)
         await drone.action.arm()
-        led_controller.set_color(255, 255, white)
+        led_controller.set_color(255, 255, 255)
         await asyncio.sleep(1)
         led_controller.set_color(0, 0, 255)
         await asyncio.sleep(1)
@@ -887,7 +834,9 @@ async def init_sysid(drone):
         led_controller.set_color(255, 255, 0)
         await asyncio.sleep(0.5)
 
-        # Set MAV_SYS_ID param
+        # TODO(deferred): Decouple hw_id from MAV_SYS_ID for >254 drone support.
+        # Currently hw_id == MAV_SYS_ID. MAVLink limits to uint8 (1-254).
+        # See docs/TODO_deferred.md #1
         await drone.param.set_param_int("MAV_SYS_ID", HW_ID)
         logger.info("MAV_SYS_ID parameter set successfully.")
 

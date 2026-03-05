@@ -12,6 +12,7 @@ import OriginModal from '../components/OriginModal';
 import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
+import ReplaceDroneWizard from '../components/ReplaceDroneWizard';
 import axios from 'axios';
 
 // Hooks
@@ -75,6 +76,10 @@ const MissionConfig = () => {
   // Save Review Dialog
   const [showSaveReviewDialog, setShowSaveReviewDialog] = useState(false);
   const [validationReport, setValidationReport] = useState(null);
+
+  // Replace Drone Wizard
+  const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
+  const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
 
   // -----------------------------------------------------
   // Data Fetching using custom hooks
@@ -390,12 +395,12 @@ const MissionConfig = () => {
     const dronesNeedingReset = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
 
     if (dronesNeedingReset.length === 0) {
-      toast.info('All drones are already set to default (hw_id = pos_id)');
+      toast.info('All drones are already set to default (each hardware flies its own position)');
       return;
     }
 
     // Show confirmation dialog with preview
-    const message = `Reset ${dronesNeedingReset.length} drone(s) to default configuration?\n\nThis will set pos_id = hw_id for:\n${dronesNeedingReset.map(d => `Drone ${d.hw_id}: pos_id ${d.pos_id} → ${d.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git"`;
+    const message = `Reset ${dronesNeedingReset.length} drone(s) so each hardware flies its own position?\n\nThis will set Position = Hardware ID for:\n${dronesNeedingReset.map(d => `Hardware ${d.hw_id}: Position ${d.pos_id} → ${d.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git"`;
 
     if (window.confirm(message)) {
       // Reset pos_id to hw_id for all drones
@@ -409,9 +414,9 @@ const MissionConfig = () => {
     }
   };
 
-  // Sort config data
+  // Sort config data by pos_id (show position order)
   const sortedConfigData = [...configData].sort(
-    (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
+    (a, b) => parseInt(a.pos_id, 10) - parseInt(b.pos_id, 10)
   );
 
   // -----------------------------------------------------
@@ -453,10 +458,10 @@ const MissionConfig = () => {
             {duplicates.length > 0 && (
               <div className="warning-section collision-warning">
                 <FontAwesomeIcon icon={faExclamationTriangle} />
-                <strong> COLLISION RISK:</strong> Duplicate pos_id detected!
+                <strong> COLLISION RISK:</strong> Duplicate Position detected!
                 {duplicates.map(([posId, hwIds]) => (
                   <span key={posId} className="duplicate-detail">
-                    {' '}pos_id {posId} → drones {hwIds.join(', ')}
+                    {' '}Position {posId} → Hardware IDs {hwIds.join(', ')}
                   </span>
                 ))}
               </div>
@@ -467,7 +472,7 @@ const MissionConfig = () => {
                 <strong> {roleSwaps.length} Role Swap(s) Active:</strong>
                 {roleSwaps.slice(0, 3).map(d => (
                   <span key={d.hw_id} className="role-swap-detail">
-                    {' '}Drone {d.hw_id}→Pos {d.pos_id}
+                    {' '}Hardware {d.hw_id} → Position {d.pos_id}
                   </span>
                 ))}
                 {roleSwaps.length > 3 && (
@@ -548,7 +553,7 @@ const MissionConfig = () => {
                 {roleSwapData.map((drone) => (
                   <tr key={drone.hw_id}>
                     <td>
-                      <strong>Drone {drone.hw_id}</strong>
+                      <strong>Hardware {drone.hw_id}</strong>
                     </td>
                     <td style={{ textAlign: 'center' }}>→</td>
                     <td>
@@ -643,6 +648,10 @@ const MissionConfig = () => {
                 setEditingDroneId={setEditingDroneId}
                 saveChanges={saveChanges}
                 removeDrone={removeDrone}
+                onReplace={(hwId) => {
+                  setReplaceDroneTarget(hwId);
+                  setReplaceDroneModalOpen(true);
+                }}
                 networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
                 heartbeatData={heartbeats[drone.hw_id] || null}
                 style={{ animationDelay: `${index * 0.1}s` }}
@@ -671,6 +680,22 @@ const MissionConfig = () => {
           />
         </div>
       </div>
+
+      {/* Replace Drone Wizard */}
+      <ReplaceDroneWizard
+        isOpen={replaceDroneModalOpen}
+        onClose={() => {
+          setReplaceDroneModalOpen(false);
+          setReplaceDroneTarget(null);
+        }}
+        configData={configData}
+        heartbeats={heartbeats}
+        preselectedHwId={replaceDroneTarget}
+        onSave={(updatedConfig) => {
+          setConfigData(updatedConfig);
+          toast.success('Drone replacement applied. Remember to save your changes!');
+        }}
+      />
 
       {/* Save Review Dialog */}
       <SaveReviewDialog

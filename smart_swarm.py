@@ -103,6 +103,7 @@ import navpy
 import requests
 import numpy as np  # Added for numerical computations
 
+from src.drone_config import ConfigLoader
 from src.led_controller import LEDController
 from src.params import Params
 import aiohttp 
@@ -217,29 +218,6 @@ def parse_float(field_value, default=0.0):
 #
 #     # Limit the number of log files TODO!
 #     #limit_log_files(logs_directory, MAX_LOG_FILES)
-
-def read_hw_id() -> int:
-    """
-    Read the hardware ID from a file with the extension '.hwID'.
-
-    Returns:
-        int: Hardware ID if found, else None.
-    """
-    logger = logging.getLogger(__name__)
-    # Adjust the path to look for the hwID file in the same directory as the script
-    hwid_files = [f for f in os.listdir('.') if f.endswith('.hwID')]
-    if hwid_files:
-        filename = hwid_files[0]
-        hw_id = os.path.splitext(filename)[0]  # Get filename without extension
-        logger.info(f"Hardware ID {hw_id} detected.")
-        try:
-            return int(hw_id)
-        except ValueError:
-            logger.error(f"Invalid HW ID format in file '{filename}'. Must be an integer.")
-            return None
-    else:
-        logger.error("Hardware ID file not found.")
-        return None
 
 def read_config_csv(filename: str):
     """
@@ -1135,7 +1113,7 @@ async def run_smart_swarm():
     # --------------------------- #
 
     # Read hardware ID from .hwID file
-    HW_ID = read_hw_id()
+    HW_ID = ConfigLoader.get_hw_id()
     if HW_ID is None:
         logger.error("Hardware ID not found.")
         sys.exit(1)

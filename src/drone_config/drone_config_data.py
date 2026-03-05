@@ -29,7 +29,7 @@ class DroneConfigData:
         all_configs: Dictionary of all drone positions {pos_id: {x, y}}
     """
 
-    hw_id: str
+    hw_id: int
     config: Dict[str, Any]
     swarm: Optional[Dict[str, Any]]
     pos_id: int

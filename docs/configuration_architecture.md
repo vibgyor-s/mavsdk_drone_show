@@ -95,12 +95,12 @@ Returns drone configuration (NO x,y fields).
 ```json
 [
   {
-    "hw_id": "1",
-    "pos_id": "1",
+    "hw_id": 1,
+    "pos_id": 1,
     "ip": "100.96.240.11",
-    "mavlink_port": "14551",
+    "mavlink_port": 14551,
     "serial_port": "/dev/ttyS0",
-    "baudrate": "57600"
+    "baudrate": 57600
   }
 ]
 ```
@@ -126,12 +126,12 @@ Saves configuration (x,y automatically stripped if present).
 ```json
 [
   {
-    "hw_id": "1",
-    "pos_id": "1",
+    "hw_id": 1,
+    "pos_id": 1,
     "ip": "100.96.240.11",
-    "mavlink_port": "14551",
+    "mavlink_port": 14551,
     "serial_port": "/dev/ttyS0",
-    "baudrate": "57600"
+    "baudrate": 57600
   }
 ]
 ```
@@ -244,8 +244,8 @@ Gets position for single pos_id (used for individual updates).
 2. Ensure all trajectory CSV files exist in `shapes/swarm/processed/`
 
 **After updating**:
-1. Old `config.csv` with x,y columns will work (backend strips x,y on save)
-2. First save will migrate to new format automatically
+1. Old `config.csv` with x,y columns must be migrated to 6-column format (x,y columns removed)
+2. Use the Mission Config UI to re-save, which will write the new format automatically
 3. Hard refresh browser (Ctrl+Shift+R) to clear cached UI
 
 **Verification**:
@@ -320,5 +320,5 @@ A: Not recommended. The old x,y fields caused bugs. Use trajectory CSV as source
 
 ---
 
-**Last Updated**: 2025-11-20
-**Version**: 2.0 (Single Source of Truth Architecture)
+**Last Updated**: 2026-03-05
+**Version**: 3.4 (6-column config.csv, positions from trajectory CSV only, hw_id is int)

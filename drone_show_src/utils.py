@@ -1,6 +1,5 @@
 import os
 import sys
-import glob
 import logging
 import logging.handlers
 from datetime import datetime
@@ -92,27 +91,11 @@ def configure_logging(mission_type="drone_show"):
 
 # Legacy limit_log_files function removed - no more archives, just simple one-log-per-mission
 
-def read_hw_id() -> int:
-    """
-    Read the hardware ID from a file with the extension '.hwID'.
-
-    Returns:
-        int: Hardware ID if found, else None.
-    """
-    logger = logging.getLogger(__name__)
-    hwid_files = glob.glob(os.path.join('*.hwID'))
-    if hwid_files:
-        filename = os.path.basename(hwid_files[0])
-        hw_id = os.path.splitext(filename)[0]  # Get filename without extension
-        logger.info(f"Hardware ID {hw_id} detected.")
-        try:
-            return int(hw_id)
-        except ValueError:
-            logger.error(f"Invalid HW ID format in file '{filename}'. Must be an integer.")
-            return None
-    else:
-        logger.error("Hardware ID file not found.")
-        return None
+def read_hw_id():
+    """Read hardware ID from .hwID file. Delegates to ConfigLoader.
+    Returns int or None if not found (callers check for None)."""
+    from src.drone_config import ConfigLoader
+    return ConfigLoader.get_hw_id()
 
 def clamp_led_value(value):
     """

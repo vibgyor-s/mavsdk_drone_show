@@ -1,9 +1,9 @@
 # Configuration CSV Migration Guide
 
-## Configuration System Cleanup (v3.3+)
+## Configuration System Cleanup (v3.4)
 
-**Date:** November 2025
-**Version:** 3.3
+**Date:** March 2026
+**Version:** 3.4
 **Impact:** Medium - Requires CSV file updates and system restart
 
 ---
@@ -19,9 +19,9 @@ The `config.csv` and `config_sitl.csv` files have been **simplified and moderniz
 hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate
 ```
 
-**New Format (8 columns - v3.3):**
+**New Format (6 columns - v3.4):**
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 ```
 
 ### Removed Columns
@@ -30,14 +30,17 @@ hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
 |--------|-------------------|--------------|
 | `debug_port` | Deprecated UDP telemetry feature no longer used | Removed entirely |
 | `gcs_ip` | Same for all drones; causes configuration redundancy | Centralized in `src/params.py` with UI configuration |
+| `x` | Redundant; caused synchronization bugs | Positions come from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`) |
+| `y` | Redundant; caused synchronization bugs | Positions come from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`) |
 
 ### Key Improvements
 
-✅ **Cleaner Configuration** - Reduced from 10 to 8 columns
+✅ **Cleaner Configuration** - Reduced from 10 to 6 columns
+✅ **Single Source of Truth** - Positions (x,y) come only from trajectory CSV files, not config.csv
 ✅ **GCS Configuration UI** - New "Configure GCS" button for centralized GCS IP management
 ✅ **Custom Hardware Options** - UI dropdowns now support custom serial ports and baudrates
 ✅ **Git Integration** - GCS configuration changes auto-commit to repository
-✅ **No Backward Compatibility** - Only supports new 8-column format (clean break)
+✅ **No Backward Compatibility** - Only supports new 6-column format (clean break)
 
 ---
 
@@ -106,7 +109,7 @@ The GCS IP address is used by all drones for:
 
 ### ⚠️ Breaking Change Notice
 
-**Version 3.3 does NOT support backward compatibility.** The old 10-column format will be rejected.
+**Version 3.4 does NOT support backward compatibility.** The old 10-column format will be rejected.
 
 You MUST migrate your CSV files before upgrading.
 
@@ -116,8 +119,8 @@ You MUST migrate your CSV files before upgrading.
 
 ```bash
 cd ~/mavsdk_drone_show
-cp config.csv config.csv.v3.2.backup
-cp config_sitl.csv config_sitl.csv.v3.2.backup
+cp config.csv config.csv.v3.3.backup
+cp config_sitl.csv config_sitl.csv.v3.3.backup
 ```
 
 #### Step 2: Update config.csv Header
@@ -129,10 +132,10 @@ hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate
 
 **New header:**
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 ```
 
-#### Step 3: Remove debug_port and gcs_ip Columns
+#### Step 3: Remove x, y, debug_port, and gcs_ip Columns
 
 **Before (10 columns):**
 ```csv
@@ -141,12 +144,14 @@ hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate
 2,2,-2.5,5.0,100.96.28.52,14552,13542,100.96.32.75,/dev/ttyAMA0,57600
 ```
 
-**After (8 columns):**
+**After (6 columns):**
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,-2.5,10.0,100.96.240.11,14551,/dev/ttyS0,57600
-2,2,-2.5,5.0,100.96.28.52,14552,/dev/ttyAMA0,57600
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,100.96.240.11,14551,/dev/ttyS0,57600
+2,2,100.96.28.52,14552,/dev/ttyAMA0,57600
 ```
+
+> **Note:** The `x` and `y` position columns have been removed. Drone positions are now sourced exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`). This eliminates the dual-source-of-truth bug where config.csv and trajectory files could have conflicting positions.
 
 #### Step 4: Update GCS IP in params.py
 
@@ -163,9 +168,9 @@ Or use the UI after deployment (Configure GCS button).
 Same process for SITL configuration:
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,-13.5,13.5,172.18.0.2,14563,N/A,N/A
-2,2,-13.5,10.5,172.18.0.3,14564,N/A,N/A
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,172.18.0.2,14563,N/A,N/A
+2,2,172.18.0.3,14564,N/A,N/A
 ```
 
 #### Step 6: Test Configuration
@@ -188,44 +193,44 @@ sudo systemctl restart gcs-server
 ### Example 1: Homogeneous Fleet (All RP4)
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,0,0,100.96.1.10,14551,/dev/ttyS0,57600
-2,2,5,0,100.96.1.11,14552,/dev/ttyS0,57600
-3,3,10,0,100.96.1.12,14553,/dev/ttyS0,57600
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,100.96.1.10,14551,/dev/ttyS0,57600
+2,2,100.96.1.11,14552,/dev/ttyS0,57600
+3,3,100.96.1.12,14553,/dev/ttyS0,57600
 ```
 
 ### Example 2: Mixed Fleet (RP4 + RP5)
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,0,0,100.96.1.10,14551,/dev/ttyS0,57600
-2,2,5,0,100.96.1.11,14552,/dev/ttyAMA0,57600
-3,3,10,0,100.96.1.12,14553,/dev/ttyS0,57600
-4,4,15,0,100.96.1.13,14554,/dev/ttyAMA0,57600
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,100.96.1.10,14551,/dev/ttyS0,57600
+2,2,100.96.1.11,14552,/dev/ttyAMA0,57600
+3,3,100.96.1.12,14553,/dev/ttyS0,57600
+4,4,100.96.1.13,14554,/dev/ttyAMA0,57600
 ```
 
 ### Example 3: High-Performance Setup (Jetson)
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,0,0,100.96.1.10,14551,/dev/ttyTHS1,921600
-2,2,5,0,100.96.1.11,14552,/dev/ttyTHS1,921600
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,100.96.1.10,14551,/dev/ttyTHS1,921600
+2,2,100.96.1.11,14552,/dev/ttyTHS1,921600
 ```
 
 ### Example 4: Custom Serial Configuration
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,0,0,100.96.1.10,14551,/dev/ttyUSB0,38400
-2,2,5,0,100.96.1.11,14552,/dev/ttyACM0,115200
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,100.96.1.10,14551,/dev/ttyUSB0,38400
+2,2,100.96.1.11,14552,/dev/ttyACM0,115200
 ```
 
 ### Example 5: SITL Configuration
 
 ```csv
-hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate
-1,1,-13.5,13.5,172.18.0.2,14563,N/A,N/A
-2,2,-13.5,10.5,172.18.0.3,14564,N/A,N/A
+hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+1,1,172.18.0.2,14563,N/A,N/A
+2,2,172.18.0.3,14564,N/A,N/A
 ```
 
 ---
@@ -306,7 +311,7 @@ When clicking "Add New Drone", the system automatically sets:
 ### Backend (Python)
 
 1. **gcs-server/config.py** (Line 17)
-   - Updated `CONFIG_COLUMNS` to 8 columns (removed debug_port, gcs_ip)
+   - Updated `CONFIG_COLUMNS` to 6 columns (removed x, y, debug_port, gcs_ip)
 
 2. **gcs-server/gcs_config_updater.py** (NEW FILE)
    - Module for safe programmatic editing of `src/params.py`
@@ -366,21 +371,21 @@ When clicking "Add New Drone", the system automatically sets:
     - Added "Custom" option to baudrate dropdown with text input
 
 16. **app/dashboard/drone-dashboard/src/utilities/missionConfigUtilities.js**
-    - Updated to 8-column format
+    - Updated to 6-column format
     - Removed backward compatibility (clean break)
     - Updated expectedFields array
     - Simplified parseCSV (only supports new format)
-    - Updated exportConfig for 8 columns
+    - Updated exportConfig for 6 columns
 
 ### Configuration Files
 
 17. **config.csv**
-    - Reduced from 10 to 8 columns
-    - Removed debug_port and gcs_ip columns
+    - Reduced from 10 to 6 columns
+    - Removed x, y, debug_port, and gcs_ip columns
 
 18. **config_sitl.csv**
-    - Reduced from 10 to 8 columns
-    - Removed debug_port and gcs_ip columns
+    - Reduced from 10 to 6 columns
+    - Removed x, y, debug_port, and gcs_ip columns
 
 ---
 
@@ -391,10 +396,10 @@ When clicking "Add New Drone", the system automatically sets:
 **Cause:** Using old 10-column format or incorrect header
 
 **Solution:**
-1. Ensure header is exactly: `hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate`
+1. Ensure header is exactly: `hw_id,pos_id,ip,mavlink_port,serial_port,baudrate`
 2. No spaces around commas
-3. All rows must have exactly 8 columns
-4. Remove debug_port and gcs_ip columns from old CSV
+3. All rows must have exactly 6 columns
+4. Remove x, y, debug_port, and gcs_ip columns from old CSV
 
 ### Issue: Drones can't connect to GCS after upgrade
 
@@ -466,7 +471,7 @@ When clicking "Add New Drone", the system automatically sets:
 - [ ] Test CSV upload in Mission Config UI
 - [ ] Test "Configure GCS" button
 - [ ] Verify custom serial port/baudrate options work
-- [ ] Export CSV and verify 8 columns
+- [ ] Export CSV and verify 6 columns
 
 ### After Deployment
 
@@ -483,7 +488,10 @@ When clicking "Add New Drone", the system automatically sets:
 ## FAQ
 
 **Q: Can I still use the old 10-column format?**
-A: No. Version 3.3 removes backward compatibility. You must migrate to 8 columns.
+A: No. Version 3.4 removes backward compatibility. You must migrate to 6 columns.
+
+**Q: Where did the x,y columns go?**
+A: Removed. Positions now come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`). This eliminates synchronization bugs caused by having two sources of truth.
 
 **Q: Where do I set the GCS IP now?**
 A: Either edit `src/params.py` directly or use the "Configure GCS" button in the Mission Config UI.
@@ -518,7 +526,7 @@ A: Yes. Use git to revert the commit or manually edit src/params.py.
 
 If you encounter issues during migration:
 
-1. Check backup files: `config.csv.v3.2.backup`
+1. Check backup files: `config.csv.v3.3.backup`
 2. Run test script: `python3 test_config_simple.py`
 3. Review Flask logs: `journalctl -u gcs-server -f`
 4. Check browser console for frontend errors
@@ -531,7 +539,8 @@ If you encounter issues during migration:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| **3.3** | **Nov 2025** | **Removed debug_port and gcs_ip; added GCS configuration UI; custom hardware options** |
+| **3.4** | **Mar 2026** | **Removed x,y columns (positions from trajectory CSV only); 6-column format; deleted legacy read_config.py and update_config_file.py; hw_id is int everywhere; pos_id is 1-based** |
+| 3.3 | Nov 2025 | Removed debug_port and gcs_ip; added GCS configuration UI; custom hardware options (8 columns) |
 | 3.2 | Nov 2025 | Added `serial_port` and `baudrate` columns (10 columns total) |
 | 3.1 | Earlier | Added environment variable support for Git config |
 | 3.0 | Earlier | Initial multi-drone support |

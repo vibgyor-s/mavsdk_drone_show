@@ -262,8 +262,8 @@ export const generateKML = (drones, originLat, originLon) => {
 
             kml += `
         <Placemark>
-          <name>Drone ${drone.hw_id}</name>
-          <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
+          <name>Position ${drone.pos_id} (HW ${drone.hw_id})</name>
+          <description>Position: ${drone.pos_id}, Hardware ID: ${drone.hw_id}</description>
           <Point>
             <coordinates>${longitude},${latitude},0</coordinates>
           </Point>

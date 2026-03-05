@@ -128,9 +128,13 @@ class DroneState:
         self.is_accelerometer_calibration_ok: bool = False
         self.is_magnetometer_calibration_ok: bool = False
 
-    def find_target_drone(self, hw_id: str, swarm: Optional[Dict]) -> None:
+    def find_target_drone(self, hw_id: int, swarm: Optional[Dict]) -> None:
         """
         Determine which drone this drone should follow in a swarm.
+
+        TODO(deferred): Auto-update follow chains when role swaps occur.
+        Currently follow references hw_id; if a drone is replaced, followers
+        lose their target. See docs/TODO_deferred.md #2
 
         Args:
             hw_id: This drone's hardware ID

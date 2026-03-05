@@ -91,7 +91,7 @@ const DeviationView = ({
     textposition: 'middle center',
     hovertemplate:
       '<b>Expected Position</b><br>' +
-      'Drone: %{customdata.hw_id} (P%{customdata.pos_id})<br>' +
+      'Position %{customdata.pos_id} (HW %{customdata.hw_id})<br>' +
       'North: %{customdata.north:.2f}m<br>' +
       'East: %{customdata.east:.2f}m<extra></extra>'
   };
@@ -113,7 +113,7 @@ const DeviationView = ({
     },
     hovertemplate:
       '<b>Current Position</b><br>' +
-      'Drone: %{customdata.hw_id} (P%{customdata.pos_id})<br>' +
+      'Position %{customdata.pos_id} (HW %{customdata.hw_id})<br>' +
       'North: %{customdata.current_north:.2f}m<br>' +
       'East: %{customdata.current_east:.2f}m<br>' +
       '<b>Deviation: %{customdata.deviation:.2f}m</b><br>' +
@@ -374,15 +374,15 @@ const DeviationView = ({
             </div>
             <div className="legend-item">
               <span className="marker current ok"></span>
-              <span>Current (OK &lt; 2m)</span>
+              <span>Current (OK ≤ 3m)</span>
             </div>
             <div className="legend-item">
               <span className="marker current warning"></span>
-              <span>Current (Warning 2-5m)</span>
+              <span>Current (Warning 3–7.5m)</span>
             </div>
             <div className="legend-item">
               <span className="marker current error"></span>
-              <span>Current (Error &gt; 5m)</span>
+              <span>Current (Error &gt; 7.5m)</span>
             </div>
             <div className="legend-item">
               <span className="line deviation"></span>

@@ -341,7 +341,7 @@ const OriginModal = ({
                 <option value="">-- Select Drone --</option>
                 {configData.map((drone) => (
                   <option key={drone.hw_id} value={drone.hw_id}>
-                    Drone {drone.hw_id}
+                    Position {drone.pos_id} (HW {drone.hw_id})
                   </option>
                 ))}
               </select>

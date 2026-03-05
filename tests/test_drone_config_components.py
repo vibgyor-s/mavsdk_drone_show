@@ -21,9 +21,14 @@ class TestConfigLoader:
     """Test ConfigLoader static methods"""
 
     def test_get_hw_id_with_provided_id(self):
-        """Test that provided hw_id is returned directly"""
-        result = ConfigLoader.get_hw_id('test123')
-        assert result == 'test123'
+        """Test that provided hw_id is returned as int"""
+        result = ConfigLoader.get_hw_id(123)
+        assert result == 123
+
+    def test_get_hw_id_with_invalid_value(self):
+        """Test that non-integer hw_id returns None"""
+        result = ConfigLoader.get_hw_id('not_a_number')
+        assert result is None
 
     def test_get_hw_id_with_none_and_no_file(self):
         """Test that None is returned when no .hwID file exists"""
@@ -35,7 +40,7 @@ class TestConfigLoader:
         """Test that hw_id is read from .hwID file"""
         with patch('glob.glob', return_value=['42.hwID']):
             result = ConfigLoader.get_hw_id(None)
-            assert result == '42'
+            assert result == 42
 
     def test_read_file_success(self, tmp_path):
         """Test reading a valid CSV file"""
@@ -43,7 +48,7 @@ class TestConfigLoader:
         csv_file = tmp_path / "test_config.csv"
         csv_file.write_text(csv_content)
 
-        result = ConfigLoader.read_file(str(csv_file), 'test', '1')
+        result = ConfigLoader.read_file(str(csv_file), 'test', 1)
         assert result is not None
         assert result['hw_id'] == '1'
         assert result['pos_id'] == '1'
@@ -55,12 +60,12 @@ class TestConfigLoader:
         csv_file = tmp_path / "test_config.csv"
         csv_file.write_text(csv_content)
 
-        result = ConfigLoader.read_file(str(csv_file), 'test', '999')
+        result = ConfigLoader.read_file(str(csv_file), 'test', 999)
         assert result is None
 
     def test_read_file_not_found(self):
         """Test reading non-existent file"""
-        result = ConfigLoader.read_file('/nonexistent/file.csv', 'test', '1')
+        result = ConfigLoader.read_file('/nonexistent/file.csv', 'test', 1)
         assert result is None
 
     def test_read_config_offline_mode(self):
@@ -70,7 +75,7 @@ class TestConfigLoader:
             mock_params.config_csv_name = '/test/config.csv'
 
             with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1'}):
-                result = ConfigLoader.read_config('1')
+                result = ConfigLoader.read_config(1)
                 assert result == {'hw_id': '1'}
 
     def test_read_config_online_mode(self):
@@ -80,7 +85,7 @@ class TestConfigLoader:
             mock_params.config_url = 'http://test.com/config.csv'
 
             with patch.object(ConfigLoader, 'fetch_online_config', return_value={'hw_id': '1'}):
-                result = ConfigLoader.read_config('1')
+                result = ConfigLoader.read_config(1)
                 assert result == {'hw_id': '1'}
 
     def test_read_swarm_offline_mode(self):
@@ -90,7 +95,7 @@ class TestConfigLoader:
             mock_params.swarm_csv_name = '/test/swarm.csv'
 
             with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1', 'follow': '0'}):
-                result = ConfigLoader.read_swarm('1')
+                result = ConfigLoader.read_swarm(1)
                 assert result == {'hw_id': '1', 'follow': '0'}
 
     def test_fetch_online_config_success(self, tmp_path):
@@ -107,7 +112,7 @@ class TestConfigLoader:
             result = ConfigLoader.fetch_online_config(
                 'http://test.com/config.csv',
                 str(local_file),
-                '1'
+                1
             )
             assert result is not None
             assert result['hw_id'] == '1'
@@ -123,7 +128,7 @@ class TestConfigLoader:
             result = ConfigLoader.fetch_online_config(
                 'http://test.com/config.csv',
                 '/tmp/test.csv',
-                '1'
+                1
             )
             assert result is None
 
@@ -157,7 +162,7 @@ class TestDroneConfigData:
     def test_create_config_data(self):
         """Test creating DroneConfigData instance"""
         config = DroneConfigData(
-            hw_id='1',
+            hw_id=1,
             config={'pos_id': 1, 'ip': '10.0.0.1'},
             swarm={'follow': '0'},
             pos_id=1,
@@ -165,7 +170,7 @@ class TestDroneConfigData:
             all_configs={1: {'x': 0, 'y': 0}}
         )
 
-        assert config.hw_id == '1'
+        assert config.hw_id == 1
         assert config.pos_id == 1
         assert config.takeoff_altitude == 10.0
         assert config.config['ip'] == '10.0.0.1'
@@ -173,7 +178,7 @@ class TestDroneConfigData:
     def test_get_serial_port_from_config(self):
         """Test getting serial port from config"""
         config = DroneConfigData(
-            hw_id='1',
+            hw_id=1,
             config={'serial_port': '/dev/ttyAMA0'},
             swarm=None,
             pos_id=1,
@@ -186,7 +191,7 @@ class TestDroneConfigData:
     def test_get_serial_port_fallback(self):
         """Test serial port fallback to Params default"""
         config = DroneConfigData(
-            hw_id='1',
+            hw_id=1,
             config={},
             swarm=None,
             pos_id=1,
@@ -200,7 +205,7 @@ class TestDroneConfigData:
     def test_get_baudrate_from_config(self):
         """Test getting baudrate from config"""
         config = DroneConfigData(
-            hw_id='1',
+            hw_id=1,
             config={'baudrate': '921600'},
             swarm=None,
             pos_id=1,
@@ -213,7 +218,7 @@ class TestDroneConfigData:
     def test_get_baudrate_fallback(self):
         """Test baudrate fallback to Params default"""
         config = DroneConfigData(
-            hw_id='1',
+            hw_id=1,
             config={},
             swarm=None,
             pos_id=1,
@@ -263,19 +268,19 @@ class TestDroneState:
         state = DroneState()
         swarm = {'follow': '0'}
 
-        state.find_target_drone('1', swarm)
+        state.find_target_drone(1, swarm)
         assert state.target_drone is None
 
     def test_find_target_drone_follower(self):
         """Test finding target when drone follows another"""
         target = Mock()
-        target.hw_id = '2'
+        target.hw_id = 2
         drones = {2: target}
 
         state = DroneState(drones)
         swarm = {'follow': '2'}
 
-        state.find_target_drone('1', swarm)
+        state.find_target_drone(1, swarm)
         assert state.target_drone == target
 
     def test_find_target_drone_self_follow_error(self):
@@ -284,7 +289,7 @@ class TestDroneState:
         swarm = {'follow': '1'}
 
         # Should log error but not crash
-        state.find_target_drone('1', swarm)
+        state.find_target_drone(1, swarm)
         assert state.target_drone is None
 
     def test_radian_to_degrees_heading_positive(self):
@@ -305,28 +310,28 @@ class TestDroneConfigFacade:
 
     def test_facade_initialization(self):
         """Test that facade initializes correctly"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value={'follow': '0'}):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
-                            assert config.hw_id == '1'
+                            assert config.hw_id == 1
                             assert config.pos_id == 1
 
     def test_facade_config_properties(self):
         """Test that config properties delegate correctly"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1', 'ip': '10.0.0.1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value={'follow': '0'}):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             assert config.config['ip'] == '10.0.0.1'
                             assert config.swarm['follow'] == '0'
@@ -334,14 +339,14 @@ class TestDroneConfigFacade:
 
     def test_facade_state_properties(self):
         """Test that state properties can be read and written"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value=None):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             # Test setting/getting state properties
                             config.battery = 12.5
@@ -365,16 +370,16 @@ class TestDroneConfigFacade:
                         mock_params.default_takeoff_alt = 10.0
 
                         # Use a custom hw_id directly
-                        config = DroneConfig(drones={}, hw_id='1')
+                        config = DroneConfig(drones={}, hw_id=1)
 
-                        # Test get_hw_id method - when called with a value, should return that value
-                        result = config.get_hw_id('test')
-                        assert result == 'test'
+                        # Test get_hw_id method - when called with a value, should return int
+                        result = config.get_hw_id(99)
+                        assert result == 99
 
                         # Test with None - will try to read from .hwID file
                         with patch('glob.glob', return_value=['42.hwID']):
                             result = config.get_hw_id(None)
-                            assert result == '42'
+                            assert result == 42
 
                         # Test radian_to_degrees_heading
                         import math
@@ -390,26 +395,26 @@ class TestBackwardCompatibility:
         mock_config = Mock(spec=DroneConfig)
 
         # These should not raise AttributeError
-        mock_config.hw_id = '1'
+        mock_config.hw_id = 1
         mock_config.pos_id = 1
         mock_config.position = {'lat': 0, 'long': 0, 'alt': 0}
         mock_config.is_armed = False
         mock_config.mission = 0
         mock_config.battery = 12.0
 
-        assert mock_config.hw_id == '1'
+        assert mock_config.hw_id == 1
         assert mock_config.is_armed is False
 
     def test_attribute_access_pattern(self):
         """Test that common attribute access patterns work"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1', 'ip': '10.0.0.1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value={'follow': '0'}):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             # Common patterns used in existing code
                             _ = config.hw_id
@@ -432,14 +437,14 @@ class TestTakeoffAltitudeSetter:
 
     def test_setter_updates_runtime_altitude(self):
         """Test that setting takeoff_altitude updates the runtime value"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value=None):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             # Initially returns default
                             assert config.takeoff_altitude == 10.0
@@ -450,14 +455,14 @@ class TestTakeoffAltitudeSetter:
 
     def test_runtime_altitude_cleared_restores_default(self):
         """Test that clearing runtime altitude restores the default"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value=None):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             # Set and then clear
                             config.takeoff_altitude = 25.0
@@ -472,14 +477,14 @@ class TestDroneConfigUpdate:
 
     def test_update_mutable_fields(self):
         """Test updating mutable telemetry fields"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value=None):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             config.update(
                                 state=1,
@@ -495,14 +500,14 @@ class TestDroneConfigUpdate:
 
     def test_update_ignores_unknown_fields(self):
         """Test that unknown fields are ignored"""
-        with patch.object(ConfigLoader, 'get_hw_id', return_value='1'):
+        with patch.object(ConfigLoader, 'get_hw_id', return_value=1):
             with patch.object(ConfigLoader, 'read_config', return_value={'pos_id': '1'}):
                 with patch.object(ConfigLoader, 'read_swarm', return_value=None):
                     with patch.object(ConfigLoader, 'load_all_configs', return_value={}):
                         with patch('src.drone_config.Params') as mock_params:
                             mock_params.default_takeoff_alt = 10.0
 
-                            config = DroneConfig(drones={}, hw_id='1')
+                            config = DroneConfig(drones={}, hw_id=1)
 
                             # Should not raise exception for unknown fields
                             config.update(

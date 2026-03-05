@@ -116,7 +116,7 @@ function InitialLaunchPlot({
         {
           x: xPlotValues,
           y: yPlotValues,
-          text: customData.map((d) => d.hw_id),
+          text: customData.map((d) => `Pos ${d.pos_id}`),
           customdata: customData,
           type: 'scatter',
           mode: 'markers+text',
@@ -136,8 +136,7 @@ function InitialLaunchPlot({
           },
           textposition: 'middle center',
           hovertemplate:
-            '<b>Hardware ID:</b> %{customdata.hw_id}<br>' +
-            '<b>Position ID:</b> %{customdata.pos_id}<br>' +
+            '<b>Position %{customdata.pos_id} | Hardware %{customdata.hw_id}</b><br>' +
             '<b>North (raw x):</b> %{customdata.north}<br>' +
             '<b>East (raw y):</b> %{customdata.east}<br>' +
             '<b>Xᵣₒₜ (plot):</b> %{x:.2f}<br>' +
