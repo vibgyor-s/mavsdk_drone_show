@@ -59,6 +59,7 @@ class GitStatus(str, Enum):
     AHEAD = "ahead"
     BEHIND = "behind"
     DIVERGED = "diverged"
+    DIRTY = "dirty"
     UNKNOWN = "unknown"
 
 

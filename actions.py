@@ -778,7 +778,7 @@ async def update_code(branch=None):
         script_path = os.path.join('tools', 'update_repo_ssh.sh')
         command = [script_path]
         if branch:
-            command.append(branch)
+            command.extend(['--branch', branch])
         logger.info(f"Executing update script: {' '.join(command)}")
 
         process = await asyncio.create_subprocess_exec(
@@ -787,7 +787,20 @@ async def update_code(branch=None):
         stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
-            logger.error(f"Update script failed: {stderr.decode().strip()}")
+            stderr_text = stderr.decode().strip()
+            stdout_text = stdout.decode().strip()
+            logger.error(f"Update script failed (exit={process.returncode}): {stderr_text}")
+            # Parse structured failure result if available
+            for line in stdout_text.splitlines():
+                if line.startswith("GIT_SYNC_RESULT="):
+                    try:
+                        import json
+                        result = json.loads(line[len("GIT_SYNC_RESULT="):])
+                        logger.error(f"Sync failure detail: error={result.get('error')}, "
+                                     f"message={result.get('message')}")
+                    except Exception:
+                        pass
+                    break
             fail()
             for _ in range(3):
                 led_controller.set_color(255, 0, 0)

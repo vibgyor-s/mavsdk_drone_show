@@ -1,14 +1,12 @@
 #!/bin/bash
 #
-# update_repo_ssh.sh - Enhanced Git Sync for MDS Repository (FIXED VERSION)
+# update_repo_ssh.sh - SSH-based Git Sync for MDS Drone Fleet
 #
 # This script ensures that the drone's software repository (MDS) is
 # up-to-date before operations start. Enhanced for production swarm deployments.
 #
-# FIXED: Removed variable corruption issues and simplified configuration
-#
-# Author: Enhanced for Drone Swarm Project
-# Date: 2025-07-14 (Fixed logging and variable handling)
+# Author: MAVSDK Drone Show Team
+# Date: 2025-07-14
 #
 
 set -euo pipefail
@@ -16,7 +14,7 @@ set -euo pipefail
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-readonly SCRIPT_VERSION="2.0.1-fixed"
+readonly SCRIPT_VERSION="2.1.0"
 readonly SCRIPT_NAME="git-sync"
 
 # Use dynamic variables for user and home directory
@@ -89,9 +87,13 @@ log_error_and_exit() {
     local component="$1"
     local message="$2"
     local exit_code="${3:-1}"
-    
+
     log_error "$component" "$message"
     set_led_status "ERROR_CRITICAL"
+    # Emit structured failure result for machine parsing (used by actions.py)
+    local error_json
+    error_json=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')
+    echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"${BRANCH_NAME:-unknown}\",\"error\":\"$component\",\"message\":\"$error_json\"}"
     cleanup_on_exit
     exit "$exit_code"
 }
@@ -707,6 +709,7 @@ main() {
         if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
             set_led_status "GIT_FAILED_CONTINUING"  # Yellow - indicates cached code being used
+            echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$BRANCH_NAME\",\"error\":\"fetch_failed_graceful\",\"message\":\"Fetch failed, using cached code\"}"
             exit 0
         else
             log_error_and_exit "GIT-FETCH" "Git fetch failed and recovery strategy is aggressive"

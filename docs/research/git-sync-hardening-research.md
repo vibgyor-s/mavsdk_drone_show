@@ -51,7 +51,8 @@ Our approach most closely resembles **GitOps** patterns used in Kubernetes fleet
 
 ### 30-Second Timeout on Git Operations
 - Prevents config save from hanging indefinitely on network issues
-- Uses SIGALRM for reliable timeout (no thread-based workarounds)
+- Uses GitPython's native `kill_after_timeout` parameter (thread-safe, async-compatible)
+- Avoids SIGALRM (unsafe in async/threaded contexts like FastAPI with `run_in_executor`)
 - Each phase (fetch, pull, push) has independent timeout
 
 ### Unified `/git-status` Endpoint

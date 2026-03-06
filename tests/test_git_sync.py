@@ -150,6 +150,7 @@ class TestCheckGitSyncStatus:
         assert GitStatus.AHEAD == 'ahead'
         assert GitStatus.BEHIND == 'behind'
         assert GitStatus.DIVERGED == 'diverged'
+        assert GitStatus.DIRTY == 'dirty'
         assert GitStatus.UNKNOWN == 'unknown'
 
 

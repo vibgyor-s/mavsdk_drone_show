@@ -15,7 +15,7 @@ export function getElevationURL(lat, lon) {
     return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
 }
 
-// New function to get the GCS Git status URL
+// DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes gcs_status field
 export function getGitStatusURL() {
     return `${getBackendURL()}/get-gcs-git-status`;
 }
@@ -28,6 +28,7 @@ export const getSyncReposURL = () => `${getBackendURL()}/sync-repos`;
 export function getCustomShowImageURL() {
     return `${getBackendURL()}/get-custom-show-image`;
 }
+// DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes all drone statuses
 export function getDroneGitStatusURLById(droneID) {
     return `${getBackendURL()}/get-drone-git-status/${droneID}`;
 }

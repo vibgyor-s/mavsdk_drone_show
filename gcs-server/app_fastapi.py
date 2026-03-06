@@ -52,7 +52,8 @@ sys.path.append(BASE_DIR)  # For functions module
 from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
 from command import send_commands_to_all, send_commands_to_selected
 from config import (
-    get_drone_git_status, get_gcs_git_report, load_config, save_config,
+    get_drone_git_status as _config_get_drone_git_status,
+    get_gcs_git_report, load_config, save_config,
     load_swarm, save_swarm, validate_and_process_config, get_all_drone_positions
 )
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
@@ -179,7 +180,7 @@ class BackgroundServices:
                         url = f"http://{ip}:{Params.drone_api_port}/get_drone_state"
                         response = await loop.run_in_executor(
                             None,
-                            lambda: requests.get(url, timeout=2)
+                            lambda u=url: requests.get(u, timeout=2)
                         )
 
                         if response.status_code == 200:
@@ -219,7 +220,7 @@ class BackgroundServices:
                         url = f"http://{ip}:{Params.drone_api_port}/get-git-status"
                         response = await loop.run_in_executor(
                             None,
-                            lambda: requests.get(url, timeout=5)
+                            lambda u=url: requests.get(u, timeout=5)
                         )
 
                         if response.status_code == 200:
@@ -654,14 +655,19 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
 
         # Git operations
         should_commit = commit if commit is not None else Params.GIT_AUTO_PUSH
+        git_result = None
 
         if should_commit:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
+            git_result = await loop.run_in_executor(
                 None, git_operations, BASE_DIR, "config: update swarm.csv via dashboard"
             )
 
-        return JSONResponse(content={"status": "success", "message": "Swarm data saved successfully"})
+        return JSONResponse(content={
+            "status": "success",
+            "message": "Swarm data saved successfully",
+            "git_result": git_result
+        })
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1022,7 +1028,7 @@ async def get_git_status():
                 mapped_status = GitStatus.AHEAD
             elif raw_status == 'dirty':
                 # Uncommitted local changes — not diverged, but not clean
-                mapped_status = GitStatus.AHEAD
+                mapped_status = GitStatus.DIRTY
             elif raw_status == 'clean':
                 mapped_status = GitStatus.SYNCED
             else:
@@ -1091,11 +1097,12 @@ async def sync_repos(sync_request: SyncReposRequest):
                 failed_drones=[],
                 total_attempted=0
             )
+
+    try:
         _sync_state["active"] = True
         _sync_state["started_at"] = time.time()
         _sync_state["results"] = None
 
-    try:
         # Build UPDATE_CODE command
         branch = getattr(Params, 'GIT_BRANCH', 'main-candidate')
         command_data = {
@@ -1115,9 +1122,6 @@ async def sync_repos(sync_request: SyncReposRequest):
             target_drones = drones_config
 
         if not target_drones:
-            _sync_state["active"] = False
-            _sync_state["started_at"] = None
-            _sync_state["results"] = None
             return SyncReposResponse(
                 success=False,
                 message="No target drones found",
@@ -1333,9 +1337,13 @@ async def import_show(file: UploadFile = File(...)):
 
         log_system_event(f"✅ Show processing completed: {processed_count} drones", "INFO", "show")
 
-        # Git operations if enabled
+        # Git operations if enabled (run in executor to avoid blocking async event loop)
         if Params.GIT_AUTO_PUSH:
-            git_operations(BASE_DIR, f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}")
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None, git_operations, BASE_DIR,
+                f"show: import {file.filename} ({processed_count} drones)"
+            )
 
         return ShowImportResponse(
             success=True,
@@ -1667,7 +1675,8 @@ async def deploy_show(request: Request):
         data = await request.json() if request.headers.get('content-type') == 'application/json' else {}
         commit_message = data.get('message', f"Deploy drone show: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-        git_result = git_operations(BASE_DIR, commit_message)
+        loop = asyncio.get_event_loop()
+        git_result = await loop.run_in_executor(None, git_operations, BASE_DIR, commit_message)
 
         if git_result.get('success'):
             return JSONResponse(content={
@@ -2130,7 +2139,7 @@ async def get_drone_git_status(drone_id: int):
     DEPRECATED: Use GET /git-status instead, which includes all drone statuses.
     """
     try:
-        git_status = get_drone_git_status(drone_id)
+        git_status = _config_get_drone_git_status(drone_id)
         if not git_status:
             raise HTTPException(status_code=404, detail=f"Git status not found for drone {drone_id}")
         return JSONResponse(content=git_status)

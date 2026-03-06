@@ -48,7 +48,7 @@ A 30-second timeout protects against network hangs during fetch/pull/push operat
 
 ## Monitoring: Git Status Polling
 
-1. GCS polls each drone's `/get-git-status` endpoint (via `git_status.py` background thread)
+1. GCS polls each drone's `/get-git-status` endpoint (via `BackgroundServices._poll_git_status()` async task in `app_fastapi.py`)
 2. Results are aggregated and transformed into `DroneGitStatus` objects
 3. Available via:
    - REST: `GET /git-status` (includes `gcs_status` field for GCS repo status)
