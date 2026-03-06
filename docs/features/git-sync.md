@@ -106,9 +106,10 @@ This is parsed by `actions.py` for logging and status tracking.
 
 ### GCS Server
 - `gcs-server/utils.py` - `git_operations()`: commit, rebase, push with timeout
-- `gcs-server/git_status.py` - Background polling, `check_git_sync_status()`
-- `gcs-server/app_fastapi.py` - REST/WebSocket endpoints, `/sync-repos` implementation
+- `gcs-server/git_status.py` - Shared data store (`git_status_data_all_drones`), `check_git_sync_status()`
+- `gcs-server/app_fastapi.py` - REST/WebSocket endpoints, `/sync-repos`, async git polling (`BackgroundServices`)
 - `gcs-server/schemas.py` - Pydantic models for git status data
+- `gcs-server/config.py` - `get_gcs_git_report()`: returns GCS repo branch/commit/status (used by `/git-status`)
 - `functions/git_manager.py` - `get_local_git_report()`, `get_remote_git_status()`
 
 ### Drone Side
@@ -125,3 +126,21 @@ This is parsed by `actions.py` for logging and status tracking.
 - `src/components/GitInfo.js` - GCS git info display
 - `src/components/DroneGitStatus.js` - Per-drone git status card
 - `src/utilities/utilities.js` - URL helpers (`getSyncReposURL`, `getUnifiedGitStatusURL`)
+
+### Configuration
+- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH` env vars or `/etc/mds/local.env`)
+- `tools/git_sync_mds/git_sync_mds.service` - Systemd service template (sources `/etc/mds/local.env` for fork config)
+- `tools/git_sync_mds/install_git_sync_mds.sh` - Service installer (substitutes user/home at install time)
+
+## Fork Configuration
+
+For users who fork the repo, the following override chain applies:
+
+| Component | Config Source | Override Method |
+|-----------|-------------|-----------------|
+| GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` | Set `MDS_BRANCH`/`MDS_REPO_URL` in `/etc/mds/local.env` |
+| Drone boot sync | `update_repo_ssh.sh` defaults | Set `DEFAULT_SSH_GIT_URL`/`DEFAULT_BRANCH` in `/etc/mds/local.env` |
+| SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
+| `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
+
+The `git_sync_mds.service` sources `/etc/mds/local.env` on boot, so fork settings apply to both Python and shell scripts.

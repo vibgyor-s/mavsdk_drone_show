@@ -89,7 +89,6 @@ const MissionConfig = () => {
   const { data: gcsConfigFetched } = useFetch('/get-gcs-config', null);
   const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
   const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
-  const { data: gcsGitStatusFetched } = useFetch('/get-gcs-git-status', 30000);
   const { data: gitStatusDataFetched } = useNormalizedTelemetry('/git-status', 20000);
   const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
   const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
@@ -139,15 +138,14 @@ const MissionConfig = () => {
   }, [deviationDataFetched]);
 
   useEffect(() => {
-    if (gcsGitStatusFetched) {
-      setGcsGitStatus(gcsGitStatusFetched);
-    }
-  }, [gcsGitStatusFetched]);
-
-  useEffect(() => {
-    if (gitStatusDataFetched && gitStatusDataFetched.git_status) {
-      // Extract git_status dict from response (avoids passing metadata as drone data)
-      setGitStatusData(gitStatusDataFetched.git_status);
+    if (gitStatusDataFetched) {
+      if (gitStatusDataFetched.git_status) {
+        setGitStatusData(gitStatusDataFetched.git_status);
+      }
+      // GCS status is included in the unified /git-status response
+      if (gitStatusDataFetched.gcs_status) {
+        setGcsGitStatus(gitStatusDataFetched.gcs_status);
+      }
     }
   }, [gitStatusDataFetched]);
 

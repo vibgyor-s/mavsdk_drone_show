@@ -193,7 +193,7 @@ class BackgroundServices:
                         pass
 
                 # Sleep between polls
-                await asyncio.sleep(Params.telem_poll_interval if hasattr(Params, 'telem_poll_interval') else 1.0)
+                await asyncio.sleep(Params.telem_poll_interval)
 
             except asyncio.CancelledError:
                 break
@@ -233,7 +233,7 @@ class BackgroundServices:
                         pass
 
                 # Git status polls less frequently
-                await asyncio.sleep(Params.git_poll_interval if hasattr(Params, 'git_poll_interval') else 10.0)
+                await asyncio.sleep(Params.git_poll_interval)
 
             except asyncio.CancelledError:
                 break
@@ -1045,13 +1045,16 @@ async def get_git_status():
                 pos_id=int(drone_info.get('pos_id', hw_id)),
                 hw_id=str(hw_id),
                 ip=drone_info.get('ip', 'unknown'),
-                current_branch=raw_data.get('branch', 'unknown'),
-                latest_commit=short_commit,
+                branch=raw_data.get('branch', 'unknown'),
+                commit=short_commit,
                 commit_message=raw_data.get('commit_message'),
+                commit_date=raw_data.get('commit_date'),
+                author_name=raw_data.get('author_name'),
+                author_email=raw_data.get('author_email'),
                 status=mapped_status,
                 commits_ahead=raw_data.get('commits_ahead', 0),
                 commits_behind=raw_data.get('commits_behind', 0),
-                has_uncommitted=len(raw_data.get('uncommitted_changes', [])) > 0,
+                uncommitted_changes=raw_data.get('uncommitted_changes', []),
                 last_check=int(time.time() * 1000),
                 last_sync=None
             )

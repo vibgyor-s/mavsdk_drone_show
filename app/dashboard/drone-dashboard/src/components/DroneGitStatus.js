@@ -44,7 +44,6 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(gitStatus.commit);
-        console.log('Copied to clipboard:', gitStatus.commit);
         setCopySuccess(true);
       } else {
         // Fallback for unsupported browsers
@@ -54,7 +53,6 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
         textarea.select();
         document.execCommand('copy');
         document.body.removeChild(textarea);
-        console.log('Copied to clipboard using fallback:', gitStatus.commit);
         setCopySuccess(true);
       }
       setTimeout(() => setCopySuccess(false), 2000);

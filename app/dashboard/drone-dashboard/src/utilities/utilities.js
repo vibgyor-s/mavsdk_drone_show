@@ -115,9 +115,6 @@ export const llaToLocal = (lat, lon, alt, reference) => {
     // const SCALE_FACTOR = 1000;
     // return [north * SCALE_FACTOR, up * SCALE_FACTOR, east * SCALE_FACTOR];
   
-    // Log the converted position for debugging
-    console.log(`LLA to Local - HW_ID: [Lat: ${lat}, Lon: ${lon}, Alt: ${alt}] => [North: ${north}, Up: ${up}, East: ${east}]`);
-  
     return [north, up, east];
   };
   

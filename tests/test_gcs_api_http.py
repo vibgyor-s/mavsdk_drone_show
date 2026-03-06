@@ -61,13 +61,13 @@ def mock_config():
     """Mock drone configuration"""
     return [
         {
-            'pos_id': 0,
+            'pos_id': 1,
             'hw_id': '1',
             'ip': '192.168.1.101',
             'connection_str': 'udp://:14540'
         },
         {
-            'pos_id': 1,
+            'pos_id': 2,
             'hw_id': '2',
             'ip': '192.168.1.102',
             'connection_str': 'udp://:14541'
@@ -382,7 +382,10 @@ class TestShowManagementEndpoints:
 class TestGitStatusEndpoints:
     """Test git status endpoints"""
 
-    @patch('app_fastapi.git_status_data_all_drones', {'1': {'status': 'synced'}, '2': {'status': 'synced'}})
+    @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []},
+        '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
+    })
     def test_get_git_status(self, test_client):
         """Test GET /git-status"""
         response = test_client.get("/git-status")
@@ -416,7 +419,7 @@ class TestSwarmEndpoints:
         assert response.status_code == 200
 
     @patch('app_fastapi.save_swarm')
-    @patch('app_fastapi.git_operations')
+    @patch('app_fastapi.git_operations', return_value={'success': True, 'message': 'Pushed', 'commit_hash': 'abc123'})
     def test_save_swarm_data(self, mock_git, mock_save, test_client):
         """Test POST /save-swarm-data"""
         swarm_data = {'hierarchies': {}}

@@ -124,8 +124,6 @@ def mock_params():
     params.default_takeoff_alt = 10
     params.max_takeoff_alt = 100
     params.heartbeat_interval = 10
-    params.telem_poll_interval = 1.0
-    params.git_poll_interval = 10.0
     return params
 
 

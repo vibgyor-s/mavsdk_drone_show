@@ -233,21 +233,28 @@ class HeartbeatPostResponse(BaseModel):
 # ============================================================================
 
 class DroneGitStatus(BaseModel):
-    """Git status for individual drone"""
+    """Git status for individual drone.
+
+    Field names match the raw drone API response (/get-git-status on each drone)
+    so the frontend can read them directly without remapping.
+    """
     pos_id: int = Field(..., ge=1, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
     ip: str = Field(..., description="Drone IP")
 
-    # Git information
-    current_branch: str = Field(..., description="Current git branch")
-    latest_commit: str = Field(..., description="Latest commit hash (short)")
+    # Git information (field names match drone API + frontend expectations)
+    branch: str = Field(..., description="Current git branch")
+    commit: str = Field(..., description="Latest commit hash (short)")
     commit_message: Optional[str] = Field(None, description="Latest commit message")
+    commit_date: Optional[str] = Field(None, description="Commit date (ISO format)")
+    author_name: Optional[str] = Field(None, description="Commit author name")
+    author_email: Optional[str] = Field(None, description="Commit author email")
     status: GitStatus = Field(..., description="Git sync status")
 
     # Synchronization
-    commits_ahead: int = Field(..., ge=0, description="Commits ahead of origin")
-    commits_behind: int = Field(..., ge=0, description="Commits behind origin")
-    has_uncommitted: bool = Field(..., description="Has uncommitted changes")
+    commits_ahead: int = Field(0, ge=0, description="Commits ahead of origin")
+    commits_behind: int = Field(0, ge=0, description="Commits behind origin")
+    uncommitted_changes: List[str] = Field(default_factory=list, description="List of uncommitted file changes")
 
     # Timestamps
     last_check: int = Field(..., description="Last status check timestamp (Unix ms)")

@@ -700,20 +700,20 @@ Get git status from all drones.
 }
 ```
 
-#### `GET /get-gcs-git-status`
-Get GCS repository git status.
+#### `GET /get-gcs-git-status` *(Deprecated)*
+> **Deprecated:** Use `GET /git-status` instead — the `gcs_status` field in the unified response contains the same data.
 
 **Response:**
 ```json
 {
   "branch": "main",
   "status": "clean",
-  "latest_commit": "abc123"
+  "commit": "abc123"
 }
 ```
 
-#### `GET /get-drone-git-status/{drone_id}`
-Get specific drone's git status.
+#### `GET /get-drone-git-status/{drone_id}` *(Deprecated)*
+> **Deprecated:** Use `GET /git-status` instead — the `git_status` dict contains all drone statuses keyed by `hw_id`.
 
 **Parameters:**
 - `drone_id`: Drone ID
@@ -721,9 +721,9 @@ Get specific drone's git status.
 **Response:**
 ```json
 {
-  "status": "synced",
+  "status": "clean",
   "branch": "main",
-  "latest_commit": "abc123"
+  "commit": "abc123"
 }
 ```
 

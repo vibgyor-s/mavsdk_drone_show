@@ -58,11 +58,13 @@ def mock_git_status_data():
     """Mock git status data"""
     return {
         '1': {
-            'pos_id': 0,
+            'pos_id': 1,
             'hw_id': '1',
-            'status': 'synced',
+            'status': 'clean',
             'branch': 'main',
-            'latest_commit': 'abc123'
+            'commit': 'abc12345',
+            'commit_message': 'test commit',
+            'uncommitted_changes': []
         }
     }
 

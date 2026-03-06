@@ -160,7 +160,9 @@ class Params:
 
     # API Server Configuration
     drone_api_port = 7070                   # Port for the drone's API server
-    polling_interval = 1                    # Polling interval in seconds
+    polling_interval = 1                    # Polling interval in seconds (legacy, used by standalone git_status.py)
+    telem_poll_interval = 1                 # GCS telemetry polling interval in seconds
+    git_poll_interval = 10                  # GCS git status polling interval in seconds
     get_drone_state_URI = 'get_drone_state' # URI for getting drone state
     send_drone_command_URI = 'api/send-command'  # Replace with actual URI
 

@@ -1,5 +1,10 @@
 #!/bin/bash
 # Install Git Sync (MDS) Service
+#
+# Installs the git_sync_mds systemd service, substituting the correct
+# user and home directory. Supports both default (droneshow) and custom users.
+
+set -euo pipefail
 
 echo "-----------------------------------------"
 echo "Installing Git Sync (MDS) Service"
@@ -11,10 +16,17 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Determine the MDS user (default: droneshow, override via MDS_USER env var or first arg)
+MDS_USER="${1:-${MDS_USER:-droneshow}}"
+MDS_HOME=$(eval echo "~${MDS_USER}")
+
+echo "MDS User: ${MDS_USER}"
+echo "MDS Home: ${MDS_HOME}"
+
 # Define paths
-GIT_SYNC_SCRIPT="/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh"
+GIT_SYNC_SCRIPT="${MDS_HOME}/mavsdk_drone_show/tools/update_repo_ssh.sh"
 SERVICE_FILE="/etc/systemd/system/git_sync_mds.service"
-SOURCE_SERVICE_FILE="/home/droneshow/mavsdk_drone_show/tools/git_sync_mds/git_sync_mds.service"
+SOURCE_TEMPLATE="${MDS_HOME}/mavsdk_drone_show/tools/git_sync_mds/git_sync_mds.service"
 
 # Step 1: Check if the Git sync script exists
 if [ ! -f "$GIT_SYNC_SCRIPT" ]; then
@@ -24,18 +36,17 @@ else
     echo "Git sync script found. Proceeding..."
 fi
 
-# Step 2: Install or replace the service file
-if [ -f "$SERVICE_FILE" ]; then
-    echo "Git Sync service file exists. Replacing the existing file..."
-    cp "$SOURCE_SERVICE_FILE" "$SERVICE_FILE"
-else
-    echo "Git Sync service file not found. Installing new service file..."
-    if [ ! -f "$SOURCE_SERVICE_FILE" ]; then
-        echo "Error: Source Git Sync service file not found at $SOURCE_SERVICE_FILE!" 1>&2
-        exit 1
-    fi
-    cp "$SOURCE_SERVICE_FILE" "$SERVICE_FILE"
+# Step 2: Check the service template exists
+if [ ! -f "$SOURCE_TEMPLATE" ]; then
+    echo "Error: Service template not found at $SOURCE_TEMPLATE!" 1>&2
+    exit 1
 fi
+
+# Step 3: Install service file with user/home substitution
+echo "Installing service file with user=${MDS_USER}, home=${MDS_HOME}..."
+sed -e "s|__MDS_USER__|${MDS_USER}|g" \
+    -e "s|__MDS_HOME__|${MDS_HOME}|g" \
+    "$SOURCE_TEMPLATE" > "$SERVICE_FILE"
 
 # Reload systemd daemon to register the new service
 echo "Reloading systemd daemon..."

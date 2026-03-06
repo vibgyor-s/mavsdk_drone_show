@@ -9,13 +9,20 @@ StartLimitBurst=3
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh
-WorkingDirectory=/home/droneshow/mavsdk_drone_show
-User=droneshow
-Group=droneshow
+# __MDS_USER__ and __MDS_HOME__ are replaced at install time by install_git_sync_mds.sh
+ExecStart=__MDS_HOME__/mavsdk_drone_show/tools/update_repo_ssh.sh
+WorkingDirectory=__MDS_HOME__/mavsdk_drone_show
+User=__MDS_USER__
+Group=__MDS_USER__
 TimeoutStartSec=600
-Environment="HOME=/home/droneshow"
-Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Source fork configuration (MDS_REPO_URL, MDS_BRANCH, DEFAULT_SSH_GIT_URL, etc.)
+# These files are optional (-) — service works with defaults if they don't exist
+EnvironmentFile=-/etc/mds/local.env
+EnvironmentFile=-__MDS_HOME__/.config/mds/env
+
+Environment="HOME=__MDS_HOME__"
+Environment="PATH=__MDS_HOME__/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
 # Security hardening
 PrivateTmp=yes
