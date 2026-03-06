@@ -12,13 +12,15 @@ import {
   faMapMarkerAlt,
   faServer,
   faSync,
+  faCodeBranch,
 } from '@fortawesome/free-solid-svg-icons';
 import { CircularProgress } from '@mui/material';
+import { useSyncDrones } from '../hooks/useSyncDrones';
 
 /**
  * ControlButtons
  *
- * Provides top-level actions: Save, Add Drone, Set Origin, Configure GCS, Import, Export, Revert
+ * Provides top-level actions: Save, Add Drone, Set Origin, Configure GCS, Import, Export, Revert, Sync Drones
  * with a consistent UI/UX approach.
  */
 const ControlButtons = ({
@@ -35,6 +37,7 @@ const ControlButtons = ({
   loading,
 }) => {
   const fileInputRef = useRef(null);
+  const { syncing, syncDrones: handleSyncDrones } = useSyncDrones();
 
   const triggerFileInput = () => {
     if (fileInputRef.current) {
@@ -62,6 +65,26 @@ const ControlButtons = ({
             <>
               <FontAwesomeIcon icon={faSave} />
               Save & Commit to Git
+            </>
+          )}
+        </button>
+
+        {/* Sync Drones */}
+        <button
+          className="sync-drones"
+          onClick={handleSyncDrones}
+          title="Trigger git pull on all drones to sync with GCS"
+          disabled={syncing}
+        >
+          {syncing ? (
+            <>
+              <CircularProgress size={20} color="inherit" />
+              &nbsp;Syncing...
+            </>
+          ) : (
+            <>
+              <FontAwesomeIcon icon={faCodeBranch} />
+              Sync Drones
             </>
           )}
         </button>

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# DEPRECATED: Not used in production. SSH is the standard for real drones
+# (via update_repo_ssh.sh), HTTPS is used inline for SITL containers.
+# Kept for reference only.
+
 # update_repo_https.sh
 # Script to ensure the drone's software repository is up-to-date before operations using HTTPS for public repositories.
 # This version assumes no authentication is required (i.e., the repository is public).

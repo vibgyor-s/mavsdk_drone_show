@@ -106,6 +106,7 @@ class ConfigUpdateResponse(BaseModel):
     success: bool = Field(..., description="Update success status")
     message: str = Field(..., description="Status message")
     updated_count: int = Field(..., ge=0, description="Number of drones updated")
+    git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push enabled")
 
 
 # ============================================================================
@@ -258,6 +259,8 @@ class GitStatusResponse(BaseModel):
     total_drones: int = Field(..., ge=0, description="Total drones")
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
     needs_sync_count: int = Field(..., ge=0, description="Drones needing sync")
+    gcs_status: Optional[Dict[str, Any]] = Field(None, description="GCS repository git status")
+    sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
 
 
@@ -489,7 +492,8 @@ class TelemetryStreamMessage(WebSocketMessage):
 class GitStatusStreamMessage(WebSocketMessage):
     """WebSocket git status stream message"""
     type: str = Field(default="git_status", description="Message type")
-    data: Dict[str, DroneGitStatus] = Field(..., description="Git status by pos_id")
+    data: Dict[str, Any] = Field(..., description="Git status data")
+    sync_in_progress: bool = Field(False, description="Whether a sync operation is currently running")
 
 
 class HeartbeatStreamMessage(WebSocketMessage):

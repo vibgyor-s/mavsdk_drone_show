@@ -157,6 +157,15 @@
     background: linear-gradient(135deg, var(--color-success), #4caf50);
 }
 
+.control-buttons .sync-drones {
+    background: linear-gradient(135deg, var(--color-accent-purple), var(--color-accent-purple-hover));
+    color: var(--color-text-primary);
+}
+
+.control-buttons .sync-drones:hover {
+    background: linear-gradient(135deg, var(--color-accent-purple-hover), var(--color-accent-purple));
+}
+
 .control-buttons .revert {
     background: linear-gradient(135deg, var(--color-danger), #c62828);
     color: var(--color-text-primary);

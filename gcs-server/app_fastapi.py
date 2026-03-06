@@ -551,14 +551,21 @@ async def save_config_route(request: Request):
         save_config(report['updated_config'])
         log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
-        # Git operations if enabled
+        # Git operations if enabled (run in executor to avoid blocking event loop)
+        git_result = None
         if Params.GIT_AUTO_PUSH:
-            git_operations(BASE_DIR, f"Update configuration: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            drone_count = len(report['updated_config'])
+            loop = asyncio.get_event_loop()
+            git_result = await loop.run_in_executor(
+                None, git_operations, BASE_DIR,
+                f"config: update config.csv via dashboard ({drone_count} drones updated)"
+            )
 
         return ConfigUpdateResponse(
             success=True,
             message="Configuration saved successfully",
-            updated_count=len(report['updated_config'])
+            updated_count=len(report['updated_config']),
+            git_result=git_result
         )
 
     except Exception as e:
@@ -649,7 +656,10 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
         should_commit = commit if commit is not None else Params.GIT_AUTO_PUSH
 
         if should_commit:
-            git_operations(BASE_DIR, f"Update swarm data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None, git_operations, BASE_DIR, "config: update swarm.csv via dashboard"
+            )
 
         return JSONResponse(content={"status": "success", "message": "Swarm data saved successfully"})
 
@@ -998,12 +1008,24 @@ async def get_git_status():
 
             # Map raw status to enum values
             raw_status = raw_data.get('status', 'unknown')
-            if raw_status == 'clean':
+            drone_commit = raw_data.get('commit', '')
+            commits_behind = raw_data.get('commits_behind', 0)
+            commits_ahead = raw_data.get('commits_ahead', 0)
+
+            if raw_status == 'clean' and commits_behind == 0 and commits_ahead == 0:
                 mapped_status = GitStatus.SYNCED
-            elif raw_status == 'dirty':
+            elif commits_behind > 0 and commits_ahead > 0:
                 mapped_status = GitStatus.DIVERGED
+            elif commits_behind > 0:
+                mapped_status = GitStatus.BEHIND
+            elif commits_ahead > 0:
+                mapped_status = GitStatus.AHEAD
+            elif raw_status == 'dirty':
+                # Uncommitted local changes — not diverged, but not clean
+                mapped_status = GitStatus.AHEAD
+            elif raw_status == 'clean':
+                mapped_status = GitStatus.SYNCED
             else:
-                # Check if it's already a valid enum value
                 try:
                     mapped_status = GitStatus(raw_status)
                 except ValueError:
@@ -1031,41 +1053,158 @@ async def get_git_status():
     synced_count = len([s for s in transformed_git_status.values()
                        if s.status == GitStatus.SYNCED])
 
+    # Include GCS git status in the response
+    try:
+        gcs_status = get_gcs_git_report()
+    except Exception:
+        gcs_status = None
+
     return GitStatusResponse(
         git_status=transformed_git_status,
         total_drones=len(transformed_git_status),
         synced_count=synced_count,
         needs_sync_count=len(transformed_git_status) - synced_count,
+        gcs_status=gcs_status,
+        sync_in_progress=_sync_state["active"],
         timestamp=int(time.time() * 1000)
     )
 
 
+# Module-level sync operation state (protected by _sync_lock)
+_sync_state = {"active": False, "started_at": None, "results": None}
+_sync_lock = asyncio.Lock()
+
+
 @app.post("/sync-repos", response_model=SyncReposResponse, tags=["Git"])
 async def sync_repos(sync_request: SyncReposRequest):
-    """Sync git repositories on target drones"""
-    # This would need to be implemented with actual sync logic
-    # For now, return a placeholder response
-    return SyncReposResponse(
-        success=True,
-        message="Sync operation initiated",
-        synced_drones=sync_request.pos_ids or [],
-        failed_drones=[],
-        total_attempted=len(sync_request.pos_ids) if sync_request.pos_ids else 0
-    )
+    """Sync git repositories on target drones by sending UPDATE_CODE command.
+
+    Sends the UPDATE_CODE mission (103) to target drones, which triggers
+    tools/update_repo_ssh.sh on each drone to pull the latest code.
+    """
+    async with _sync_lock:
+        if _sync_state["active"]:
+            return SyncReposResponse(
+                success=False,
+                message="A sync operation is already in progress",
+                synced_drones=[],
+                failed_drones=[],
+                total_attempted=0
+            )
+        _sync_state["active"] = True
+        _sync_state["started_at"] = time.time()
+        _sync_state["results"] = None
+
+    try:
+        # Build UPDATE_CODE command
+        branch = getattr(Params, 'GIT_BRANCH', 'main-candidate')
+        command_data = {
+            "missionType": 103,  # Mission.UPDATE_CODE
+            "triggerTime": 0,
+            "update_branch": branch,
+        }
+
+        # Load drone config
+        drones_config = load_config()
+
+        if sync_request.pos_ids:
+            # Sync specific drones
+            target_drones = [d for d in drones_config if int(d.get('pos_id', 0)) in sync_request.pos_ids]
+            command_data["pos_ids"] = sync_request.pos_ids
+        else:
+            target_drones = drones_config
+
+        if not target_drones:
+            _sync_state["active"] = False
+            _sync_state["started_at"] = None
+            _sync_state["results"] = None
+            return SyncReposResponse(
+                success=False,
+                message="No target drones found",
+                synced_drones=[],
+                failed_drones=[],
+                total_attempted=0
+            )
+
+        # Send UPDATE_CODE command to drones
+        if sync_request.pos_ids:
+            # Map pos_ids to hw_ids for send_commands_to_selected
+            target_hw_ids = [str(d['hw_id']) for d in target_drones]
+            results = send_commands_to_selected(drones_config, command_data, target_hw_ids)
+        else:
+            results = send_commands_to_all(drones_config, command_data)
+
+        # Parse results - send_commands_to_all returns dict with 'results' dict keyed by hw_id
+        synced = []
+        failed = []
+        hw_to_pos = {str(d['hw_id']): int(d.get('pos_id', d['hw_id'])) for d in drones_config}
+        per_drone_results = results.get('results', {})
+        for hw_id, drone_result in per_drone_results.items():
+            pos_id = hw_to_pos.get(str(hw_id), 0)
+            category = drone_result.get('category', 'error') if isinstance(drone_result, dict) else 'error'
+            if category == 'accepted':
+                synced.append(pos_id)
+            else:
+                failed.append(pos_id)
+
+        # If no per-drone results, fall back to summary counts
+        if not per_drone_results:
+            success_count = results.get('success', 0)
+            total_count = results.get('total', 0)
+            # Can't map to specific pos_ids without per-drone results
+            if success_count > 0:
+                synced = [d.get('pos_id', 0) for d in target_drones[:success_count]]
+            if total_count > success_count:
+                failed = [d.get('pos_id', 0) for d in target_drones[success_count:]]
+
+        _sync_state["results"] = {"synced": synced, "failed": failed}
+
+        return SyncReposResponse(
+            success=len(synced) > 0,
+            message=f"Sync completed: {len(synced)} succeeded, {len(failed)} failed",
+            synced_drones=synced,
+            failed_drones=failed,
+            total_attempted=len(target_drones)
+        )
+
+    except Exception as e:
+        log_system_error(f"Sync repos failed: {e}", "git")
+        return SyncReposResponse(
+            success=False,
+            message=f"Sync operation failed: {str(e)}",
+            synced_drones=[],
+            failed_drones=[],
+            total_attempted=0
+        )
+    finally:
+        _sync_state["active"] = False
 
 
 @app.websocket("/ws/git-status")
 async def websocket_git_status(websocket: WebSocket):
-    """WebSocket endpoint for real-time git status monitoring"""
+    """WebSocket endpoint for real-time git status monitoring.
+
+    Sends the same transformed structure as the REST /git-status endpoint
+    so the frontend can use either interchangeably.
+    """
     await websocket.accept()
     log_system_event("Git status WebSocket client connected", "INFO", "websocket")
 
     try:
         while True:
+            # Use the REST endpoint logic for consistent data format
+            try:
+                rest_response = await get_git_status()
+                data = rest_response.model_dump()
+            except Exception:
+                data = {"git_status": {}, "total_drones": 0, "synced_count": 0,
+                        "needs_sync_count": 0, "gcs_status": None, "sync_in_progress": False}
+
             message = GitStatusStreamMessage(
                 type="git_status",
                 timestamp=int(time.time() * 1000),
-                data=git_status_data_all_drones
+                data=data,
+                sync_in_progress=data.get("sync_in_progress", False)
             )
             await websocket.send_json(message.model_dump())
             await asyncio.sleep(5.0)  # 0.2 Hz
@@ -1971,9 +2110,12 @@ async def save_gcs_config(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/get-gcs-git-status", tags=["Git"])
+@app.get("/get-gcs-git-status", tags=["Git"], deprecated=True)
 async def get_gcs_git_status():
-    """Get GCS repository git status"""
+    """Get GCS repository git status.
+
+    DEPRECATED: Use GET /git-status instead, which includes gcs_status field.
+    """
     try:
         git_status = get_gcs_git_report()
         return JSONResponse(content=git_status)
@@ -1981,9 +2123,12 @@ async def get_gcs_git_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/get-drone-git-status/{drone_id}", tags=["Git"])
+@app.get("/get-drone-git-status/{drone_id}", tags=["Git"], deprecated=True)
 async def get_drone_git_status(drone_id: int):
-    """Get specific drone's git status"""
+    """Get specific drone's git status.
+
+    DEPRECATED: Use GET /git-status instead, which includes all drone statuses.
+    """
     try:
         git_status = get_drone_git_status(drone_id)
         if not git_status:

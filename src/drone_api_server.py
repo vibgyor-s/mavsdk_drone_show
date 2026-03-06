@@ -412,6 +412,21 @@ class DroneAPIServer:
                 tracking_branch = self._execute_git_command(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
                 status = self._execute_git_command(['git', 'status', '--porcelain'])
 
+                # Count commits ahead/behind origin
+                commits_ahead = 0
+                commits_behind = 0
+                try:
+                    ahead_behind = self._execute_git_command(
+                        ['git', 'rev-list', '--left-right', '--count', f'{tracking_branch}...HEAD']
+                    )
+                    if ahead_behind:
+                        parts = ahead_behind.split()
+                        if len(parts) == 2:
+                            commits_behind = int(parts[0])
+                            commits_ahead = int(parts[1])
+                except Exception:
+                    pass
+
                 response = {
                     'branch': branch,
                     'commit': commit,
@@ -422,7 +437,9 @@ class DroneAPIServer:
                     'remote_url': remote_url,
                     'tracking_branch': tracking_branch,
                     'status': 'clean' if not status else 'dirty',
-                    'uncommitted_changes': status.splitlines() if status else []
+                    'uncommitted_changes': status.splitlines() if status else [],
+                    'commits_ahead': commits_ahead,
+                    'commits_behind': commits_behind,
                 }
 
                 return response

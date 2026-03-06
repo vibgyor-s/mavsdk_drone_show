@@ -795,7 +795,20 @@ async def update_code(branch=None):
                 led_controller.turn_off()
                 await asyncio.sleep(0.2)
         else:
-            logger.info(f"Update script successful: {stdout.decode().strip()}")
+            stdout_text = stdout.decode().strip()
+            logger.info(f"Update script successful: {stdout_text}")
+            # Parse structured result if available
+            for line in stdout_text.splitlines():
+                if line.startswith("GIT_SYNC_RESULT="):
+                    try:
+                        import json
+                        result = json.loads(line[len("GIT_SYNC_RESULT="):])
+                        logger.info(f"Sync result: branch={result.get('branch')}, "
+                                    f"commit={result.get('commit')}, "
+                                    f"duration={result.get('duration')}s")
+                    except (json.JSONDecodeError, Exception) as parse_err:
+                        logger.warning(f"Could not parse GIT_SYNC_RESULT: {parse_err}")
+                    break
             for _ in range(3):
                 led_controller.set_color(0, 255, 0)
                 await asyncio.sleep(0.2)

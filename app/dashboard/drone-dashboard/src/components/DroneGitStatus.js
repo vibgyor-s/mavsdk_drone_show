@@ -147,24 +147,33 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
           )}
         </div>
       )}
-      {!isInSync && <div className="git-warning">Git status is not in sync with GCS.</div>}
+      {!isInSync && (
+        <div className="git-warning">
+          Not in sync with GCS
+          {gcsGitStatus?.commit && gitStatus.commit && (
+            <span className="git-warning-detail">
+              {' '}(drone: {gitStatus.commit.slice(0, 7)}, GCS: {gcsGitStatus.commit.slice(0, 7)})
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 DroneGitStatus.propTypes = {
   gitStatus: PropTypes.shape({
-    branch: PropTypes.string.isRequired,
-    commit: PropTypes.string.isRequired,
-    status: PropTypes.string.isRequired,
-    commit_date: PropTypes.string.isRequired,
-    commit_message: PropTypes.string.isRequired,
-    author_name: PropTypes.string.isRequired,
-    author_email: PropTypes.string.isRequired,
+    branch: PropTypes.string,
+    commit: PropTypes.string,
+    status: PropTypes.string,
+    commit_date: PropTypes.string,
+    commit_message: PropTypes.string,
+    author_name: PropTypes.string,
+    author_email: PropTypes.string,
     uncommitted_changes: PropTypes.arrayOf(PropTypes.string),
   }),
   gcsGitStatus: PropTypes.shape({
-    commit: PropTypes.string.isRequired,
+    commit: PropTypes.string,
   }),
   droneName: PropTypes.string.isRequired,
 };

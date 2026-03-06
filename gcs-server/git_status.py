@@ -406,42 +406,63 @@ def get_drones_with_uncommitted_changes():
 
 def check_git_sync_status():
     """
-    Check if all drones are on the same git commit and branch.
+    Check if all drones are on the same git commit and branch,
+    and also compare each drone's commit against the GCS commit (source of truth).
+
     Returns dict with sync status information.
     """
+    from config import get_gcs_git_report
+
     branches = {}
     commits = {}
-    
+    drones_out_of_sync_with_gcs = []
+
+    # Get GCS commit as source of truth
+    gcs_commit = None
+    try:
+        gcs_report = get_gcs_git_report()
+        gcs_commit = gcs_report.get('commit', None)
+    except Exception:
+        pass
+
     with data_lock_git_status:
         for drone_id, git_data in git_status_data_all_drones.items():
             if git_data:  # Only check drones with valid git data
                 branch = git_data.get('branch', 'unknown')
                 commit = git_data.get('commit', 'unknown')
-                
+
                 if branch not in branches:
                     branches[branch] = []
                 branches[branch].append(drone_id)
-                
+
                 if commit not in commits:
                     commits[commit] = []
                 commits[commit].append(drone_id)
-    
+
+                # Compare against GCS commit
+                if gcs_commit and commit != 'unknown' and commit != gcs_commit:
+                    drones_out_of_sync_with_gcs.append(drone_id)
+
     # Determine sync status
     branch_count = len(branches)
     commit_count = len(commits)
-    
+
     is_branch_synced = branch_count <= 1
     is_commit_synced = commit_count <= 1
-    
+    is_synced_with_gcs = len(drones_out_of_sync_with_gcs) == 0
+
     sync_status = {
-        'is_fully_synced': is_branch_synced and is_commit_synced,
+        'is_fully_synced': is_branch_synced and is_commit_synced and is_synced_with_gcs,
         'is_branch_synced': is_branch_synced,
         'is_commit_synced': is_commit_synced,
+        'is_synced_with_gcs': is_synced_with_gcs,
+        'gcs_commit': gcs_commit[:8] if gcs_commit else None,
+        'drones_out_of_sync_with_gcs': drones_out_of_sync_with_gcs,
         'branch_distribution': branches,
         'commit_distribution': commits,
         'total_active_drones': sum(len(drone_list) for drone_list in branches.values())
     }
-    
+
     return sync_status
 
 # Background monitoring for git issues

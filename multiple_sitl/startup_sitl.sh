@@ -259,36 +259,81 @@ wait_for_hwid() {
     fi
 }
 
+# Retry helper for SITL git operations (matches update_repo_ssh.sh pattern)
+sitl_retry() {
+    local max_retries="${1:-3}"
+    local label="$2"
+    shift 2
+    local attempt=0
+    local delay=2
+    while [ $attempt -lt "$max_retries" ]; do
+        if "$@"; then
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        if [ $attempt -lt "$max_retries" ]; then
+            # Add jitter (0-2s) to avoid thundering herd with multiple SITL containers
+            local jitter=$((RANDOM % 3))
+            local wait=$((delay + jitter))
+            log_message "[$label] Attempt $attempt/$max_retries failed. Retrying in ${wait}s..."
+            sleep "$wait"
+            delay=$((delay * 2))
+        fi
+    done
+    log_message "ERROR: [$label] Failed after $max_retries attempts."
+    return 1
+}
+
 # Function to update the repository
 update_repository() {
+    local start_time
+    start_time=$(date +%s)
+
     log_message "Navigating to $BASE_DIR..."
     cd "$BASE_DIR"
 
-    log_message "Stashing any local changes..."
-    git stash
+    if git status --porcelain | grep -q .; then
+        log_message "Stashing local changes..."
+        git stash push --include-untracked || log_message "WARNING: stash failed, continuing"
+    fi
 
     log_message "Setting Git remote to $GIT_REMOTE..."
     git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL" || true
 
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
+    if ! sitl_retry 3 "GIT-FETCH" git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
         log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
+        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
         exit 1
     fi
 
     log_message "Checking out branch $GIT_BRANCH..."
     if ! git checkout "$GIT_BRANCH"; then
         log_message "ERROR: Failed to checkout branch $GIT_BRANCH."
+        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"checkout_failed\"}"
         exit 1
     fi
 
     log_message "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
+    if ! sitl_retry 3 "GIT-PULL" git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
         log_message "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
+        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"pull_failed\"}"
         exit 1
     fi
 
+    local commit_hash
+    commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    local commit_message
+    commit_message=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "unknown")
+    local end_time
+    end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
     log_message "Repository updated successfully."
+    # Escape quotes/backslashes in commit message for valid JSON
+    local commit_message_json
+    commit_message_json=$(echo "$commit_message" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')
+    echo "GIT_SYNC_RESULT={\"success\":true,\"branch\":\"$GIT_BRANCH\",\"commit\":\"$commit_hash\",\"message\":\"$commit_message_json\",\"duration\":$duration}"
 }
 
 # Function to run MAVLink router for SITL (external routing)

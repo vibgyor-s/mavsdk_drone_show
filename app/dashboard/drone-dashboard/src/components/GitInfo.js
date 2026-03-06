@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/GitInfo.css';
-import { getGitStatusURL } from '../utilities/utilities';
+import { getUnifiedGitStatusURL } from '../utilities/utilities';
 
 const GitInfo = ({ collapsed = false }) => {
   const [gitInfo, setGitInfo] = useState({});
@@ -9,9 +9,15 @@ const GitInfo = ({ collapsed = false }) => {
   useEffect(() => {
     async function fetchGitInfo() {
       try {
-        const response = await fetch(getGitStatusURL());
+        const response = await fetch(getUnifiedGitStatusURL());
+        if (!response.ok) return;
         const data = await response.json();
-        setGitInfo(data);
+        // Use gcs_status from the unified response if available
+        if (data.gcs_status) {
+          setGitInfo(data.gcs_status);
+        } else {
+          setGitInfo(data);
+        }
       } catch (error) {
         console.error('Failed to fetch Git status:', error);
       }
@@ -52,7 +58,7 @@ const GitInfo = ({ collapsed = false }) => {
           </div>
           <div className="detail-line">
             <span className="detail-key">Date:</span>
-            <span className="detail-val">{new Date(gitInfo.commit_date).toLocaleDateString()}</span>
+            <span className="detail-val">{gitInfo.commit_date ? new Date(gitInfo.commit_date).toLocaleDateString() : 'N/A'}</span>
           </div>
           <div className="detail-line message-line">
             <span className="detail-key">Message:</span>

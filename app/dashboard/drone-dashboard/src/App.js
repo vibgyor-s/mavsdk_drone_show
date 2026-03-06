@@ -35,6 +35,7 @@ import SwarmTrajectory from './pages/SwarmTrajectory';
 // Clean import - no error boundary needed with Mapbox
 import TrajectoryPlanning from './pages/TrajectoryPlanning';
 import QuickScoutPage from './pages/QuickScoutPage';
+import SyncWarningBanner from './components/SyncWarningBanner';
 
 // Import external styles
 import { ToastContainer } from 'react-toastify';
@@ -63,6 +64,7 @@ const App = () => {
           onToggle={setSidebarCollapsed}
         />
         <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+          <SyncWarningBanner />
           <Routes>
             {/* Main drone management routes */}
             <Route path="/drone-show-design" element={<DroneShowDesign />} />

@@ -63,27 +63,63 @@ def ensure_directory(directory):
         os.makedirs(directory)
 
 
-def git_operations(base_dir, commit_message):
+def _run_git_with_timeout(git_cmd, args, timeout):
+    """Run a GitPython command with a thread-safe timeout.
+
+    Uses the git command's built-in kill_after_timeout parameter which is
+    safe for use in async/multithreaded contexts (unlike SIGALRM).
+    """
+    try:
+        # GitPython's git.cmd supports kill_after_timeout natively
+        return git_cmd(*args, kill_after_timeout=timeout)
+    except Exception as e:
+        if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+            raise TimeoutError(f"Git operation timed out after {timeout}s") from e
+        raise
+
+
+def git_operations(base_dir, commit_message, timeout=30):
     """
     Handles Git operations using GitPython for better control and error handling.
     This version automatically resolves conflicts and maintains an uninterrupted workflow.
+
+    Thread-safe: uses GitPython's kill_after_timeout instead of SIGALRM.
+    Should be called via run_in_executor() from async endpoints to avoid blocking
+    the event loop.
+
+    Args:
+        base_dir: Repository base directory
+        commit_message: Commit message
+        timeout: Timeout in seconds for network operations (fetch/pull/push). Default 30s.
+
+    Returns:
+        dict with 'success', 'message', and optionally 'commit_hash'
     """
     from git import Repo, GitCommandError
+
     try:
         repo = Repo(base_dir)
         git = repo.git
 
-        # Fetch latest changes
+        # Fetch latest changes (with timeout)
         logging.info("Fetching latest changes from remote...")
-        git.fetch('origin')
+        try:
+            git.fetch('origin', kill_after_timeout=timeout)
+        except (TimeoutError, GitCommandError) as e:
+            if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+                logging.warning(f"Git fetch timed out after {timeout}s, continuing with commit/push...")
+            else:
+                logging.warning(f"Git fetch failed: {e}, continuing with commit/push...")
 
         # Stage + commit if dirty
+        commit_hash = None
         if repo.is_dirty(untracked_files=True):
             logging.info("Staging changes...")
             repo.git.add('--all')
 
             logging.info("Committing changes...")
             commit_obj = repo.index.commit(commit_message)
+            commit_hash = commit_obj.hexsha[:8]
 
             # ====================================================================
             # CRITICAL VERIFICATION: Check what was actually committed
@@ -92,11 +128,11 @@ def git_operations(base_dir, commit_message):
                 committed_files = list(commit_obj.stats.files.keys())
                 file_count = len(committed_files)
 
-                logging.info(f"✅ Git commit successful: {file_count} file(s) committed")
+                logging.info(f"Git commit successful: {file_count} file(s) committed [{commit_hash}]")
 
                 # Log first 10 files for verification
                 for filepath in committed_files[:10]:
-                    logging.info(f"  ✓ {filepath}")
+                    logging.info(f"  + {filepath}")
                 if file_count > 10:
                     logging.info(f"  ... and {file_count - 10} more file(s)")
 
@@ -105,35 +141,66 @@ def git_operations(base_dir, commit_message):
                 skybrush_committed = [f for f in committed_files if 'swarm/skybrush/' in f and f.endswith('.csv')]
 
                 if processed_committed:
-                    logging.info(f"📊 Committed {len(processed_committed)} processed drone file(s)")
+                    logging.info(f"Committed {len(processed_committed)} processed drone file(s)")
                 if skybrush_committed:
-                    logging.info(f"📂 Committed {len(skybrush_committed)} raw drone file(s)")
+                    logging.info(f"Committed {len(skybrush_committed)} raw drone file(s)")
 
             except Exception as verify_error:
                 logging.warning(f"Could not verify committed files: {verify_error}")
-                # Don't fail the entire operation, just log the warning
 
-        # Pull latest changes with rebase
+        # Pull latest changes with rebase (with timeout)
         logging.info("Rebasing local changes on top of remote changes...")
         try:
-            git.pull('--rebase', 'origin', Params.GIT_BRANCH)
-        except GitCommandError as e:
-            if 'merge conflict' in str(e):
+            git.pull('--rebase', 'origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
+        except (TimeoutError, GitCommandError) as e:
+            if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+                return {'success': False, 'message': f'Git pull timed out after {timeout}s',
+                        'commit_hash': commit_hash}
+            elif 'merge conflict' in str(e).lower() or 'rebase' in str(e).lower():
                 logging.error("Merge conflict detected. Attempting to resolve automatically...")
-                git.merge('--abort')  # Abort the merge
+                try:
+                    git.rebase('--abort')
+                except Exception:
+                    pass
                 git.reset('--hard', 'HEAD')
-                git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+                git.pull('--rebase', 'origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
+            else:
+                raise
 
-        # Push changes
+        # Push changes (with timeout)
         logging.info("Pushing changes to remote repository...")
-        git.push('origin', Params.GIT_BRANCH)
+        try:
+            git.push('origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
+        except (TimeoutError, GitCommandError) as e:
+            if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+                return {'success': False, 'message': f'Git push timed out after {timeout}s',
+                        'commit_hash': commit_hash}
+            raise
 
         success_message = "Changes pushed to repository successfully."
         logging.info(success_message)
-        return {'success': True, 'message': success_message}
+        return {'success': True, 'message': success_message, 'commit_hash': commit_hash}
 
     except GitCommandError as e:
-        error_message = f"Git command error: {str(e)}"
+        error_str = str(e)
+        # Provide specific error messages
+        if 'Permission denied' in error_str or 'publickey' in error_str:
+            error_message = "Git push failed: no SSH key or permission denied. Ensure GCS has a deploy key with write access."
+        elif 'Could not resolve host' in error_str or 'unable to access' in error_str:
+            error_message = "Git push failed: network error. Check internet connectivity."
+        elif 'rejected' in error_str and 'non-fast-forward' in error_str:
+            error_message = "Git push failed: remote has diverged. Pull and resolve conflicts first."
+        else:
+            error_message = f"Git command error: {error_str}"
+
+        # Check if remote is HTTPS (no push without auth)
+        try:
+            remote_url = repo.git.config('--get', 'remote.origin.url')
+            if remote_url.startswith('https://'):
+                error_message += " (GCS remote is HTTPS - push requires SSH. See docs/guides/gcs-setup.md)"
+        except Exception:
+            pass
+
         logging.error(error_message)
         return {'success': False, 'message': error_message}
     except Exception as e:

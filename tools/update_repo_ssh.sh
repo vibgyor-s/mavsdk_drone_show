@@ -764,6 +764,12 @@ main() {
     log_info "SUCCESS" "Duration: ${duration}s"
     log_info "SUCCESS" "=========================================="
 
+    # Structured result for machine parsing (used by actions.py)
+    # Escape quotes/backslashes in commit message for valid JSON
+    local commit_message_json
+    commit_message_json=$(echo "$commit_message" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')
+    echo "GIT_SYNC_RESULT={\"success\":true,\"branch\":\"$BRANCH_NAME\",\"commit\":\"$commit_hash\",\"message\":\"$commit_message_json\",\"duration\":$duration}"
+
     # Final LED state: Startup complete (white flash), then coordinator will take over
     set_led_status "STARTUP_COMPLETE"
 
