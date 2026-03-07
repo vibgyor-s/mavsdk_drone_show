@@ -1,7 +1,6 @@
 #src/drone_communicator.py
 import socket
 import threading
-import csv
 import struct
 import logging
 import select
@@ -78,15 +77,17 @@ class DroneCommunicator:
                 logging.error(f"Failed to send telemetry: {e}")
 
     def get_nodes(self) -> List[Dict[str, Any]]:
-        """Retrieve node information from config.csv file."""
+        """Retrieve node information from config file."""
         if self.nodes is None:
             try:
-                with open(Params.config_csv_name, "r") as file:
-                    self.nodes = list(csv.DictReader(file))
+                import json
+                with open(Params.config_file_name, "r") as f:
+                    data = json.load(f)
+                self.nodes = data.get('drones', data) if isinstance(data, dict) else data
             except FileNotFoundError:
-                logging.error("config file not found")
+                logging.error("Config file not found")
                 self.nodes = []
-            except csv.Error as e:
+            except Exception as e:
                 logging.error(f"Error reading config: {e}")
                 self.nodes = []
         return self.nodes
@@ -186,7 +187,7 @@ class DroneCommunicator:
         """Update mutable drone state values.
 
         Note: hw_id and pos_id are immutable configuration values loaded from
-        the drone's .hwID file and config.csv. They cannot be changed at runtime.
+        the drone's .hwID file and config. They cannot be changed at runtime.
         Only state and trigger_time are mutable runtime values.
         """
         self.drone_config.state = state

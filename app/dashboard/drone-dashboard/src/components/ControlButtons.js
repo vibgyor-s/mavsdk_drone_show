@@ -7,6 +7,7 @@ import {
   faSave,
   faPlus,
   faUpload,
+  faFileExport,
   faFileCsv,
   faUndo,
   faMapMarkerAlt,
@@ -29,6 +30,7 @@ const ControlButtons = ({
   handleRevertChanges,
   handleFileChange,
   exportConfig,
+  exportConfigCSV,
   openOriginModal,
   openGcsConfigModal,
   handleResetToDefault,
@@ -110,32 +112,44 @@ const ControlButtons = ({
 
       {/* Secondary Actions */}
       <div className="secondary-actions">
-        {/* Import CSV */}
+        {/* Import Config (JSON or CSV) */}
         <button
           className="file-upload-btn"
           onClick={triggerFileInput}
-          title="Import drone config from CSV"
+          title="Import drone config from JSON or CSV"
         >
           <FontAwesomeIcon icon={faUpload} />
-          Import CSV
+          Import
         </button>
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
           style={{ display: 'none' }}
-          accept=".csv"
+          accept=".json,.csv"
         />
 
-        {/* Export Config */}
+        {/* Export Config (JSON) */}
         <button
           className="export-config"
           onClick={exportConfig}
-          title="Export current drone configs to CSV"
+          title="Export current drone configs to JSON"
         >
-          <FontAwesomeIcon icon={faFileCsv} />
-          Export Config
+          <FontAwesomeIcon icon={faFileExport} />
+          Export JSON
         </button>
+
+        {/* Export Config (CSV) */}
+        {exportConfigCSV && (
+          <button
+            className="export-config"
+            onClick={exportConfigCSV}
+            title="Export current drone configs to CSV (legacy)"
+          >
+            <FontAwesomeIcon icon={faFileCsv} />
+            Export CSV
+          </button>
+        )}
 
         {/* Revert */}
         <button className="revert" onClick={handleRevertChanges} title="Revert all unsaved changes">
@@ -163,6 +177,7 @@ ControlButtons.propTypes = {
   handleRevertChanges: PropTypes.func.isRequired,
   handleFileChange: PropTypes.func.isRequired,
   exportConfig: PropTypes.func.isRequired,
+  exportConfigCSV: PropTypes.func,
   openOriginModal: PropTypes.func.isRequired,
   openGcsConfigModal: PropTypes.func.isRequired,
   handleResetToDefault: PropTypes.func.isRequired,

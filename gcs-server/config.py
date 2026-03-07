@@ -5,7 +5,7 @@ GCS Configuration Management
 Handles drone configuration, swarm settings, and Git status operations.
 
 Shared utilities:
-- CSV operations: functions/file_utils.py
+- File operations: functions/file_utils.py
 - Git operations: functions/git_manager.py
 """
 import os
@@ -14,32 +14,54 @@ from params import Params
 from collections import defaultdict
 
 # Import shared utilities (single source of truth)
-from functions.file_utils import load_csv, save_csv
+from functions.file_utils import load_json, save_json
 from functions.git_manager import get_local_git_report, get_remote_git_status
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
-SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
+CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_file_name)
+SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_file_name)
 
 logger = logging.getLogger(__name__)
 
-# Define the expected column order
-# Note: x,y removed - positions are now always fetched from trajectory CSV (single source of truth)
-CONFIG_COLUMNS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate']
-SWARM_COLUMNS = ['hw_id' , 'follow' , 'offset_n' , 'offset_e' , 'offset_alt' , 'body_coord']
+# Required fields for validation
+CONFIG_REQUIRED_FIELDS = {'hw_id', 'pos_id', 'ip', 'mavlink_port'}
+SWARM_REQUIRED_FIELDS = {'hw_id'}
 
-def load_config(file_path=CONFIG_FILE_PATH):
-    return load_csv(file_path)
 
-def save_config(config, file_path=CONFIG_FILE_PATH):
-    # Pass the expected column order to ensure consistent column placement
-    save_csv(config, file_path, fieldnames=CONFIG_COLUMNS)
+def load_config(file_path=None):
+    """Load fleet config from JSON. Returns list of drone dicts."""
+    path = file_path or CONFIG_FILE_PATH
+    data = load_json(path)
+    if isinstance(data, dict) and 'drones' in data:
+        return data['drones']
+    if isinstance(data, list):
+        return data  # Accept raw list for backward compat during migration
+    return []
 
-def load_swarm(file_path=SWARM_FILE_PATH):
-    return load_csv(file_path)
 
-def save_swarm(swarm, file_path=SWARM_FILE_PATH):
-    save_csv(swarm, file_path,fieldnames=SWARM_COLUMNS)
+def save_config(config, file_path=None):
+    """Save fleet config as JSON with version wrapper."""
+    path = file_path or CONFIG_FILE_PATH
+    wrapped = {"version": 1, "drones": config}
+    save_json(wrapped, path)
+
+
+def load_swarm(file_path=None):
+    """Load swarm config from JSON. Returns list of assignment dicts."""
+    path = file_path or SWARM_FILE_PATH
+    data = load_json(path)
+    if isinstance(data, dict) and 'assignments' in data:
+        return data['assignments']
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def save_swarm(swarm, file_path=None):
+    """Save swarm config as JSON with version wrapper."""
+    path = file_path or SWARM_FILE_PATH
+    wrapped = {"version": 1, "assignments": swarm}
+    save_json(wrapped, path)
 
 
 def get_gcs_git_report():
@@ -69,10 +91,10 @@ def validate_and_process_config(config_data, sim_mode=None):
     2. Detects duplicate pos_id values (collision risk)
     3. Identifies missing trajectory files
     4. Tracks role swaps (hw_id ≠ pos_id)
-    5. Removes x,y fields from config (no longer stored in config.csv)
+    5. Removes x,y fields from config (no longer stored in config)
     6. Returns comprehensive validation report
 
-    NOTE: x,y positions are NOT stored in config.csv. They are always fetched
+    NOTE: x,y positions are NOT stored in config. They are always fetched
     from trajectory CSV files (single source of truth). Use get_all_drone_positions()
     or /get-drone-positions API to retrieve positions.
 
@@ -151,7 +173,7 @@ def validate_and_process_config(config_data, sim_mode=None):
                     "message": f"Trajectory file 'Drone {pos_id}.csv' not found"
                 })
 
-            # Note: x,y removed from config.csv - positions always come from trajectory CSV
+            # Note: x,y removed from config - positions always come from trajectory CSV
             # Just copy the drone config without x,y fields
             updated_drone = dict(drone)
             # Remove x,y if they exist in input (for backward compatibility during migration)

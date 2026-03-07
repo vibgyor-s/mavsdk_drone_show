@@ -14,7 +14,7 @@ Features:
   - Automatic serial port & baud-rate detection (common rates)
   - Robust RTCM3 packet framing & fragmentation into MAVLink GPS_RTCM_DATA
     messages (<=180 bytes payload)
-  - Multicast of corrections to all drones defined in config.csv (IP, port)
+  - Multicast of corrections to all drones defined in config.json (IP, port)
   - Per-drone status indicators for serial input, RTCM output, and base link
   - Base survey progress and minimal fix-duration thresholds (configurable)
   - Scalable: handles 10-100 drones concurrently
@@ -44,7 +44,6 @@ from serial.tools import list_ports
 from pymavlink import mavutil
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, font
-import csv
 import webbrowser
 
 # ======================
@@ -57,9 +56,9 @@ MAX_MAVLINK_PAYLOAD = 180  # bytes per GPS_RTCM_DATA message
 BASE_SURVEY_TIMEOUT = 300   # seconds
 MIN_RTK_FIX_DURATION = 10  # seconds
 
-# Path to config.csv two levels above this file (repo root)
-CONFIG_CSV = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'config.csv')
+# Path to config.json two levels above this file (repo root)
+CONFIG_JSON = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')
 )
 
 # ======================
@@ -187,18 +186,21 @@ class RTKDistributor(threading.Thread):
 # Drone Configuration Loader
 # ======================
 class DroneConfig:
-    def __init__(self, path=CONFIG_CSV):
+    def __init__(self, path=CONFIG_JSON):
         self.path = path
     def load(self):
         if not os.path.isfile(self.path):
-            raise FileNotFoundError(f"Config.csv not found at {self.path}")
+            raise FileNotFoundError(f"Config file not found at {self.path}")
+        import json
+        with open(self.path, 'r') as f:
+            data = json.load(f)
+        entries = data.get('drones', data) if isinstance(data, dict) else data
         drones = []
-        with open(self.path, newline='') as f:
-            for row in csv.DictReader(f):
-                ip = row.get('ip')
-                did = row.get('pos_id') or row.get('hw_id')
-                if ip and did:
-                    drones.append({'id': did, 'ip': ip})
+        for entry in entries:
+            ip = entry.get('ip')
+            did = entry.get('pos_id') or entry.get('hw_id')
+            if ip and did:
+                drones.append({'id': did, 'ip': ip})
         return drones
 
 # ======================

@@ -151,7 +151,7 @@ initial_position_drift = None  # Initial position drift in NED coordinates
 drift_delta = 0.0  # Drift delta (to adjust waypoint times)
 
 
-CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
+CONFIG_FILE_NAME = Params.config_file_name
 
 # ----------------------------- #
 #         Helper Functions      #
@@ -208,69 +208,70 @@ def blender_north_west_up_to_ned(x_b, y_b, z_b=0.0):
 
 def read_config(filename: str) -> Drone:
     """
-    Read the drone configuration from a CSV file.
+    Read the drone configuration from a JSON config file.
 
     Note: x,y positions now come from trajectory CSV files (single source of truth),
-    not from config.csv.
+    not from config.json.
 
     Args:
-        filename (str): Path to the config CSV file.
+        filename (str): Path to the config JSON file.
 
     Returns:
         Drone: Namedtuple containing drone configuration if found, else None.
     """
     logger = logging.getLogger(__name__)
     try:
-        with open(filename, newline="") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                try:
-                    hw_id = int(row["hw_id"])
-                    if hw_id == HW_ID:
-                        pos_id = int(row["pos_id"])
-                        ip = row["ip"]
-                        mavlink_port = int(row["mavlink_port"])
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        entries = data.get('drones', data) if isinstance(data, dict) else data
+        for entry in entries:
+            try:
+                hw_id = int(entry["hw_id"])
+                if hw_id == HW_ID:
+                    pos_id = int(entry["pos_id"])
+                    ip = entry["ip"]
+                    mavlink_port = int(entry["mavlink_port"])
 
-                        # Get position from trajectory CSV (single source of truth)
-                        base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
-                        trajectory_file = os.path.join(
-                            os.path.dirname(__file__),  # Project root
-                            base_dir,
-                            'swarm',
-                            'processed',
-                            f"Drone {pos_id}.csv"
-                        )
+                    # Get position from trajectory CSV (single source of truth)
+                    base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                    trajectory_file = os.path.join(
+                        os.path.dirname(__file__),  # Project root
+                        base_dir,
+                        'swarm',
+                        'processed',
+                        f"Drone {pos_id}.csv"
+                    )
 
-                        initial_x, initial_y = 0.0, 0.0  # Default values
-                        try:
-                            if os.path.exists(trajectory_file):
-                                with open(trajectory_file, 'r') as traj_f:
-                                    traj_reader = csv.DictReader(traj_f)
-                                    first_waypoint = next(traj_reader, None)
-                                    if first_waypoint:
-                                        initial_x = float(first_waypoint.get('px', 0))  # North
-                                        initial_y = float(first_waypoint.get('py', 0))  # East
-                                    else:
-                                        logger.warning(f"Trajectory file empty for pos_id={pos_id}")
-                            else:
-                                logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
-                        except Exception as e:
-                            logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
+                    initial_x, initial_y = 0.0, 0.0  # Default values
+                    try:
+                        if os.path.exists(trajectory_file):
+                            with open(trajectory_file, 'r') as traj_f:
+                                traj_reader = csv.DictReader(traj_f)
+                                first_waypoint = next(traj_reader, None)
+                                if first_waypoint:
+                                    initial_x = float(first_waypoint.get('px', 0))  # North
+                                    initial_y = float(first_waypoint.get('py', 0))  # East
+                                else:
+                                    logger.warning(f"Trajectory file empty for pos_id={pos_id}")
+                        else:
+                            logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+                    except Exception as e:
+                        logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
 
-                        drone = Drone(
-                            hw_id,
-                            pos_id,
-                            initial_x,
-                            initial_y,
-                            ip,
-                            mavlink_port,
-                        )
-                        logger.info(f"Drone configuration found: {drone}")
-                        return drone
-                except ValueError as ve:
-                    logger.error(f"Invalid data type in config file row: {row}. Error: {ve}")
-            logger.error(f"No configuration found for HW_ID {HW_ID}.")
-            return None
+                    drone = Drone(
+                        hw_id,
+                        pos_id,
+                        initial_x,
+                        initial_y,
+                        ip,
+                        mavlink_port,
+                    )
+                    logger.info(f"Drone configuration found: {drone}")
+                    return drone
+            except ValueError as ve:
+                logger.error(f"Invalid data type in config file entry: {entry}. Error: {ve}")
+        logger.error(f"No configuration found for HW_ID {HW_ID}.")
+        return None
     except FileNotFoundError:
         logger.exception("Config file not found.")
         return None
@@ -1287,7 +1288,7 @@ async def validate_drone_position(drone: System, origin: dict, config: dict):
     Validate that drone's current position is within acceptable range of expected position.
 
     This safety check prevents flight if the drone is placed too far from where it should be
-    according to config.csv offsets from the shared origin.
+    according to config offsets from the shared origin.
 
     Args:
         drone: MAVSDK System instance
@@ -1924,14 +1925,14 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 logger.error("Failed to read HW ID; cannot validate position.")
                 sys.exit(1)
 
-            drone_config = read_config(CONFIG_CSV_NAME)
+            drone_config = read_config(CONFIG_FILE_NAME)
             if drone_config is None:
                 logger.error("Drone config not found; cannot validate position.")
                 sys.exit(1)
 
             logger.info(f"Drone HW_ID={HW_ID}, Position ID={drone_config.pos_id}")
 
-            # CRITICAL FIX: Get expected position from trajectory CSV, not config.csv
+            # CRITICAL FIX: Get expected position from trajectory CSV, not config
             # When hw_id ≠ pos_id, config x,y represents hw_id's physical position,
             # but we need pos_id's trajectory starting position for validation
             expected_north, expected_east = get_expected_position_from_trajectory(
@@ -2069,7 +2070,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 if HW_ID is None:
                     logger.error("Failed to read HW ID; exiting.")
                     sys.exit(1)
-                drone_config = read_config(CONFIG_CSV_NAME)
+                drone_config = read_config(CONFIG_FILE_NAME)
                 if drone_config is None:
                     logger.error("Drone config not found; exiting.")
                     sys.exit(1)

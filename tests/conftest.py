@@ -52,8 +52,8 @@ from tests.fixtures.drone_configs import (
     hundred_drone_grid,
     drone_with_timeout,
     drone_disconnected,
-    drones_to_config_csv,
-    drones_to_swarm_csv,
+    drones_to_config_json,
+    drones_to_swarm_json,
     drones_to_telemetry_response,
 )
 
@@ -115,8 +115,8 @@ def mock_params():
     params.sim_mode = True
     params.GCS_IP = "172.18.0.1"
     params.gcs_api_port = 5000
-    params.config_csv_name = "config_sitl.csv"
-    params.swarm_csv_name = "swarm_sitl.csv"
+    params.config_file_name = "config_sitl.json"
+    params.swarm_file_name = "swarm_sitl.json"
     # serial_mavlink and sitl_port REMOVED - MAVLink routing is now external
     params.mavsdk_port = 14540
     params.trigger_sooner_seconds = 4
@@ -488,15 +488,15 @@ def mock_gcs_telemetry_data(fifty_drones):
 
 
 @pytest.fixture
-def mock_gcs_config_csv(fifty_drones):
-    """Mock config.csv content for 50 drones"""
-    return drones_to_config_csv(fifty_drones)
+def mock_gcs_config_json(fifty_drones):
+    """Mock config.json content for 50 drones"""
+    return drones_to_config_json(fifty_drones)
 
 
 @pytest.fixture
-def mock_gcs_swarm_csv(fifty_drones):
-    """Mock swarm.csv content for 50 drones"""
-    return drones_to_swarm_csv(fifty_drones)
+def mock_gcs_swarm_json(fifty_drones):
+    """Mock swarm.json content for 50 drones"""
+    return drones_to_swarm_json(fifty_drones)
 
 
 # ============================================================================

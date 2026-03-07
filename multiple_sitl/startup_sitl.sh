@@ -73,7 +73,7 @@ DEFAULT_ALT=1278
 # Directory Paths
 BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
-CONFIG_FILE="$BASE_DIR/config_sitl.csv"
+CONFIG_FILE="$BASE_DIR/config_sitl.json"
 PX4_DIR="$HOME/PX4-Autopilot"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
@@ -422,7 +422,7 @@ set_mav_sys_id() {
 }
 
 # Function to read offsets from trajectory CSV
-# Note: x,y positions now come from trajectory CSV files (single source of truth), not config.csv
+# Note: x,y positions now come from trajectory CSV files (single source of truth), not config.json
 read_offsets() {
     log_message "Reading offsets from trajectory CSV for HWID: $HWID..."
 
@@ -434,24 +434,22 @@ read_offsets() {
         return
     fi
 
-    # Read config.csv to get pos_id for this hw_id (NEW 6-column format)
-    # Format: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-    local POS_ID=""
-    while IFS=, read -r hw_id pos_id ip mavlink_port serial_port baudrate; do
-        # Skip header line
-        if [ "$hw_id" == "hw_id" ]; then
-            continue
-        fi
-        if [ "$hw_id" == "$HWID" ]; then
-            POS_ID="$pos_id"
-            log_message "Found pos_id=$POS_ID for hw_id=$HWID"
-            break
-        fi
-    done < "$CONFIG_FILE"
+    # Read config.json to get pos_id for this hw_id
+    if ! command -v jq &>/dev/null; then
+        log_message "ERROR: jq is required. Install with: apt-get install -y jq"
+        exit 1
+    fi
 
-    if [ -z "$POS_ID" ]; then
+    local drone_entry
+    drone_entry=$(jq -c ".drones[] | select(.hw_id == $HWID)" "$CONFIG_FILE" 2>/dev/null)
+
+    local POS_ID=""
+    if [[ -z "$drone_entry" || "$drone_entry" == "null" ]]; then
         log_message "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
         return
+    else
+        POS_ID=$(echo "$drone_entry" | jq -r '.pos_id')
+        log_message "Found pos_id=$POS_ID for hw_id=$HWID"
     fi
 
     # Read trajectory CSV to get initial position (px, py from first row)
@@ -626,7 +624,7 @@ setup_python_env
 # Set MAV_SYS_ID
 set_mav_sys_id
 
-# Read offsets from config.csv
+# Read offsets from config.json
 read_offsets
 
 # Calculate new geographic coordinates

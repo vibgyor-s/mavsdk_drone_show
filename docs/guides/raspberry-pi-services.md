@@ -198,7 +198,7 @@ journalctl -u git_sync_mds --since "10 minutes ago"
 **Coordinator won't start:**
 - Check `journalctl -u coordinator`
 - Verify venv exists: `ls -la ~/mavsdk_drone_show/venv/bin/python`
-- Check config.csv exists
+- Check config.json exists
 
 **Git sync fails:**
 - Check network: `ping github.com`

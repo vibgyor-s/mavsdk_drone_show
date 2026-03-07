@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "assignments": [
+    {
+      "hw_id": 1,
+      "follow": 0,
+      "offset_n": 0.0,
+      "offset_e": 0.0,
+      "offset_alt": 0.0
+    },
+    {
+      "hw_id": 2,
+      "follow": 1,
+      "offset_n": -3.0,
+      "offset_e": -3.0,
+      "offset_alt": 0.25
+    },
+    {
+      "hw_id": 3,
+      "follow": 1,
+      "offset_n": 3.0,
+      "offset_e": 3.0,
+      "offset_alt": 0.5
+    },
+    {
+      "hw_id": 4,
+      "follow": 1,
+      "offset_n": -3.0,
+      "offset_e": 3.0,
+      "offset_alt": 0.75
+    },
+    {
+      "hw_id": 5,
+      "follow": 0,
+      "offset_n": 0.0,
+      "offset_e": 0.0,
+      "offset_alt": 1.0
+    },
+    {
+      "hw_id": 6,
+      "follow": 5,
+      "offset_n": -3.0,
+      "offset_e": -3.0,
+      "offset_alt": 1.25
+    },
+    {
+      "hw_id": 7,
+      "follow": 5,
+      "offset_n": 3.0,
+      "offset_e": 3.0,
+      "offset_alt": 1.5
+    },
+    {
+      "hw_id": 8,
+      "follow": 5,
+      "offset_n": -3.0,
+      "offset_e": 3.0,
+      "offset_alt": 1.75
+    },
+    {
+      "hw_id": 9,
+      "follow": 0,
+      "offset_n": 0.0,
+      "offset_e": 0.0,
+      "offset_alt": 2.0
+    },
+    {
+      "hw_id": 10,
+      "follow": 9,
+      "offset_n": -3.0,
+      "offset_e": -3.0,
+      "offset_alt": 2.25
+    },
+    {
+      "hw_id": 11,
+      "follow": 9,
+      "offset_n": 3.0,
+      "offset_e": 3.0,
+      "offset_alt": 2.5
+    },
+    {
+      "hw_id": 12,
+      "follow": 9,
+      "offset_n": -3.0,
+      "offset_e": 3.0,
+      "offset_alt": 2.75
+    }
+  ]
+}

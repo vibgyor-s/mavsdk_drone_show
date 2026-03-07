@@ -87,7 +87,7 @@ class DroneConfig:
 
     @property
     def config(self) -> Dict[str, Any]:
-        """Configuration dictionary from config.csv."""
+        """Configuration dictionary from config.json."""
         return self._config_data.config
 
     @property

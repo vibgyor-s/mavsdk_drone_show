@@ -30,7 +30,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 - **Hierarchical Support**: Multi-level leader-follower relationships (leaders can have sub-leaders)
 - **Global Coordinates**: Uses lat/lon/alt throughout - no local conversions needed
 - **Smooth Interpolation**: Converts waypoints to smooth trajectories at 0.05s intervals
-- **Formation Integrity**: Maintains precise relative positioning using swarm.csv offsets
+- **Formation Integrity**: Maintains precise relative positioning using swarm.json offsets
 - **Visualization**: Generates 3D plots for trajectory analysis
 - **Google Earth Export**: KML files for 3D terrain visualization with time animation
 - **Mission Integration**: Seamlessly integrates with existing mission system
@@ -61,7 +61,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 - ✅ **No NED Conversion**: Trajectories are smoothed directly in global coordinates  
 - ✅ **Cubic Spline Interpolation**: Waypoints → smooth trajectory at 0.05s intervals
 
-**Follower Processing (Respects swarm.csv Configuration)**:
+**Follower Processing (Respects swarm.json Configuration)**:
 - **Body Coordinate Mode** (`body_coord=1`): Forward/Right relative to lead drone's heading
   ```python
   # offset_n=5m Forward, offset_e=3m Right → rotated by lead drone's yaw
@@ -98,7 +98,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 ### Data Flow
 
 1. **Upload**: User uploads leader trajectories via UI
-2. **Analysis**: System analyzes swarm.csv for leader-follower structure  
+2. **Analysis**: System analyzes swarm.json for leader-follower structure
 3. **Processing**: Smooth leader trajectories, calculate follower positions
 4. **Generation**: Create individual CSV files for each drone
 5. **Visualization**: Generate 3D plots for analysis
@@ -324,7 +324,7 @@ swarm_missing_leader_strategy = 'skip'  # 'skip' or 'error'
 ### Common Issues
 
 #### "No lead drones found"
-- **Cause**: swarm.csv missing or no drones with `follow=0`
+- **Cause**: swarm.json missing or no drones with `follow=0`
 - **Fix**: Verify swarm configuration has top leaders defined
 
 #### "Trajectory processing failed"  

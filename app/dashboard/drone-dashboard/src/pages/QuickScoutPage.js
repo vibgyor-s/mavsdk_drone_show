@@ -111,7 +111,7 @@ const QuickScoutPage = () => {
   // Telemetry
   const [drones, setDrones] = useState([]);
 
-  // Config drones (from config.csv)
+  // Config drones (from config.json)
   const [configDrones, setConfigDrones] = useState([]);
 
   // Map
@@ -141,7 +141,7 @@ const QuickScoutPage = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch config.csv drones on mount
+  // Fetch config drones on mount
   useEffect(() => {
     const fetchConfigDrones = async () => {
       try {

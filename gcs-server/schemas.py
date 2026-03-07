@@ -68,26 +68,41 @@ class GitStatus(str, Enum):
 # ============================================================================
 
 class DroneConfig(BaseModel):
-    """Individual drone configuration matching 6-column config.csv format"""
-    model_config = ConfigDict(extra='ignore')  # Ignore unknown fields for forward compatibility
+    """Individual drone configuration for config.json"""
+    model_config = ConfigDict(extra='allow')  # Preserve user custom fields
 
     hw_id: int = Field(..., ge=1, description="Hardware ID (unique physical drone identifier)")
     pos_id: int = Field(..., ge=1, description="Position ID (1-based, maps to trajectory 'Drone {pos_id}.csv')")
     ip: str = Field(..., pattern=r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', description="IP address")
-    mavlink_port: str = Field(..., description="MAVLink UDP port")
+    mavlink_port: int = Field(..., ge=1, description="MAVLink UDP port")
     serial_port: str = Field('', description="Serial port device path (empty for SITL)")
-    baudrate: str = Field('', description="Serial baudrate (empty for SITL)")
+    baudrate: int = Field(0, ge=0, description="Serial baudrate (0 for SITL)")
+    color: Optional[str] = Field(None, pattern=r'^#[0-9a-fA-F]{6}$', description="UI color (hex)")
+    notes: Optional[str] = Field(None, description="Operator notes")
 
-    @validator('ip')
-    def validate_ip(cls, v):
-        """Validate IP address format"""
-        octets = v.split('.')
-        if len(octets) != 4:
-            raise ValueError('Invalid IP address format')
-        for octet in octets:
-            if not 0 <= int(octet) <= 255:
-                raise ValueError('IP octets must be 0-255')
-        return v
+
+class FleetConfig(BaseModel):
+    """Top-level config.json schema"""
+    version: int = Field(1, ge=1, description="Schema version for future migration")
+    drones: List[DroneConfig]
+
+
+class SwarmAssignment(BaseModel):
+    """Individual swarm assignment for swarm.json"""
+    model_config = ConfigDict(extra='allow')
+
+    hw_id: int = Field(..., ge=1, description="Hardware ID")
+    follow: int = Field(0, ge=0, description="Leader hw_id to follow (0 = independent)")
+    offset_n: float = Field(0.0, description="North offset in meters")
+    offset_e: float = Field(0.0, description="East offset in meters")
+    offset_alt: float = Field(0.0, description="Altitude offset in meters")
+    body_coord: bool = Field(False, description="True = body-frame offsets, False = NED-frame")
+
+
+class SwarmConfig(BaseModel):
+    """Top-level swarm.json schema"""
+    version: int = Field(1, ge=1, description="Schema version")
+    assignments: List[SwarmAssignment]
 
 
 class ConfigListResponse(BaseModel):

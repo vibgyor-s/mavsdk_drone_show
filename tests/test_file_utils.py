@@ -2,13 +2,21 @@
 """
 File Utilities Tests
 ====================
-Tests for the shared CSV and file I/O operations in functions/file_utils.py.
+Tests for the shared CSV, JSON, and file I/O operations in functions/file_utils.py.
 """
 
+import json
 import pytest
+import sys
 import os
 import tempfile
 import csv
+
+# Add project paths
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'functions'))
+
+from functions.file_utils import load_json, save_json
 
 
 class TestLoadCSV:
@@ -258,6 +266,63 @@ class TestTrajectoryOperations:
         pos = get_trajectory_first_position(str(csv_file))
 
         assert pos is None
+
+
+class TestLoadJson:
+    """Test JSON loading functionality"""
+
+    def test_load_valid_json(self, tmp_path):
+        p = tmp_path / "test.json"
+        p.write_text('{"version": 1, "drones": [{"hw_id": 1}]}')
+        data = load_json(str(p))
+        assert data['version'] == 1
+        assert len(data['drones']) == 1
+
+    def test_load_missing_file(self, tmp_path):
+        data = load_json(str(tmp_path / "nonexistent.json"))
+        assert data == {}
+
+    def test_load_invalid_json(self, tmp_path):
+        p = tmp_path / "bad.json"
+        p.write_text('{invalid json}')
+        data = load_json(str(p))
+        assert data == {}
+
+    def test_load_empty_file(self, tmp_path):
+        p = tmp_path / "empty.json"
+        p.write_text('')
+        data = load_json(str(p))
+        assert data == {}
+
+
+class TestSaveJson:
+    """Test JSON saving functionality"""
+
+    def test_save_and_load(self, tmp_path):
+        p = tmp_path / "out.json"
+        data = {"version": 1, "drones": [{"hw_id": 1, "ip": "10.0.0.1"}]}
+        result = save_json(data, str(p))
+        assert result is True
+        loaded = json.loads(p.read_text())
+        assert loaded['version'] == 1
+        assert loaded['drones'][0]['ip'] == '10.0.0.1'
+
+    def test_trailing_newline(self, tmp_path):
+        p = tmp_path / "out.json"
+        save_json({"a": 1}, str(p))
+        assert p.read_text().endswith('\n')
+
+    def test_creates_parent_dirs(self, tmp_path):
+        p = tmp_path / "sub" / "dir" / "out.json"
+        result = save_json({"a": 1}, str(p))
+        assert result is True
+        assert p.exists()
+
+    def test_unicode_preserved(self, tmp_path):
+        p = tmp_path / "unicode.json"
+        save_json({"notes": "Drone für Test"}, str(p))
+        loaded = json.loads(p.read_text())
+        assert loaded['notes'] == "Drone für Test"
 
 
 if __name__ == "__main__":

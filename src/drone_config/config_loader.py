@@ -6,7 +6,7 @@ Static utilities for loading drone configuration from files and network.
 
 This module provides stateless methods for:
 - Reading hardware ID from .hwID files
-- Loading config.csv and swarm.csv files
+- Loading config.json and swarm.json files
 - Fetching online configurations
 - Loading trajectory-based drone positions
 """
@@ -28,12 +28,8 @@ class ConfigLoader:
     """
     Static utilities for loading drone configuration data.
 
-    TODO(deferred): Move from CSV to JSON/YAML configuration.
-    CSV is fragile (column order dependent, no nesting, no schema validation).
-    See docs/TODO_deferred.md #3
-
     TODO(deferred): Central config service (pull-based).
-    Drones pull config from GCS API on boot instead of reading local CSV.
+    Drones pull config from GCS API on boot instead of reading local JSON.
     See docs/TODO_deferred.md #4
 
     All methods are class methods that don't require instance state,
@@ -76,27 +72,32 @@ class ConfigLoader:
     @staticmethod
     def read_file(filename: str, source: str, hw_id: int) -> Optional[Dict[str, Any]]:
         """
-        Read a CSV configuration file and return config for given hardware ID.
+        Read a JSON configuration file and return the entry matching hw_id.
 
         Args:
-            filename: Path to CSV file
+            filename: Path to JSON file
             source: Description of file source (for logging)
-            hw_id: Hardware ID (int) to find in CSV
+            hw_id: Hardware ID (int) to find in JSON
 
         Returns:
             Dictionary with configuration data, or None if not found.
         """
         try:
-            with open(filename, newline='') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    if row['hw_id'] == str(hw_id):
-                        logger.info(f"Configuration for HW_ID {hw_id} found in {source}.")
-                        return dict(row)
+            import json
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            # Support both wrapped {"drones": [...]} and raw [...] format
+            entries = data.get('drones', data) if isinstance(data, dict) else data
+            for entry in entries:
+                if int(entry.get('hw_id', -1)) == hw_id:
+                    logger.info(f"Configuration for HW_ID {hw_id} found in {source}.")
+                    return dict(entry)
+            logger.warning(f"hw_id {hw_id} not found in {filename}")
+            return None
         except FileNotFoundError:
             logger.error(f"File not found: {filename}")
         except Exception as e:
-            logger.error(f"Error reading file {filename}: {e}")
+            logger.error(f"Error reading {source} ({filename}): {e}")
         return None
 
     @staticmethod
@@ -123,7 +124,7 @@ class ConfigLoader:
             with open(local_filename, 'w') as f:
                 f.write(response.text)
 
-            return ConfigLoader.read_file(local_filename, 'online CSV file', hw_id)
+            return ConfigLoader.read_file(local_filename, 'online config', hw_id)
 
         except Exception as e:
             logger.error(f"Failed to load online configuration: {e}")
@@ -132,7 +133,7 @@ class ConfigLoader:
     @staticmethod
     def read_config(hw_id: int) -> Optional[Dict[str, Any]]:
         """
-        Read configuration from local CSV file or online source.
+        Read configuration from local JSON file or online source.
 
         Uses Params.offline_config to determine source.
 
@@ -143,14 +144,14 @@ class ConfigLoader:
             Dictionary with configuration data, or None if not found.
         """
         if Params.offline_config:
-            return ConfigLoader.read_file(Params.config_csv_name, 'local CSV file', hw_id)
+            return ConfigLoader.read_file(Params.config_file_name, 'local config', hw_id)
         else:
-            return ConfigLoader.fetch_online_config(Params.config_url, 'online_config.csv', hw_id)
+            return ConfigLoader.fetch_online_config(Params.config_url, 'online_config.json', hw_id)
 
     @staticmethod
     def read_swarm(hw_id: int) -> Optional[Dict[str, Any]]:
         """
-        Read swarm configuration from local CSV file or online source.
+        Read swarm configuration from local JSON file or online source.
 
         Uses Params.offline_swarm to determine source.
 
@@ -161,64 +162,65 @@ class ConfigLoader:
             Dictionary with swarm configuration data, or None if not found.
         """
         if Params.offline_swarm:
-            return ConfigLoader.read_file(Params.swarm_csv_name, 'local CSV file', hw_id)
+            return ConfigLoader.read_file(Params.swarm_file_name, 'local config', hw_id)
         else:
-            return ConfigLoader.fetch_online_config(Params.swarm_url, 'online_swarm.csv', hw_id)
+            return ConfigLoader.fetch_online_config(Params.swarm_url, 'online_swarm.json', hw_id)
 
     @staticmethod
     def load_all_configs() -> Dict[int, Dict[str, float]]:
         """
-        Load all drone configurations from config.csv and trajectory files.
+        Load all drone configurations from config.json and trajectory files.
 
-        Reads pos_ids from config.csv, then loads x,y positions from
+        Reads pos_ids from config.json, then loads x,y positions from
         corresponding trajectory CSV files (single source of truth).
 
         Returns:
             Dictionary mapping pos_id to {x, y} position data.
         """
+        import json
         all_configs: Dict[int, Dict[str, float]] = {}
         try:
-            # Read config.csv to get all pos_ids
-            with open(Params.config_csv_name, newline='') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    pos_id = int(row['pos_id'])
+            with open(Params.config_file_name, 'r') as f:
+                data = json.load(f)
+            entries = data.get('drones', data) if isinstance(data, dict) else data
+            for entry in entries:
+                pos_id = int(entry['pos_id'])
 
-                    # Get position from trajectory CSV (single source of truth)
-                    base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                # Get position from trajectory CSV (single source of truth)
+                base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
 
-                    # Navigate from src/drone_config/ to project root
-                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                    trajectory_file = os.path.join(
-                        project_root,
-                        base_dir,
-                        'swarm',
-                        'processed',
-                        f"Drone {pos_id}.csv"
-                    )
+                # Navigate from src/drone_config/ to project root
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                trajectory_file = os.path.join(
+                    project_root,
+                    base_dir,
+                    'swarm',
+                    'processed',
+                    f"Drone {pos_id}.csv"
+                )
 
-                    try:
-                        if os.path.exists(trajectory_file):
-                            with open(trajectory_file, 'r') as traj_f:
-                                traj_reader = csv.DictReader(traj_f)
-                                first_waypoint = next(traj_reader, None)
-                                if first_waypoint:
-                                    x = float(first_waypoint.get('px', 0))  # North
-                                    y = float(first_waypoint.get('py', 0))  # East
-                                    all_configs[pos_id] = {'x': x, 'y': y}
-                                else:
-                                    logger.warning(f"Trajectory file empty for pos_id={pos_id}")
-                                    all_configs[pos_id] = {'x': 0, 'y': 0}
-                        else:
-                            logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
-                            all_configs[pos_id] = {'x': 0, 'y': 0}
-                    except Exception as e:
-                        logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
+                try:
+                    if os.path.exists(trajectory_file):
+                        with open(trajectory_file, 'r') as traj_f:
+                            traj_reader = csv.DictReader(traj_f)  # Trajectory stays CSV!
+                            first_waypoint = next(traj_reader, None)
+                            if first_waypoint:
+                                x = float(first_waypoint.get('px', 0))  # North
+                                y = float(first_waypoint.get('py', 0))  # East
+                                all_configs[pos_id] = {'x': x, 'y': y}
+                            else:
+                                logger.warning(f"Trajectory file empty for pos_id={pos_id}")
+                                all_configs[pos_id] = {'x': 0, 'y': 0}
+                    else:
+                        logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
                         all_configs[pos_id] = {'x': 0, 'y': 0}
+                except Exception as e:
+                    logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
+                    all_configs[pos_id] = {'x': 0, 'y': 0}
 
-            logger.info("All drone configurations loaded successfully from trajectory CSV files.")
+            logger.info("All drone configurations loaded from config and trajectory files.")
         except FileNotFoundError:
-            logger.error(f"Config file {Params.config_csv_name} not found.")
+            logger.error(f"Config file {Params.config_file_name} not found.")
         except Exception as e:
             logger.error(f"Error loading all drone configurations: {e}")
         return all_configs

@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import '../styles/DroneCard.css';
 
 const categorizeDroneRole = (drone, followerCounts, topLeaderIdsSet) => {
-    if (drone.follow === '0') return 'Top Leader';
-    if (!topLeaderIdsSet.has(drone.hw_id) && followerCounts[drone.hw_id]) return 'Intermediate Leader';
+    if (String(drone.follow) === '0') return 'Top Leader';
+    if (!topLeaderIdsSet.has(drone.hw_id) && followerCounts[String(drone.hw_id)]) return 'Intermediate Leader';
     return 'Follower';
 };
 
 const dronesFollowing = (droneId, allDrones) => {
-    return allDrones.filter(d => d.follow === droneId).map(d => d.hw_id);
+    return allDrones.filter(d => String(d.follow) === String(droneId)).map(d => d.hw_id);
 };
 
 const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
@@ -21,22 +21,23 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
         e: drone.offset_e,
         alt: drone.offset_alt
     });
-    const [isBodyCoord, setIsBodyCoord] = useState(drone.body_coord === '1');
+    const [isBodyCoord, setIsBodyCoord] = useState(drone.body_coord === '1' || drone.body_coord === 1 || drone.body_coord === true);
 
     // Count followers for each drone
     const followerCounts = {};
     allDrones.forEach(d => {
-        if (!followerCounts[d.follow]) {
-            followerCounts[d.follow] = 0;
+        const followKey = String(d.follow);
+        if (!followerCounts[followKey]) {
+            followerCounts[followKey] = 0;
         }
-        followerCounts[d.follow]++;
+        followerCounts[followKey]++;
     });
 
-    const topLeaderIdsSet = new Set(allDrones.filter(d => d.follow === '0').map(leader => leader.hw_id));
+    const topLeaderIdsSet = new Set(allDrones.filter(d => String(d.follow) === '0').map(leader => leader.hw_id));
     const role = categorizeDroneRole(drone, followerCounts, topLeaderIdsSet);
 
     useEffect(() => {
-        if (selectedFollow === '0') {
+        if (String(selectedFollow) === '0') {
             setOffsets({ n: 0, e: 0, alt: 0 });
         }
     }, [selectedFollow]);
@@ -104,7 +105,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                             type="number"
                             value={offsets.n}
                             onChange={e => setOffsets(prev => ({ ...prev, n: e.target.value }))}
-                            disabled={selectedFollow === '0'}
+                            disabled={String(selectedFollow) === '0'}
                         />
                     </div>
 
@@ -114,7 +115,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                             type="number"
                             value={offsets.e}
                             onChange={e => setOffsets(prev => ({ ...prev, e: e.target.value }))}
-                            disabled={selectedFollow === '0'}
+                            disabled={String(selectedFollow) === '0'}
                         />
                     </div>
 
@@ -124,7 +125,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                             type="number"
                             value={offsets.alt}
                             onChange={e => setOffsets(prev => ({ ...prev, alt: e.target.value }))}
-                            disabled={selectedFollow === '0'}
+                            disabled={String(selectedFollow) === '0'}
                         />
                     </div>
 

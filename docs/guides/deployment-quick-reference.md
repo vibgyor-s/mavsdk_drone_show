@@ -15,7 +15,7 @@ OLD: hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate (10
 NEW: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate (6 columns)
 ```
 
-> **Note:** Positions (x,y) are no longer in config.csv. They come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`).
+> **Note:** Positions (x,y) are not in config.json. They come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`).
 
 ---
 
@@ -24,7 +24,7 @@ NEW: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate (6 columns)
 ### For This GCS/Development Machine
 
 **No action needed!** Files already updated:
-- ✅ config.csv has new columns with defaults
+- ✅ config.json has required fields with defaults
 - ✅ config_sitl.csv has N/A values
 - ✅ Backups created
 - ✅ All tests passing
@@ -36,7 +36,7 @@ python3 test_config_simple.py
 
 ### For Remote Drones (After Git Sync)
 
-**The drones will automatically pull the updated config.csv via git sync.**
+**The drones will automatically pull the updated config.json via git sync.**
 
 **If you have Raspberry Pi 5 drones, update their entries:**
 ```csv
@@ -83,14 +83,12 @@ cat /proc/cpuinfo | grep "Model"
 5. Save
 
 ### Update All Drones to RP5
-```bash
-sed -i 's|/dev/ttyS0|/dev/ttyAMA0|g' config.csv
-```
 
-### Verify CSV Structure
+Use the Mission Config UI to update serial ports, or edit config.json directly.
+
+### Verify Config Structure
 ```bash
-head -1 config.csv
-# Should show: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+python3 -c "import json; d=json.load(open('config.json')); print(f'Version: {d[\"version\"]}, Drones: {len(d[\"drones\"])}')"
 ```
 
 ---
@@ -111,7 +109,7 @@ npm start
 Navigate to Mission Config → verify new columns visible
 
 ### Integration Test
-1. Update one drone's serial_port in config.csv
+1. Update one drone's serial_port in config.json
 2. Git push (auto-commit should work)
 3. SSH to drone, verify config pulled
 4. Restart coordinator
@@ -125,7 +123,7 @@ If something goes wrong:
 
 ```bash
 # Restore backups
-cp config.csv.backup config.csv
+cp config.json.backup config.json
 cp config_sitl.csv.backup config_sitl.csv
 
 # Revert code changes
@@ -167,7 +165,7 @@ ssh drone_ip
 ls -la /dev/tty* | grep -E "ttyS0|ttyAMA0|ttyTHS1"
 
 # Verify config loaded
-head -2 config.csv
+cat config.json | python3 -m json.tool | head -10
 ```
 
 **Issue:** CSV upload fails
@@ -189,7 +187,7 @@ head -2 config.csv
 - [ ] Verify hardware types for all drones
 - [ ] Update RP5 drones to /dev/ttyAMA0
 - [ ] Test one drone first
-- [ ] Backup config.csv
+- [ ] Backup config.json
 - [ ] Document any custom configurations
 
 **After deploying:**

@@ -43,36 +43,41 @@ class TestConfigLoader:
             assert result == 42
 
     def test_read_file_success(self, tmp_path):
-        """Test reading a valid CSV file"""
-        csv_content = "hw_id,pos_id,ip\n1,1,10.0.0.1\n2,2,10.0.0.2"
-        csv_file = tmp_path / "test_config.csv"
-        csv_file.write_text(csv_content)
+        """Test reading a valid JSON config file"""
+        import json
+        json_content = {"drones": [
+            {"hw_id": 1, "pos_id": 1, "ip": "10.0.0.1"},
+            {"hw_id": 2, "pos_id": 2, "ip": "10.0.0.2"}
+        ]}
+        json_file = tmp_path / "test_config.json"
+        json_file.write_text(json.dumps(json_content))
 
-        result = ConfigLoader.read_file(str(csv_file), 'test', 1)
+        result = ConfigLoader.read_file(str(json_file), 'test', 1)
         assert result is not None
-        assert result['hw_id'] == '1'
-        assert result['pos_id'] == '1'
+        assert result['hw_id'] == 1
+        assert result['pos_id'] == 1
         assert result['ip'] == '10.0.0.1'
 
     def test_read_file_hw_id_not_found(self, tmp_path):
-        """Test reading CSV when hw_id doesn't exist"""
-        csv_content = "hw_id,pos_id,ip\n1,1,10.0.0.1"
-        csv_file = tmp_path / "test_config.csv"
-        csv_file.write_text(csv_content)
+        """Test reading JSON when hw_id doesn't exist"""
+        import json
+        json_content = {"drones": [{"hw_id": 1, "pos_id": 1, "ip": "10.0.0.1"}]}
+        json_file = tmp_path / "test_config.json"
+        json_file.write_text(json.dumps(json_content))
 
-        result = ConfigLoader.read_file(str(csv_file), 'test', 999)
+        result = ConfigLoader.read_file(str(json_file), 'test', 999)
         assert result is None
 
     def test_read_file_not_found(self):
         """Test reading non-existent file"""
-        result = ConfigLoader.read_file('/nonexistent/file.csv', 'test', 1)
+        result = ConfigLoader.read_file('/nonexistent/file.json', 'test', 1)
         assert result is None
 
     def test_read_config_offline_mode(self):
         """Test read_config in offline mode"""
         with patch('src.drone_config.config_loader.Params') as mock_params:
             mock_params.offline_config = True
-            mock_params.config_csv_name = '/test/config.csv'
+            mock_params.config_file_name = '/test/config.json'
 
             with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1'}):
                 result = ConfigLoader.read_config(1)
@@ -82,7 +87,7 @@ class TestConfigLoader:
         """Test read_config in online mode"""
         with patch('src.drone_config.config_loader.Params') as mock_params:
             mock_params.offline_config = False
-            mock_params.config_url = 'http://test.com/config.csv'
+            mock_params.config_url = 'http://test.com/config.json'
 
             with patch.object(ConfigLoader, 'fetch_online_config', return_value={'hw_id': '1'}):
                 result = ConfigLoader.read_config(1)
@@ -92,7 +97,7 @@ class TestConfigLoader:
         """Test read_swarm in offline mode"""
         with patch('src.drone_config.config_loader.Params') as mock_params:
             mock_params.offline_swarm = True
-            mock_params.swarm_csv_name = '/test/swarm.csv'
+            mock_params.swarm_file_name = '/test/swarm.json'
 
             with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1', 'follow': '0'}):
                 result = ConfigLoader.read_swarm(1)
@@ -100,22 +105,23 @@ class TestConfigLoader:
 
     def test_fetch_online_config_success(self, tmp_path):
         """Test fetching config from online source"""
-        csv_content = "hw_id,pos_id\n1,1\n"
-        local_file = tmp_path / "online_config.csv"
+        import json
+        json_content = json.dumps({"drones": [{"hw_id": 1, "pos_id": 1}]})
+        local_file = tmp_path / "online_config.json"
 
         with patch('requests.get') as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.text = csv_content
+            mock_response.text = json_content
             mock_get.return_value = mock_response
 
             result = ConfigLoader.fetch_online_config(
-                'http://test.com/config.csv',
+                'http://test.com/config.json',
                 str(local_file),
                 1
             )
             assert result is not None
-            assert result['hw_id'] == '1'
+            assert result['hw_id'] == 1
 
     def test_fetch_online_config_http_error(self):
         """Test handling HTTP error during fetch"""
@@ -126,17 +132,18 @@ class TestConfigLoader:
             mock_get.return_value = mock_response
 
             result = ConfigLoader.fetch_online_config(
-                'http://test.com/config.csv',
-                '/tmp/test.csv',
+                'http://test.com/config.json',
+                '/tmp/test.json',
                 1
             )
             assert result is None
 
     def test_load_all_configs_success(self, tmp_path):
         """Test loading all configs from trajectory files"""
-        # Create config.csv
-        config_csv = tmp_path / "config.csv"
-        config_csv.write_text("hw_id,pos_id,ip\n1,1,10.0.0.1\n")
+        import json
+        # Create config.json
+        config_json = tmp_path / "config.json"
+        config_json.write_text(json.dumps({"drones": [{"hw_id": 1, "pos_id": 1, "ip": "10.0.0.1"}]}))
 
         # Create trajectory directory structure
         traj_dir = tmp_path / "shapes_sitl" / "swarm" / "processed"
@@ -145,7 +152,7 @@ class TestConfigLoader:
         traj_file.write_text("t,px,py,pz\n0,5.0,10.0,0.0\n")
 
         with patch('src.drone_config.config_loader.Params') as mock_params:
-            mock_params.config_csv_name = str(config_csv)
+            mock_params.config_file_name = str(config_json)
             mock_params.sim_mode = True
 
             # Mock __file__ to point to our tmp directory

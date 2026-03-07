@@ -119,7 +119,7 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
 
         # CRITICAL FIX: Use pos_id to get expected position from trajectory CSV
         # When hw_id ≠ pos_id, the drone executes pos_id's trajectory, so expected
-        # position must come from trajectory file, NOT from config.csv x,y values
+        # position must come from trajectory file, NOT from config x,y values
         if not pos_id:
             # Fallback: if no pos_id defined, assume pos_id == hw_id
             pos_id = hw_id

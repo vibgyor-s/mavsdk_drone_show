@@ -86,7 +86,7 @@ class DroneConfigData:
     body_coord: bool = False
 
     def to_config_row(self) -> Dict[str, Any]:
-        """Convert to config.csv row format"""
+        """Convert to config JSON entry"""
         return {
             'hw_id': self.hw_id,
             'pos_id': self.pos_id,
@@ -97,14 +97,14 @@ class DroneConfigData:
         }
 
     def to_swarm_row(self) -> Dict[str, Any]:
-        """Convert to swarm.csv row format"""
+        """Convert to swarm assignment format"""
         return {
             'hw_id': self.hw_id,
             'follow': self.follow,
             'offset_n': self.offset_n,
             'offset_e': self.offset_e,
             'offset_alt': self.offset_alt,
-            'body_coord': 1 if self.body_coord else 0
+            'body_coord': self.body_coord  # bool, not 0/1
         }
 
     def to_drone_state(self) -> Dict[str, Any]:
@@ -359,7 +359,7 @@ def drone_disconnected() -> DroneConfigData:
 # ============================================================================
 
 def drones_to_config_csv(drones: List[DroneConfigData]) -> str:
-    """Convert drone list to config.csv format"""
+    """Legacy: Convert drone list to config.csv format (kept for CSV import tests)"""
     header = "hw_id,pos_id,ip,mavlink_port,serial_port,baudrate"
     rows = [header]
     for drone in drones:
@@ -369,7 +369,7 @@ def drones_to_config_csv(drones: List[DroneConfigData]) -> str:
 
 
 def drones_to_swarm_csv(drones: List[DroneConfigData]) -> str:
-    """Convert drone list to swarm.csv format"""
+    """Legacy: Convert drone list to swarm.csv format (kept for CSV import tests)"""
     header = "hw_id,follow,offset_n,offset_e,offset_alt,body_coord"
     rows = [header]
     for drone in drones:
@@ -377,6 +377,22 @@ def drones_to_swarm_csv(drones: List[DroneConfigData]) -> str:
         row = f"{drone.hw_id},{drone.follow},{drone.offset_n},{drone.offset_e},{drone.offset_alt},{body}"
         rows.append(row)
     return "\n".join(rows)
+
+
+def drones_to_config_json(drones: List[DroneConfigData]) -> dict:
+    """Convert drone list to config.json format"""
+    return {
+        "version": 1,
+        "drones": [d.to_config_row() for d in drones]
+    }
+
+
+def drones_to_swarm_json(drones: List[DroneConfigData]) -> dict:
+    """Convert drone list to swarm.json format"""
+    return {
+        "version": 1,
+        "assignments": [d.to_swarm_row() for d in drones]
+    }
 
 
 def drones_to_telemetry_response(drones: List[DroneConfigData]) -> Dict[str, Dict]:
@@ -410,5 +426,7 @@ __all__ = [
     'drone_disconnected',
     'drones_to_config_csv',
     'drones_to_swarm_csv',
+    'drones_to_config_json',
+    'drones_to_swarm_json',
     'drones_to_telemetry_response',
 ]

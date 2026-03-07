@@ -372,7 +372,7 @@ tar -czf mds_diagnostics.tar.gz \
     /var/log/mds/ \
     /var/lib/mds/ \
     /etc/mds/ \
-    ~/mavsdk_drone_show/config.csv
+    ~/mavsdk_drone_show/config.json
 ```
 
 ## FAQ

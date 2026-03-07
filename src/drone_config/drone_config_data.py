@@ -22,8 +22,8 @@ class DroneConfigData:
 
     Attributes:
         hw_id: Unique hardware identifier for this drone
-        config: Full configuration dictionary from config.csv
-        swarm: Swarm configuration dictionary from swarm.csv
+        config: Full configuration dictionary from config.json
+        swarm: Swarm configuration dictionary from swarm.json
         pos_id: Position ID for show choreography
         takeoff_altitude: Default takeoff altitude in meters
         all_configs: Dictionary of all drone positions {pos_id: {x, y}}
@@ -40,7 +40,7 @@ class DroneConfigData:
         """
         Get the serial port configuration for this drone's hardware.
 
-        Falls back to Params default if not specified in config.csv.
+        Falls back to Params default if not specified in config.json.
 
         Returns:
             Serial port device path (e.g., '/dev/ttyS0', '/dev/ttyAMA0')
@@ -59,7 +59,7 @@ class DroneConfigData:
         """
         Get the baudrate configuration for this drone's hardware.
 
-        Falls back to Params default if not specified in config.csv.
+        Falls back to Params default if not specified in config.json.
 
         Returns:
             Baudrate for serial connection (e.g., 57600, 115200, 921600)

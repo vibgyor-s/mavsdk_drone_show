@@ -36,7 +36,7 @@ A comprehensive origin coordinate system was implemented for a professional dron
 
 ### Critical Bug Fixed
 
-**OriginModal.js lines 128-129**: Coordinates were swapped - was sending `intended_east=drone.x`, `intended_north=drone.y`. Now correctly sends `intended_north=drone.x`, `intended_east=drone.y` to match the trajectory CSV schema where **x=North, y=East** (NED coordinate system). Note: x,y positions now come from trajectory CSV files, not config.csv.
+**OriginModal.js lines 128-129**: Coordinates were swapped - was sending `intended_east=drone.x`, `intended_north=drone.y`. Now correctly sends `intended_north=drone.x`, `intended_east=drone.y` to match the trajectory CSV schema where **x=North, y=East** (NED coordinate system). Note: x,y positions now come from trajectory CSV files, not config.json.
 
 ### Why This Matters
 
@@ -55,12 +55,12 @@ The show can go wrong because the execution loop zeros out CSV offsets from the 
 
 ### The Ground Truth: Trajectory CSV Files
 
-> **Note (v3.4):** The `x` and `y` columns have been removed from `config.csv`. Positions now come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`), where the first row contains `px` (North) and `py` (East).
+> **Note (v4.0):** The `x` and `y` fields are not part of `config.json`. Positions come exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`), where the first row contains `px` (North) and `py` (East).
 
 ```csv
-# config.csv (6 columns — no x,y):
-hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,192.168.1.101,14551,/dev/ttyS0,57600
+# config.json (no x,y — positions from trajectory files):
+# {"version": 1, "drones": [{"hw_id": 1, "pos_id": 1, "ip": "192.168.1.101",
+#   "mavlink_port": 14551, "serial_port": "/dev/ttyS0", "baudrate": 57600}]}
 
 # Positions from trajectory file (Drone 1.csv first row):
 # px=10.5 (North), py=5.2 (East)
@@ -97,7 +97,7 @@ There are **THREE distinct coordinate systems** in this project:
 - Stored in trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`)
 - First row represents desired launch positions relative to formation origin
 - Used by: UI plots, backend calculations, trajectory planning
-- **Note:** These are NOT in config.csv (removed in v3.4)
+- **Note:** These are NOT in config.json (positions come from trajectory files)
 
 #### 2. PX4 GPS Global Origin (MAVLink Convention)
 - Set by PX4 autopilot at **first GPS lock** or when armed
@@ -650,7 +650,7 @@ def read_config(filename: str) -> Drone:
       - px => North (initial_x)
       - py => East (initial_y)
     """
-    # config.csv provides: hw_id, pos_id, ip, mavlink_port, serial_port, baudrate
+    # config.json provides: hw_id, pos_id, ip, mavlink_port, serial_port, baudrate
     # Trajectory CSV (Drone {pos_id}.csv) provides: px (North), py (East)
     initial_x = first_trajectory_row["px"]  # North — from trajectory CSV
     initial_y = first_trajectory_row["py"]  # East — from trajectory CSV
@@ -663,7 +663,7 @@ def read_config(filename: str) -> Drone:
 ```
 
 **What It Does:**
-- Reads config.csv for hardware/network configuration
+- Reads config.json for hardware/network configuration
 - Reads trajectory CSV (`Drone {pos_id}.csv`) for position offsets (px=North, py=East)
 - These represent where the drone **should be** relative to formation origin
 
@@ -1152,7 +1152,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 │  │  └─ /get-position-deviations: Monitor deviations           │ │
 │  │                                                              │ │
 │  │  Data Store: origin.json (formation origin)                │ │
-│  │              config.csv (drone hw/network config)            │ │
+│  │              config.json (drone hw/network config)           │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                             ↓ WiFi/Network
@@ -1161,7 +1161,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ drone_show.py (Python)                          [PHASE 2]  │ │
 │  │  ├─ Read origin.json (formation origin)         [NEW]     │ │
-│  │  ├─ Read config.csv + trajectory CSV (offsets)             │ │
+│  │  ├─ Read config.json + trajectory CSV (offsets)            │ │
 │  │  ├─ Calculate expected GPS position              [NEW]     │ │
 │  │  ├─ Capture actual GPS position                            │ │
 │  │  ├─ Calculate correction vector                  [NEW]     │ │
@@ -1200,7 +1200,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 ┌──────────────────────────────────────────────────────────────────┐
 │ STEP 2: Drone Startup (drone_show.py)                            │
 └──────────────────────────────────────────────────────────────────┘
-  Read config.csv for this drone (HW_ID=1) + trajectory CSV (Drone 1.csv):
+  Read config.json for this drone (HW_ID=1) + trajectory CSV (Drone 1.csv):
     config_north = 10.5m  (from trajectory CSV px column)
     config_east = 5.2m    (from trajectory CSV py column)
 
@@ -1304,7 +1304,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 ```
 mavsdk_drone_show/
 ├── drone_show.py                 # Main execution script [PHASE 2 CHANGES]
-├── config.csv                    # Drone configuration (hw/network, no x,y)
+├── config.json                   # Drone configuration (JSON format, no x,y)
 │
 ├── gcs-server/                   # Ground Control Server
 │   ├── app.py                    # Flask server

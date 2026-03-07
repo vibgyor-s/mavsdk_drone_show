@@ -82,7 +82,7 @@ class HeartbeatSender:
         # Attempt to discover the Netbird IP that starts with "100."
         netbird_ip = self._get_netbird_ip()
         if not netbird_ip:
-            # Fallback to the IP from config.csv if no netbird IP found
+            # Fallback to the IP from config if no netbird IP found
             netbird_ip = self.drone_config.config.get('ip', 'unknown')
 
         # Get comprehensive network info for heartbeat

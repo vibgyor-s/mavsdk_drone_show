@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "drones": [
+    {
+      "hw_id": 1,
+      "pos_id": 1,
+      "ip": "192.168.189.131",
+      "mavlink_port": 14551,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 2,
+      "pos_id": 2,
+      "ip": "192.168.189.132",
+      "mavlink_port": 14552,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 3,
+      "pos_id": 3,
+      "ip": "192.168.189.133",
+      "mavlink_port": 14553,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 4,
+      "pos_id": 4,
+      "ip": "192.168.189.128",
+      "mavlink_port": 14554,
+      "serial_port": "",
+      "baudrate": 0
+    }
+  ]
+}

@@ -57,7 +57,8 @@ Start here to get your first drone show simulation running:
 
 | Guide | Description |
 |-------|-------------|
-| **[CSV Migration Guide](guides/csv-migration.md)** | Migrating to 6-column CSV format (v3.4) |
+| **[Config JSON Format](guides/config-json-format.md)** | JSON config format reference (v4.0) |
+| **[CSV Migration Guide](guides/csv-migration.md)** | Legacy: migrating from old CSV format |
 | **[Python Compatibility](guides/python-compatibility.md)** | Python version requirements (3.11-3.13) |
 
 ---
@@ -78,9 +79,9 @@ Detailed documentation for MDS features:
 
 ### Configuration Files
 
-- **config.csv** - Main drone configuration file (6-column format)
-  - Hardware ID, Serial port, Baudrate, Drone ID, etc.
-  - See [CSV Migration Guide](guides/csv-migration.md) for details
+- **config.json** - Main drone configuration file (JSON format with Pydantic validation)
+  - Hardware ID, Position ID, IP, MAVLink port, optional serial/baudrate, custom fields
+  - See [Config JSON Format Reference](guides/config-json-format.md) for details
 
 ### Environment Variables
 

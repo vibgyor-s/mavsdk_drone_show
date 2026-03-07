@@ -14,6 +14,7 @@ error handling and logging across the codebase.
 """
 
 import csv
+import json
 import os
 import logging
 from typing import List, Dict, Any, Optional
@@ -36,7 +37,7 @@ def load_csv(file_path: str) -> List[Dict[str, Any]]:
         List of dictionaries, one per row. Empty list if file not found or empty.
 
     Example:
-        >>> data = load_csv('/path/to/config.csv')
+        >>> data = load_csv('/path/to/data.csv')
         >>> print(data[0]['hw_id'])
         '1'
     """
@@ -86,7 +87,7 @@ def save_csv(
 
     Example:
         >>> data = [{'hw_id': '1', 'pos_id': '1', 'ip': '192.168.1.100'}]
-        >>> save_csv(data, '/path/to/config.csv', fieldnames=['hw_id', 'pos_id', 'ip'])
+        >>> save_csv(data, '/path/to/data.csv', fieldnames=['hw_id', 'pos_id', 'ip'])
         True
     """
     if not data:
@@ -148,6 +149,40 @@ def validate_csv_schema(
     missing = [col for col in required_columns if col not in present_columns]
 
     return len(missing) == 0, missing
+
+
+# ============================================================================
+# JSON Operations
+# ============================================================================
+
+def load_json(file_path: str) -> Any:
+    """Load and parse a JSON file. Returns parsed data or empty dict on error."""
+    if not os.path.exists(file_path):
+        logger.warning(f"JSON file not found: {file_path}")
+        return {}
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in {file_path}: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"Unexpected error loading JSON from {file_path}: {e}")
+        return {}
+
+
+def save_json(data: Any, file_path: str, indent: int = 2) -> bool:
+    """Save data as pretty-printed JSON. Returns True on success."""
+    try:
+        os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+            f.write('\n')  # Trailing newline for git
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save JSON to {file_path}: {e}")
+        return False
 
 
 # ============================================================================

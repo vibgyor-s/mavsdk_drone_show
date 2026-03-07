@@ -68,7 +68,7 @@ const MissionPlanSidebar = ({
             ))}
             {drones.length === 0 && (
               <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                No drones configured &mdash; add drones to config.csv
+                No drones configured &mdash; add drones in Mission Config
               </div>
             )}
           </div>

@@ -52,8 +52,8 @@ from src.enums import Mission, State, CommandErrorCode
 
 # Base directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
-SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
+CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_file_name)
+SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_file_name)
 
 # Color codes for logging (preserved from Flask version)
 RESET = "\x1b[0m"

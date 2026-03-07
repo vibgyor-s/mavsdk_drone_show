@@ -194,10 +194,10 @@ health_check() {
     # Check config files
     echo ""
     echo "3. Configuration:"
-    if [[ -f "$REPO_DIR/config.csv" ]]; then
-        echo -e "   ${GREEN}[OK]${NC}   config.csv exists"
+    if [[ -f "$REPO_DIR/config.json" ]]; then
+        echo -e "   ${GREEN}[OK]${NC}   config.json exists"
     else
-        echo -e "   ${YELLOW}[WARN]${NC} config.csv missing"
+        echo -e "   ${YELLOW}[WARN]${NC} config.json missing"
     fi
 
     if [[ -f /etc/mds/local.env ]]; then

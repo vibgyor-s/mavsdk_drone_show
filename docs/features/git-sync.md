@@ -38,7 +38,7 @@ Drones (read/pull only)
 When `GIT_AUTO_PUSH` is enabled (default), saving configuration or swarm data via the dashboard automatically:
 
 1. Stages all changes
-2. Commits with a descriptive message (e.g., `config: update config.csv via dashboard (10 drones updated)`)
+2. Commits with a descriptive message (e.g., `config: update config.json via dashboard (10 drones updated)`)
 3. Rebases on top of remote changes
 4. Pushes to origin
 

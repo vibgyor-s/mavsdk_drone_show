@@ -25,7 +25,7 @@ The MDS project uses a **two-layer identity model**:
 | Concept | Description | Persistent? | Source of Truth |
 |---------|-------------|-------------|-----------------|
 | **hw_id** (Hardware ID) | Physical drone identity, printed/labeled on airframe | Yes — permanent per drone | `{N}.hwID` file on companion computer |
-| **pos_id** (Position ID) | Choreography slot / formation position assigned to a drone | Configurable — can change between missions | `config.csv` / `config_sitl.csv` column |
+| **pos_id** (Position ID) | Choreography slot / formation position assigned to a drone | Configurable — can change between missions | `config.json` / `config_sitl.json` field |
 | **detected_pos_id** | GPS-based auto-detected position at field | Runtime only | `PosIDAutoDetector` module |
 | **MAV_SYS_ID** | PX4 autopilot system ID, set to equal hw_id | Semi-permanent (requires reboot) | PX4 parameter |
 
@@ -62,22 +62,19 @@ This is the **correct architectural pattern** used by all major commercial drone
 
 **Bug: Type inconsistency** — The canonical `ConfigLoader.get_hw_id()` returns `str`, while the 3 copies return `int`. This causes implicit conversions throughout the codebase.
 
-### 2.2 Position ID (config.csv Mapping)
+### 2.2 Position ID (config.json Mapping)
 
-**How it works:** `config.csv` maps each `hw_id` to a `pos_id`. The drone loads trajectory from `Drone {pos_id}.csv`.
+**How it works:** `config.json` maps each `hw_id` to a `pos_id`. The drone loads trajectory from `Drone {pos_id}.csv`.
 
-**Current CSV format declared (6 columns):**
-```
-hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-```
-
-**Actual config.csv on disk (8 columns — BUG!):**
-```
-hw_id,pos_id,ip,mavlink_port,serial_port,baudrate,x,y
-1,1,100.96.240.11,14551,/dev/ttyS0,57600,-2.5,10.0
+**Current JSON format:**
+```json
+{"version": 1, "drones": [
+  {"hw_id": 1, "pos_id": 1, "ip": "100.96.240.11", "mavlink_port": 14551,
+   "serial_port": "/dev/ttyS0", "baudrate": 57600}
+]}
 ```
 
-**Current config.csv has COLLISION BUGS:**
+**[RESOLVED] Previously config.csv had COLLISION BUGS:**
 ```
 hw_id=3,  pos_id=5   ← DUPLICATE pos_id=5
 hw_id=5,  pos_id=5   ← DUPLICATE pos_id=5
@@ -94,7 +91,7 @@ These collisions mean multiple drones would fly identical trajectories and **col
 
 **Format:** `hw_id,follow,offset_n,offset_e,offset_alt,body_coord`
 
-**Critical design note:** `swarm.csv` uses `hw_id` (not `pos_id`) for the `follow` column. This means leader-follower relationships are tied to **physical drones**, not show positions. If you role-swap hw_id=7 to pos_id=1, followers still follow by hw_id, not by pos_id.
+**Critical design note:** `swarm.json` uses `hw_id` (not `pos_id`) for the `follow` field. This means leader-follower relationships are tied to **physical drones**, not show positions. If you role-swap hw_id=7 to pos_id=1, followers still follow by hw_id, not by pos_id.
 
 ### 2.4 Auto-Detection (pos_id_auto_detector.py)
 
@@ -123,12 +120,12 @@ This is set via:
 ```
 [Setup Time]
   mds_init.sh → creates {N}.hwID file
-  Operator → edits config.csv (hw_id → pos_id mapping)
+  Operator → edits config.json (hw_id → pos_id mapping)
 
 [Boot Time]
   coordinator.py → DroneConfig.__init__()
     → ConfigLoader.get_hw_id() reads .hwID → hw_id (str)
-    → ConfigLoader.read_config() reads config.csv → pos_id (int)
+    → ConfigLoader.read_config() reads config.json → pos_id (int)
     → ConfigLoader.load_all_configs() → all positions from trajectory CSVs
 
 [Runtime]
@@ -201,8 +198,8 @@ This is set via:
 | Hardware ID | Implicit (radio ID) | Physical ID | MAV_SYS_ID | hw_id (.hwID file) |
 | Show Position | Slot (geo-locked) | Show ID (s01, s02) | N/A | pos_id |
 | Auto-assignment | Smart Slotting | GPS proximity | N/A | PosIDAutoDetector |
-| Hot-swap | Place & auto-assign | Assign spares button | Manual param change | Edit config.csv + restart |
-| Spare management | Automatic | Assign spares feature | Manual | Manual (config.csv) |
+| Hot-swap | Place & auto-assign | Assign spares button | Manual param change | Edit config.json + restart |
+| Spare management | Automatic | Assign spares feature | Manual | Manual (config.json) |
 
 **Conclusion:** MDS's hw_id/pos_id concept is architecturally correct and matches industry best practices. The implementation needs cleanup.
 
@@ -216,8 +213,8 @@ This is set via:
 |---|-------|----------|--------|
 | C1 | **[RESOLVED]** ~~4 duplicate `read_hw_id()` implementations~~ | Consolidated to `ConfigLoader.get_hw_id()` | All callers delegate to single source |
 | C2 | **[RESOLVED]** ~~hw_id type inconsistency: str vs int~~ | All code | Standardized to `int` internally, `str` only for CSV/JSON |
-| C3 | **[RESOLVED]** ~~config.csv has duplicate pos_id values~~ | `config.csv` | Fixed: unique pos_ids 1-10 assigned |
-| C4 | **[RESOLVED]** ~~config.csv has deprecated x,y columns~~ | `config.csv` | Fixed: removed x,y, now 6-column format |
+| C3 | **[RESOLVED]** ~~config.csv has duplicate pos_id values~~ | `config.json` | Fixed: unique pos_ids 1-10 assigned |
+| C4 | **[RESOLVED]** ~~config.csv has deprecated x,y columns~~ | `config.json` | Fixed: migrated to JSON format |
 | C5 | **[RESOLVED]** ~~`multiple_sitl.sh` reads x,y by column position~~ | `multiple_sitl.sh` | Fixed: reads from trajectory CSV via pos_id |
 | C6 | **[RESOLVED]** ~~Schema `DroneConfig` has `connection_str` field~~ | `schemas.py` | Fixed: replaced with `mavlink_port` |
 
@@ -228,7 +225,7 @@ This is set via:
 | M1 | **`detected_pos_id=0` ambiguous** | `drone_state.py` L70, `schemas.py` L73 | 0 means "undetected" but `pos_id >= 0` is valid per schema |
 | M2 | **Schema says "Position ID (0-based)"** | `schemas.py` L73 | All actual usage is 1-based (Drone 1, Drone 2...) |
 | M3 | **Telemetry passes pos_id to `update()` but silently ignored** | `drone_communicator.py` L298, `__init__.py` L431 | Dead code — confusing |
-| M4 | **Swarm follow uses hw_id, not pos_id** | `swarm.csv`, `drone_state.py` L143 | If role-swapped, follower chains may break |
+| M4 | **Swarm follow uses hw_id, not pos_id** | `swarm.json`, `drone_state.py` L143 | If role-swapped, follower chains may break |
 | M5 | **`MDS_HW_ID` in local.env not synced with .hwID** | `identity.sh`, `params.py` | Two sources of truth for same value |
 | M6 | **[RESOLVED]** ~~Legacy `read_config.py` expects wrong column order~~ | Deleted | File deleted — zero callers |
 | M7 | **`validate_csv_schema()` defined but never called** | `functions/file_utils.py` L124 | Unused validation code |
@@ -241,7 +238,7 @@ This is set via:
 | L1 | **Frontend `validateDrones()` rejects empty fields** | `missionConfigUtilities.js` L207 | Would reject valid SITL configs (empty serial/baudrate) |
 | L2 | **No CSV schema versioning** | All CSV files | No way to detect format version |
 | L3 | **Resource CSVs use old 8-column format** | `resources/*.csv` | Templates are outdated |
-| L4 | **`+5` notation in swarm.csv** | `swarm.csv` L8 | Works but inconsistent formatting |
+| L4 | **`+5` notation in swarm config** | `swarm.json` | Works but inconsistent formatting |
 
 ---
 
@@ -266,25 +263,25 @@ The decoupling enables:
 | Mode | Current hw_id/pos_id Usage | Recommendation |
 |------|---------------------------|----------------|
 | **Drone Show** | pos_id determines trajectory file | Correct — keep as-is |
-| **Smart Swarm** | swarm.csv uses hw_id for follow chains, pos_id for initial position | **Consider:** Should follow chains use pos_id? See §5.3 |
-| **Leader-Follower** | Uses hw_id in swarm.csv follow column | Same question as Smart Swarm |
+| **Smart Swarm** | swarm.json uses hw_id for follow chains, pos_id for initial position | **Consider:** Should follow chains use pos_id? See §5.3 |
+| **Leader-Follower** | Uses hw_id in swarm.json follow field | Same question as Smart Swarm |
 | **Search & Rescue** | Under development | Should define: does "launch position" = pos_id? |
 | **Swarm Trajectory** | Uses pos_id for trajectory file (same as drone show) | Correct — keep as-is |
 
-### 5.3 Should swarm.csv `follow` Reference hw_id or pos_id?
+### 5.3 Should swarm.json `follow` Reference hw_id or pos_id?
 
 **Current:** `follow` references `hw_id` — "drone with hw_id=3 follows drone with hw_id=2"
 
 **Problem scenario:**
 1. Drone hw_id=2 fails
-2. Spare hw_id=10 gets pos_id=2 in config.csv
-3. But swarm.csv still says `follow=2` (hw_id=2, which is now dead)
+2. Spare hw_id=10 gets pos_id=2 in config.json
+3. But swarm.json still says `follow=2` (hw_id=2, which is now dead)
 4. Drone hw_id=3 can't find its leader!
 
 **Options:**
-- **Option A: Keep hw_id in swarm.csv** — Simpler, but requires editing swarm.csv when hot-swapping. Swarm relationships are about physical drones, not positions.
-- **Option B: Use pos_id in swarm.csv** — Better for hot-swap (spare drone inherits all relationships). But semantically changes the meaning of "follow".
-- **Option C: UI auto-resolves** — Keep hw_id in swarm.csv but have the UI/backend auto-update follow references when a role swap is made.
+- **Option A: Keep hw_id in swarm.json** — Simpler, but requires editing swarm.json when hot-swapping. Swarm relationships are about physical drones, not positions.
+- **Option B: Use pos_id in swarm.json** — Better for hot-swap (spare drone inherits all relationships). But semantically changes the meaning of "follow".
+- **Option C: UI auto-resolves** — Keep hw_id in swarm.json but have the UI/backend auto-update follow references when a role swap is made.
 
 **Recommendation:** Option C — Keep the data model (hw_id), but add smart UI that warns/auto-updates when role swaps break follow chains.
 
@@ -377,9 +374,9 @@ This means hw_id determines network ports. This is fine for small fleets but:
 #### Config Data Files
 | File | Role |
 |------|------|
-| `config.csv` | Real-mode config (currently has stale x,y columns + duplicate pos_ids) |
+| `config.json` | Real-mode config (JSON format with Pydantic validation) |
 | `config_sitl.csv` | SITL config (correct 6-column format) |
-| `swarm.csv` | Real-mode swarm (follow by hw_id) |
+| `swarm.json` | Real-mode swarm (follow by hw_id) |
 | `swarm_sitl.csv` | SITL swarm |
 | `resources/*.csv` | Template/example configs (old 8-column format) |
 
@@ -395,11 +392,11 @@ This means hw_id determines network ports. This is fine for small fleets but:
 
 ### 7.1 Immediate Fixes (No Design Changes)
 
-1. **Fix config.csv** — Remove x,y columns, fix duplicate pos_ids
-2. **Fix `multiple_sitl.sh`** — Read positions from trajectory CSV, not config.csv columns 3-4
+1. **[DONE] Fix config** — Migrated to config.json, removed x,y, fixed duplicate pos_ids
+2. **[DONE] Fix `multiple_sitl.sh`** — Read positions from trajectory CSV
 3. **Fix schema `DroneConfig`** — Replace `connection_str` with `mavlink_port`, fix "0-based" description
 4. **Delete legacy `functions/read_config.py`**
-5. **Update `functions/update_config_file.py`** — Stop writing x,y to config.csv
+5. **[DONE] Delete `functions/update_config_file.py`** — Legacy CSV writer removed
 6. **Update resource CSVs** — Convert to 6-column format
 7. **Fix `detected_pos_id` ambiguity** — Use `-1` or `None` for undetected, enforce `pos_id >= 1`
 
@@ -411,17 +408,17 @@ This means hw_id determines network ports. This is fine for small fleets but:
 
 ### 7.3 Architectural Improvements
 
-1. **Auto-update swarm follow chains on role swap** — When operator changes a drone's pos_id in config.csv, warn if swarm.csv follow chains reference the old hw_id and offer to update.
-2. **Validate config.csv on drone boot** — Currently drones load config without validation. Add startup check for duplicate pos_ids.
+1. **Auto-update swarm follow chains on role swap** — When operator changes a drone's pos_id in config.json, warn if swarm.json follow chains reference the old hw_id and offer to update.
+2. **Validate config.json on drone boot** — Currently drones load config without validation. Add startup check for duplicate pos_ids.
 3. **Hot-swap workflow in UI** — Add a dedicated "Replace Drone" workflow:
    - Select failed drone (hw_id=3)
    - Select spare drone (hw_id=10)
    - Auto-assign pos_id=3 to hw_id=10
-   - Auto-update swarm.csv follow references if needed
+   - Auto-update swarm.json follow references if needed
    - Push config via git
 
 ### 7.4 Future Considerations
 
-1. **Move from CSV to JSON/YAML** — CSVs are fragile (column order, no nesting, no comments). JSON would be more robust for complex configs.
+1. **[DONE] Move from CSV to JSON** — Config migrated to JSON with Pydantic validation and `extra='allow'` for custom fields.
 2. **Central config service** — Instead of file-based config, consider a lightweight config API that drones pull from GCS on boot.
 3. **Drone registry database** — For fleets > 50 drones, a SQLite or similar DB would be more appropriate than CSV.

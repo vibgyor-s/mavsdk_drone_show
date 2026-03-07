@@ -15,21 +15,22 @@ ENABLE_LOGGING=false
 
 # Global counter
 declare -i COUNTER=0
-function get_coords_from_csv() {
+function get_coords() {
     local hw_id=$1
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local config_file="$script_dir/../config_sitl.csv"
+    local config_file="$script_dir/../config_sitl.json"
 
-    # Read pos_id for this hw_id from config CSV (6-column format: hw_id,pos_id,ip,...)
-    local pos_id=""
-    while IFS=, read -r csv_hw_id csv_pos_id rest; do
-        if [ "$csv_hw_id" == "$hw_id" ]; then
-            pos_id="$csv_pos_id"
-            break
-        fi
-    done < <(tail -n +2 "$config_file" | tr -d '\r')
+    # Require jq for JSON parsing
+    if ! command -v jq &>/dev/null; then
+        echo "Error: jq is required. Install with: apt-get install -y jq" >&2
+        exit 1
+    fi
 
-    if [ -z "$pos_id" ]; then
+    # Parse pos_id from JSON config
+    local pos_id
+    pos_id=$(jq -r ".drones[] | select(.hw_id == $hw_id) | .pos_id" "$config_file" 2>/dev/null)
+
+    if [[ -z "$pos_id" || "$pos_id" == "null" ]]; then
         pos_id="$hw_id"
         echo "Warning: hw_id=$hw_id not found in config, using pos_id=$hw_id" >&2
     fi
@@ -69,7 +70,7 @@ function spawn_model() {
     X=$3
     Y=$4
 
-    local coords=$(get_coords_from_csv $N)
+    local coords=$(get_coords $N)
     X=$(echo $coords | cut -d' ' -f1)
     Y=$(echo $coords | cut -d' ' -f2)
     echo "Using coords for drone $N: x=$X, y=$Y" >&2
@@ -141,7 +142,7 @@ do
 done
 
 num_vehicles=${NUM_VEHICLES:=4}
-#num_vehicles=${NUM_VEHICLES:=$(($(wc -l < ../config.csv) - 1))}
+#num_vehicles=${NUM_VEHICLES:=$(($(jq '.drones | length' ../config_sitl.json)))}
 
 world=${WORLD:=empty}
 target=${TARGET:=px4_sitl_default}

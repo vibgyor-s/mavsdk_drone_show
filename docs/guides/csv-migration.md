@@ -1,4 +1,6 @@
-# Configuration CSV Migration Guide
+# Configuration CSV Migration Guide (Legacy)
+
+> **Note (v4.0):** MDS now uses JSON configuration files (`config.json`, `swarm.json`). This guide is retained for historical reference. See [Config JSON Format Reference](config-json-format.md) for the current format.
 
 ## Configuration System Cleanup (v3.4)
 

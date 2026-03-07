@@ -552,7 +552,7 @@ if just_finished_climb:
 
 The launch position (where the drone starts in the formation) can be determined from two sources:
 1. **CSV first row** (trajectory file)
-2. **config.csv values** (drone_config.initial_x, initial_y)
+2. **config values** (drone_config.initial_x, initial_y — legacy, no longer in config.json)
 
 Different control modes use different sources.
 
@@ -585,14 +585,14 @@ else:
 
 ### Why CSV First Row for Manual Modes?
 
-**Problem with config.csv values:**
+**Problem with config values (legacy):**
 - Operators manually place drones at expected positions
-- config.csv might have old/incorrect values from previous setup
+- config might have old/incorrect values from previous setup
 - CSV first row contains actual formation launch position
 
 **Example scenario:**
 ```python
-# config.csv (old values from previous show)
+# config (old values from previous show)
 drone_config.initial_x = 10.0  # Old position
 drone_config.initial_y = 5.0
 
@@ -601,7 +601,7 @@ drone_config.initial_y = 5.0
 # 0.0, -5.0, 2.5, 0.0  # New formation position
 
 # OLD BEHAVIOR (WRONG):
-# Used initial_x=10.0, initial_y=5.0 from config.csv
+# Used initial_x=10.0, initial_y=5.0 from config
 # Subtracted from waypoints: (-5.0-10.0, 2.5-5.0) = (-15.0, -2.5)
 # Drone went to wrong position!
 
@@ -615,7 +615,7 @@ drone_config.initial_y = 5.0
 
 **Problem (Fixed in commit 84f0ae75):**
 ```python
-# WRONG: Using config.csv values for manual modes
+# WRONG: Using config values for manual modes
 effective_auto_launch = False  # Uses drone_config.initial_x/y
 ```
 
@@ -627,7 +627,7 @@ effective_auto_launch = True  # Extracts from CSV first row
 
 **Why this matters:**
 - Manual placement relies on CSV formation data
-- config.csv values might be outdated
+- config values might be outdated
 - CSV first row is source of truth for current show
 - Prevents position errors from stale configuration
 
@@ -754,7 +754,7 @@ continue
 
 ### Issue: Drone goes to wrong position after manual placement
 
-**Likely cause:** Using config.csv values instead of CSV first row
+**Likely cause:** Using config values instead of CSV first row
 
 **Check:**
 ```python

@@ -256,7 +256,7 @@ async def lifespan(app: FastAPI):
     # Startup - only runs in worker process
     mode = "Simulation" if Params.sim_mode else "Production"
     log_system_event(f"Starting GCS FastAPI server ({mode} mode)...", "INFO", "startup")
-    log_system_event(f"Configuration: {Params.config_csv_name}, Swarm: {Params.swarm_csv_name}", "INFO", "startup")
+    log_system_event(f"Configuration: {Params.config_file_name}, Swarm: {Params.swarm_file_name}", "INFO", "startup")
 
     # Load drones
     drones = load_config()
@@ -531,7 +531,7 @@ async def get_config():
 
 @app.post("/save-config-data", response_model=ConfigUpdateResponse, tags=["Configuration"])
 async def save_config_route(request: Request):
-    """Save drone configuration to config.csv"""
+    """Save drone configuration to config.json"""
     try:
         config_data = await request.json()
 
@@ -559,7 +559,7 @@ async def save_config_route(request: Request):
             loop = asyncio.get_event_loop()
             git_result = await loop.run_in_executor(
                 None, git_operations, BASE_DIR,
-                f"config: update config.csv via dashboard ({drone_count} drones updated)"
+                f"config: update config.json via dashboard ({drone_count} drones updated)"
             )
 
         return ConfigUpdateResponse(
@@ -660,7 +660,7 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
         if should_commit:
             loop = asyncio.get_event_loop()
             git_result = await loop.run_in_executor(
-                None, git_operations, BASE_DIR, "config: update swarm.csv via dashboard"
+                None, git_operations, BASE_DIR, "config: update swarm.json via dashboard"
             )
 
         return JSONResponse(content={
@@ -2249,8 +2249,8 @@ if __name__ == "__main__":
     print(f"  Host:    0.0.0.0")
     print(f"  Port:    {port}")
     print(f"  Reload:  {'Enabled (auto-reload on file changes)' if is_dev else 'Disabled'}")
-    print(f"  Config:  {Params.config_csv_name}")
-    print(f"  Swarm:   {Params.swarm_csv_name}")
+    print(f"  Config:  {Params.config_file_name}")
+    print(f"  Swarm:   {Params.swarm_file_name}")
     print(f"{'='*60}\n")
 
     uvicorn.run(

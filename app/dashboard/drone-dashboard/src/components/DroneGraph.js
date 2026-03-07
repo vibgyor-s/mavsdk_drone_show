@@ -10,9 +10,9 @@ function DroneGraph({ swarmData, onSelectDrone }) {
     const transformToGraphData = (swarmData) => {
         const nodes = swarmData.map(drone => {
             let role = 'Follower';
-            if (drone.follow === '0') {
+            if (String(drone.follow) === '0') {
                 role = 'Top Leader';
-            } else if (swarmData.some(d => d.follow === drone.hw_id)) {
+            } else if (swarmData.some(d => String(d.follow) === String(drone.hw_id))) {
                 role = 'Intermediate Leader';
             }
             return {
@@ -20,7 +20,7 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             };
         });
         const edges = swarmData
-            .filter(drone => drone.follow !== '0')
+            .filter(drone => String(drone.follow) !== '0')
             .map(drone => ({
                 data: {
                     source: drone.hw_id,

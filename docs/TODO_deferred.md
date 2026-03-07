@@ -12,14 +12,14 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 
 **Problem:** `hw_id` is currently set equal to `MAV_SYS_ID` (PX4 parameter). MAVLink system IDs are `uint8` (1-254). If hw_id exceeds 254, it silently truncates on the wire, causing collisions.
 
-**Solution:** Add `mav_sys_id` column to config.csv. `hw_id` becomes a pure software identity (any positive integer). `mav_sys_id` is the MAVLink address (1-254), independently assigned. Consider Skybrush's `SHOW_GROUP` parameter approach for >250 drones.
+**Solution:** Add `mav_sys_id` field to config.json. `hw_id` becomes a pure software identity (any positive integer). `mav_sys_id` is the MAVLink address (1-254), independently assigned. Consider Skybrush's `SHOW_GROUP` parameter approach for >250 drones.
 
 **Files to modify:**
 - `actions.py` — `init_sysid()` function (currently sets `MAV_SYS_ID = HW_ID`)
 - `multiple_sitl/startup_sitl.sh` — `MAV_SYS_ID` env variable
 - `multiple_sitl/set_sys_id.py` — PX4 rcS modification
-- `gcs-server/config.py` — `CONFIG_COLUMNS` add `mav_sys_id`
-- `src/drone_config/config_loader.py` — load mav_sys_id from CSV
+- `gcs-server/config.py` — add `mav_sys_id` to drone schema
+- `src/drone_config/config_loader.py` — load mav_sys_id from config.json
 - `tools/mds_init_lib/common.sh` — `validate_drone_id()` upper bound (currently 999)
 - Frontend config editor — add mav_sys_id field
 
@@ -32,9 +32,9 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 **Priority:** Medium
 **Status:** Deferred — needs UX design for swarm mode interaction
 
-**Problem:** `swarm.csv` `follow` column references `hw_id`. If drone hw_id=2 fails and spare hw_id=10 takes pos_id=2, followers still reference `follow=2` (the dead drone). Operators must manually edit swarm.csv.
+**Problem:** `swarm.json` `follow` field references `hw_id`. If drone hw_id=2 fails and spare hw_id=10 takes pos_id=2, followers still reference `follow=2` (the dead drone). Operators must manually edit swarm.json.
 
-**Solution:** When operator changes a drone's pos_id in config.csv (via UI), detect if swarm.csv follow chains reference the old hw_id and offer to auto-update. Options:
+**Solution:** When operator changes a drone's pos_id in config.json (via UI), detect if swarm.json follow chains reference the old hw_id and offer to auto-update. Options:
 - (a) Change `follow` column to reference pos_id instead of hw_id
 - (b) Keep hw_id reference but add UI warning + auto-update on role swap
 - (c) Option (b) is recommended — minimal data model change, smart UI
@@ -47,16 +47,14 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 
 ---
 
-## TODO 3: Move from CSV to JSON/YAML configuration
+## TODO 3: ~~Move from CSV to JSON/YAML configuration~~ DONE
 
-**Priority:** Low
-**Status:** Deferred — major migration
+**Priority:** ~~Low~~ Completed
+**Status:** DONE (2026-03-06) -- migrated to JSON with Pydantic validation
 
-**Problem:** CSV is fragile (column order dependent, no nesting, no comments, no schema validation, no versioning). Complex config (nested parameters, arrays) cannot be represented.
+**Problem:** CSV was fragile (column order dependent, no nesting, no comments, no schema validation, no versioning). Complex config (nested parameters, arrays) could not be represented.
 
-**Solution:** Migrate to JSON or YAML with schema validation (JSON Schema or Pydantic). Maintain backward-compatible CSV import for migration. Consider TOML for human-editable configs.
-
-**Files to modify:** All config loading/saving code, frontend CSV import/export, documentation.
+**Solution:** Migrated to JSON with Pydantic `extra='allow'` schemas. Config files are now `config.json`/`swarm.json` (and `config_sitl.json`/`swarm_sitl.json` for SITL). Dashboard supports both JSON (primary) and CSV (legacy import/export). See `docs/guides/config-json-format.md` for format reference.
 
 ---
 
@@ -65,7 +63,7 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 **Priority:** Low
 **Status:** Deferred — needs offline fallback design
 
-**Problem:** Each drone reads config.csv from its local filesystem. Config changes require git push + git pull on every drone. Slow for large fleets.
+**Problem:** Each drone reads config.json from its local filesystem. Config changes require git push + git pull on every drone. Slow for large fleets.
 
 **Solution:** Drones pull config from GCS API on boot. GCS serves as config authority. Drones cache last-known config for offline fallback. Config changes propagate instantly on next heartbeat cycle.
 

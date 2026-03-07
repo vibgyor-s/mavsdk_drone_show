@@ -78,31 +78,35 @@ Same as `/ping`.
 ### Configuration Management
 
 #### `GET /get-config-data`
-Get current drone configuration.
+Get current drone configuration from config.json.
 
 **Response:**
 ```json
 [
   {
-    "pos_id": 0,
-    "hw_id": "1",
+    "hw_id": 1,
+    "pos_id": 1,
     "ip": "192.168.1.101",
-    "connection_str": "udp://:14540"
+    "mavlink_port": 14551,
+    "serial_port": "/dev/ttyS0",
+    "baudrate": 57600
   }
 ]
 ```
 
 #### `POST /save-config-data`
-Save drone configuration.
+Save drone configuration to config.json.
 
 **Request:**
 ```json
 [
   {
-    "pos_id": 0,
-    "hw_id": "1",
+    "hw_id": 1,
+    "pos_id": 1,
     "ip": "192.168.1.101",
-    "connection_str": "udp://:14540"
+    "mavlink_port": 14551,
+    "serial_port": "/dev/ttyS0",
+    "baudrate": 57600
   }
 ]
 ```

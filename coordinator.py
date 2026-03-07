@@ -157,8 +157,8 @@ def validate_startup_prerequisites() -> bool:
     """
     issues = []
 
-    # Check config.csv exists
-    config_file = Params.config_csv_name
+    # Check config file exists
+    config_file = Params.config_file_name
     if not os.path.exists(config_file):
         issues.append(f"Config file not found: {config_file}")
 

@@ -30,10 +30,8 @@ def get_base_folder() -> str:
     return 'shapes_sitl' if Params.sim_mode else 'shapes'
 
 def get_config_filename() -> str:
-    """
-    Return 'config_sitl.csv' if sim_mode=True, else 'config.csv'.
-    """
-    return 'config_sitl.csv' if Params.sim_mode else 'config.csv'
+    """Return config filename for current mode."""
+    return Params.config_file_name
 
 def run_formation_process(base_dir: Optional[str] = None) -> str:
     """
@@ -60,8 +58,8 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
         plots_dir    = os.path.join(base_dir, base_folder, 'swarm', 'plots')
 
-        config_csv_name = get_config_filename()
-        config_file = os.path.join(base_dir, config_csv_name)
+        config_name = get_config_filename()
+        config_file = os.path.join(base_dir, config_name)
 
         logging.info(f"[run_formation_process] Directories:")
         logging.info(f"[run_formation_process]   Skybrush:  {skybrush_dir}")

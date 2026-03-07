@@ -58,8 +58,8 @@ class Params:
 
     Attributes:
         sim_mode (bool): Indicates if the system is in simulation mode.
-        config_csv_name (str): Filename for the configuration CSV.
-        swarm_csv_name (str): Filename for the swarm CSV.
+        config_file_name (str): Filename for the configuration file (JSON).
+        swarm_file_name (str): Filename for the swarm file (JSON).
         GIT_BRANCH (str): Git branch name used for synchronization.
         (Other attributes as per project requirements.)
     """
@@ -73,8 +73,8 @@ class Params:
 
     # Configuration CSV filenames (determined by mode)
     # URLs for configuration files (not used in current implementation)
-    config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # Ugit addRL for the configuration file
-    swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'    # URL for the swarm file
+    config_url = 'https://nb1.joomtalk.ir/download/config.json'
+    swarm_url = 'https://nb1.joomtalk.ir/download/swarm.json'
 
     # Git Configuration
     # ===================================================================================
@@ -129,11 +129,11 @@ class Params:
 
     # Conditional Configuration File Names based on sim_mode
     if sim_mode:
-        config_csv_name = "config_sitl.csv"
-        swarm_csv_name = "swarm_sitl.csv"
+        config_file_name = "config_sitl.json"
+        swarm_file_name = "swarm_sitl.json"
     else:
-        config_csv_name = "config.csv"
-        swarm_csv_name = "swarm.csv"
+        config_file_name = "config.json"
+        swarm_file_name = "swarm.json"
 
     # General Settings
     enable_drones_http_server = True  # Enable HTTP server on drones
@@ -229,7 +229,7 @@ class Params:
     local_mavlink2rest_port = 14569    # mavlink2rest REST API bridge
     gcs_mavlink_port = 14550           # Ground Control Station (QGC)
 
-    # Serial port defaults (used as fallback in drone_config if not specified in config.csv)
+    # Serial port defaults (used as fallback in drone_config if not specified in config)
     # These are reference values for mavlink-anywhere configuration on real hardware
     serial_mavlink_port = '/dev/ttyS0' # Default serial port (Raspberry Pi UART)
     serial_baudrate = 57600            # Default serial baudrate

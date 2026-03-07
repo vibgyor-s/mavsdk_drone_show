@@ -5,24 +5,41 @@ import { convertToLatLon } from './geoutilities'; // Importing the convertToLatL
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+// Core required fields — must always be present on every drone
+const CORE_FIELDS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+
+// Known optional fields (preserved when present, not required)
+const OPTIONAL_FIELDS = ['color', 'notes'];
+
+/**
+ * Clean a drone object for sending to the backend.
+ * Preserves ALL fields (including custom ones added via JSON),
+ * ensures core fields have values, and removes transient UI-only fields.
+ */
+const cleanDroneForBackend = (drone) => {
+    const cleanedDrone = { ...drone }; // Preserve ALL fields (including custom ones)
+    // Ensure core fields have values
+    CORE_FIELDS.forEach(field => {
+        if (cleanedDrone[field] === undefined || cleanedDrone[field] === null) {
+            cleanedDrone[field] = '';
+        }
+    });
+    // Remove transient UI-only fields
+    delete cleanedDrone.x;
+    delete cleanedDrone.y;
+    delete cleanedDrone.isNew;
+    return cleanedDrone;
+};
+
 /**
  * Validate configuration with backend before saving.
  * Returns validation report for review dialog.
  *
- * NOTE: x,y positions are NOT sent - they come from trajectory CSV files only.
+ * NOTE: x,y positions are NOT sent — they come from trajectory files only.
  */
 export const validateConfigWithBackend = async (configData, setLoading) => {
-    // Define the expected structure (x,y removed - come from trajectory CSV)
-    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
-
-    // Clean and transform the configData
-    const cleanedConfigData = configData.map(drone => {
-        const cleanedDrone = {};
-        expectedFields.forEach(field => {
-            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
-        });
-        return cleanedDrone;
-    });
+    // Clean and transform the configData (preserves all fields, ensures core fields exist)
+    const cleanedConfigData = configData.map(cleanDroneForBackend);
 
     const backendURL = getBackendURL();
 
@@ -52,20 +69,11 @@ export const validateConfigWithBackend = async (configData, setLoading) => {
  * Save configuration to server after validation.
  * This is called AFTER user confirms in review dialog.
  *
- * NOTE: x,y positions are NOT saved - they come from trajectory CSV files only.
+ * NOTE: x,y positions are NOT saved — they come from trajectory files only.
  */
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
-    // Define the expected structure (x,y removed - come from trajectory CSV)
-    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
-
-    // Clean and transform the configData
-    const cleanedConfigData = configData.map(drone => {
-        const cleanedDrone = {};
-        expectedFields.forEach(field => {
-            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
-        });
-        return cleanedDrone;
-    });
+    // Clean and transform the configData (preserves all fields, ensures core fields exist)
+    const cleanedConfigData = configData.map(cleanDroneForBackend);
 
     const hwIds = cleanedConfigData.map(drone => parseInt(drone.hw_id));
     const missingIds = [];
@@ -155,49 +163,60 @@ export const handleRevertChanges = async(setConfigData) => {
 
 export const handleFileChange = (event, setConfigData) => {
     const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const csvData = e.target.result;
-            const drones = parseCSV(csvData);
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        try {
+            // Try JSON first
+            const data = JSON.parse(text);
+            const drones = data.drones || (Array.isArray(data) ? data : []);
+            if (drones.length > 0) {
+                setConfigData(drones);
+                toast.success(`Imported ${drones.length} drones from JSON`);
+            } else {
+                toast.error('No drones found in JSON file');
+            }
+        } catch {
+            // Fall back to CSV parsing
+            const drones = parseCSV(text);
             if (drones && validateDrones(drones)) {
                 setConfigData(drones);
+                toast.success(`Imported ${drones.length} drones from CSV`);
             } else {
-                alert("Invalid CSV structure. Please make sure your CSV matches the required format.");
+                toast.error('Invalid file format. Please use JSON or CSV format.');
             }
-        };
-        reader.readAsText(file);
-    }
+        }
+    };
+    reader.readAsText(file);
 };
 
 export const parseCSV = (data) => {
     const rows = data.trim().split('\n').filter(row => row.trim() !== '');
     const drones = [];
 
-    // Expected format: 6 columns (x,y removed - positions come from trajectory CSV)
-    const expectedHeader = "hw_id,pos_id,ip,mavlink_port,serial_port,baudrate";
-    const header = rows[0].trim();
+    const headerColumns = rows[0].trim().split(',').map(h => h.trim());
 
-    if (header !== expectedHeader) {
-        toast.error("Invalid CSV format. Expected 6 columns: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate");
+    // Core fields must be present; extra columns are allowed (custom fields)
+    const coreHeaders = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+    const missingHeaders = coreHeaders.filter(h => !headerColumns.includes(h));
+    if (missingHeaders.length > 0) {
+        toast.error(`Invalid CSV format. Missing required columns: ${missingHeaders.join(', ')}`);
         return null;
     }
 
     for (let i = 1; i < rows.length; i++) {
         const columns = rows[i].split(',').map(cell => cell.trim());
 
-        if (columns.length === 6) {
-            const drone = {
-                hw_id: columns[0],
-                pos_id: columns[1],
-                ip: columns[2],
-                mavlink_port: columns[3],
-                serial_port: columns[4],
-                baudrate: columns[5]
-            };
+        if (columns.length >= coreHeaders.length) {
+            const drone = {};
+            headerColumns.forEach((header, idx) => {
+                drone[header] = columns[idx] || '';
+            });
             drones.push(drone);
         } else {
-            toast.error(`Row ${i} has incorrect number of columns (expected 6, got ${columns.length}).`);
+            toast.error(`Row ${i} has incorrect number of columns (expected at least ${coreHeaders.length}, got ${columns.length}).`);
             return null;
         }
     }
@@ -216,7 +235,26 @@ export const validateDrones = (drones) => {
     return true;
 };
 
-export const exportConfig = (configData) => {
+/**
+ * Export config as JSON (primary format).
+ */
+export const exportConfigJSON = (configData) => {
+    const data = { version: 1, drones: configData.map(cleanDroneForBackend) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'config.json');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
+
+/**
+ * Export config as CSV (backward-compatible).
+ */
+export const exportConfigCSV = (configData) => {
     const header = ["hw_id", "pos_id", "ip", "mavlink_port", "serial_port", "baudrate"];
     const csvRows = configData.map(drone => [
         drone.hw_id,
@@ -240,6 +278,9 @@ export const exportConfig = (configData) => {
     document.body.removeChild(a);
 };
 
+// Backward-compatible alias
+export const exportConfig = exportConfigJSON;
+
 /**
  * Generate KML from drone positions.
  * NOTE: drones array should include x,y from trajectory CSV (fetched via API)
@@ -251,7 +292,7 @@ export const generateKML = (drones, originLat, originLon) => {
     <Document>`;
 
     drones.forEach((drone) => {
-        // x,y should be provided from trajectory CSV (not config.csv)
+        // x,y should be provided from trajectory files (not config.json)
         if (drone.x !== undefined && drone.y !== undefined) {
             const { latitude, longitude } = convertToLatLon(
                 originLat,

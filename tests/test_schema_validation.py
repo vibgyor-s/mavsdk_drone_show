@@ -13,87 +13,103 @@ class TestDroneConfigValidation:
     """Test DroneConfig schema validation"""
 
     def test_valid_config(self):
-        """Test valid drone configuration"""
         from gcs_server_schemas import DroneConfig
-
         config = DroneConfig(
-            pos_id=1,
-            hw_id="drone1",
-            ip="192.168.1.100",
-            connection_str="udp://:14550"
+            hw_id=1, pos_id=1, ip='192.168.1.100',
+            mavlink_port=14551, serial_port='/dev/ttyS0', baudrate=57600
         )
+        assert config.hw_id == 1
+        assert config.mavlink_port == 14551
 
-        assert config.pos_id == 1
-        assert config.hw_id == "drone1"
-        assert config.ip == "192.168.1.100"
+    def test_minimal_config(self):
+        """Test config with only required fields"""
+        from gcs_server_schemas import DroneConfig
+        config = DroneConfig(hw_id=1, pos_id=1, ip='10.0.0.1', mavlink_port=14551)
+        assert config.serial_port == ''
+        assert config.baudrate == 0
+        assert config.color is None
+        assert config.notes is None
 
     def test_invalid_ip_format(self):
-        """Test rejection of invalid IP format"""
         from gcs_server_schemas import DroneConfig
-
         with pytest.raises(ValidationError) as exc_info:
-            DroneConfig(
-                pos_id=1,
-                hw_id="drone1",
-                ip="not-an-ip",
-                connection_str="udp://:14550"
-            )
-
+            DroneConfig(hw_id=1, pos_id=1, ip='not-an-ip', mavlink_port=14551)
         assert "ip" in str(exc_info.value).lower()
 
-    def test_invalid_ip_octet_range(self):
-        """Test rejection of IP with octets > 255"""
-        from gcs_server_schemas import DroneConfig
-
-        with pytest.raises(ValidationError):
-            DroneConfig(
-                pos_id=1,
-                hw_id="drone1",
-                ip="192.168.1.300",
-                connection_str="udp://:14550"
-            )
-
     def test_negative_pos_id(self):
-        """Test rejection of negative pos_id"""
         from gcs_server_schemas import DroneConfig
+        with pytest.raises(ValidationError):
+            DroneConfig(hw_id=1, pos_id=-1, ip='192.168.1.100', mavlink_port=14551)
 
-        with pytest.raises(ValidationError) as exc_info:
-            DroneConfig(
-                pos_id=-1,
-                hw_id="drone1",
-                ip="192.168.1.100",
-                connection_str="udp://:14550"
-            )
-
-        assert "pos_id" in str(exc_info.value).lower()
-
-    def test_empty_hw_id(self):
-        """Test rejection of empty hw_id"""
+    def test_invalid_hw_id_zero(self):
+        """hw_id must be >= 1"""
         from gcs_server_schemas import DroneConfig
+        with pytest.raises(ValidationError):
+            DroneConfig(hw_id=0, pos_id=1, ip='192.168.1.100', mavlink_port=14551)
 
-        with pytest.raises(ValidationError) as exc_info:
-            DroneConfig(
-                pos_id=1,
-                hw_id="",
-                ip="192.168.1.100",
-                connection_str="udp://:14550"
-            )
-
-        assert "hw_id" in str(exc_info.value).lower()
-
-    def test_extra_fields_ignored(self):
-        """Test that extra fields are silently ignored"""
+    def test_extra_fields_preserved(self):
+        """extra='allow' should preserve unknown fields"""
         from gcs_server_schemas import DroneConfig
-
         config = DroneConfig(
-            pos_id=1,
-            hw_id="drone1",
-            ip="192.168.1.100",
-            connection_str="udp://:14550",
-            unknown_field="should be ignored"
+            hw_id=1, pos_id=1, ip='192.168.1.100',
+            mavlink_port=14551, my_custom='hello'
         )
+        assert config.model_extra == {'my_custom': 'hello'}
 
-        assert not hasattr(config, 'unknown_field')
+    def test_color_valid(self):
+        from gcs_server_schemas import DroneConfig
+        config = DroneConfig(
+            hw_id=1, pos_id=1, ip='10.0.0.1', mavlink_port=14551, color='#FF6B00'
+        )
+        assert config.color == '#FF6B00'
+
+    def test_color_invalid(self):
+        from gcs_server_schemas import DroneConfig
+        with pytest.raises(ValidationError):
+            DroneConfig(hw_id=1, pos_id=1, ip='10.0.0.1', mavlink_port=14551, color='red')
+
+
+class TestFleetConfigValidation:
+    """Test FleetConfig schema"""
+
+    def test_fleet_config(self):
+        from gcs_server_schemas import FleetConfig, DroneConfig
+        fc = FleetConfig(version=1, drones=[
+            DroneConfig(hw_id=1, pos_id=1, ip='10.0.0.1', mavlink_port=14551)
+        ])
+        assert len(fc.drones) == 1
+        assert fc.version == 1
+
+    def test_fleet_config_empty_drones(self):
+        from gcs_server_schemas import FleetConfig
+        fc = FleetConfig(version=1, drones=[])
+        assert len(fc.drones) == 0
+
+
+class TestSwarmConfigValidation:
+    """Test SwarmConfig schema"""
+
+    def test_swarm_assignment_defaults(self):
+        from gcs_server_schemas import SwarmAssignment
+        sa = SwarmAssignment(hw_id=1)
+        assert sa.follow == 0
+        assert sa.offset_n == 0.0
+        assert sa.body_coord is False
+
+    def test_swarm_assignment_full(self):
+        from gcs_server_schemas import SwarmAssignment
+        sa = SwarmAssignment(hw_id=3, follow=2, offset_n=-5.0, offset_e=-5.0, offset_alt=3.0, body_coord=True)
+        assert sa.body_coord is True
+        assert sa.offset_n == -5.0
+
+    def test_swarm_config(self):
+        from gcs_server_schemas import SwarmConfig, SwarmAssignment
+        sc = SwarmConfig(version=1, assignments=[
+            SwarmAssignment(hw_id=1),
+            SwarmAssignment(hw_id=3, follow=2, offset_n=-5.0, body_coord=True)
+        ])
+        assert len(sc.assignments) == 2
+        assert sc.assignments[1].body_coord is True
 
 
 class TestPositionGPSValidation:

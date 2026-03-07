@@ -222,7 +222,7 @@ After installation, key configuration files are:
 |------|---------|
 | `/etc/mds/local.env` | Per-drone configuration (drone ID, GCS IP, etc.) |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
-| `~/mavsdk_drone_show/config.csv` | Drone hardware configuration |
+| `~/mavsdk_drone_show/config.json` | Drone hardware configuration |
 | `~/mavsdk_drone_show/src/params.py` | Global parameters |
 
 ### Editing Local Configuration

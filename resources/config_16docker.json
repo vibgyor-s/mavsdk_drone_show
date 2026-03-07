@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "drones": [
+    {
+      "hw_id": 1,
+      "pos_id": 1,
+      "ip": "172.17.0.3",
+      "mavlink_port": 14551,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 2,
+      "pos_id": 2,
+      "ip": "172.17.0.4",
+      "mavlink_port": 14552,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 3,
+      "pos_id": 3,
+      "ip": "172.17.0.5",
+      "mavlink_port": 14553,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 4,
+      "pos_id": 4,
+      "ip": "172.17.0.6",
+      "mavlink_port": 14554,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 5,
+      "pos_id": 5,
+      "ip": "172.17.0.7",
+      "mavlink_port": 14555,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 6,
+      "pos_id": 6,
+      "ip": "172.17.0.8",
+      "mavlink_port": 14556,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 7,
+      "pos_id": 7,
+      "ip": "172.17.0.9",
+      "mavlink_port": 14557,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 8,
+      "pos_id": 8,
+      "ip": "172.17.0.10",
+      "mavlink_port": 14558,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 9,
+      "pos_id": 9,
+      "ip": "172.17.0.11",
+      "mavlink_port": 14559,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 10,
+      "pos_id": 10,
+      "ip": "172.17.0.12",
+      "mavlink_port": 14560,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 11,
+      "pos_id": 11,
+      "ip": "172.17.0.13",
+      "mavlink_port": 14561,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 12,
+      "pos_id": 12,
+      "ip": "172.17.0.14",
+      "mavlink_port": 14562,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 13,
+      "pos_id": 13,
+      "ip": "172.17.0.15",
+      "mavlink_port": 14563,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 14,
+      "pos_id": 14,
+      "ip": "172.17.0.16",
+      "mavlink_port": 14564,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 15,
+      "pos_id": 15,
+      "ip": "172.17.0.17",
+      "mavlink_port": 14565,
+      "serial_port": "",
+      "baudrate": 0
+    },
+    {
+      "hw_id": 16,
+      "pos_id": 16,
+      "ip": "172.17.0.18",
+      "mavlink_port": 14566,
+      "serial_port": "",
+      "baudrate": 0
+    }
+  ]
+}

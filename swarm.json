@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "assignments": [
+    {
+      "hw_id": 1,
+      "follow": 0,
+      "offset_n": 0.0,
+      "offset_e": 0.0,
+      "offset_alt": 0.0,
+      "body_coord": false
+    },
+    {
+      "hw_id": 2,
+      "follow": 0,
+      "offset_n": 0.0,
+      "offset_e": 0.0,
+      "offset_alt": 0.0,
+      "body_coord": false
+    },
+    {
+      "hw_id": 3,
+      "follow": 2,
+      "offset_n": -5.0,
+      "offset_e": -5.0,
+      "offset_alt": 3.0,
+      "body_coord": false
+    },
+    {
+      "hw_id": 4,
+      "follow": 3,
+      "offset_n": -5.0,
+      "offset_e": 5.0,
+      "offset_alt": 5.0,
+      "body_coord": true
+    },
+    {
+      "hw_id": 5,
+      "follow": 2,
+      "offset_n": 4.0,
+      "offset_e": 4.0,
+      "offset_alt": -2.0,
+      "body_coord": false
+    },
+    {
+      "hw_id": 6,
+      "follow": 1,
+      "offset_n": -4.0,
+      "offset_e": 4.0,
+      "offset_alt": -4.0,
+      "body_coord": false
+    },
+    {
+      "hw_id": 7,
+      "follow": 3,
+      "offset_n": 5.0,
+      "offset_e": 5.0,
+      "offset_alt": 0.0,
+      "body_coord": true
+    },
+    {
+      "hw_id": 8,
+      "follow": 3,
+      "offset_n": -5.0,
+      "offset_e": 5.0,
+      "offset_alt": 1.0,
+      "body_coord": true
+    },
+    {
+      "hw_id": 9,
+      "follow": 3,
+      "offset_n": 5.0,
+      "offset_e": -8.0,
+      "offset_alt": 2.0,
+      "body_coord": true
+    },
+    {
+      "hw_id": 10,
+      "follow": 8,
+      "offset_n": 1.0,
+      "offset_e": 3.0,
+      "offset_alt": 6.0,
+      "body_coord": false
+    }
+  ]
+}

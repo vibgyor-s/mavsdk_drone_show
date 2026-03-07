@@ -67,8 +67,8 @@ function ThreeDPlot({ data, swarmData }) {
             marker: {
                 size: 12,
                 color: data.map(d => {
-                    if (d.follow === '0') return colors.success;
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    if (String(d.follow) === '0') return colors.success;
+                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
                     else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
                     else return colors.warning;
                 }),
@@ -84,7 +84,7 @@ function ThreeDPlot({ data, swarmData }) {
                 family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
                 return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
@@ -142,8 +142,8 @@ function NorthEastPlot({ data, swarmData }) {
             marker: {
                 size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return colors.success;
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    if (String(d.follow) === '0') return colors.success;
+                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
                     else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
                     else return colors.warning;
                 }),
@@ -158,7 +158,7 @@ function NorthEastPlot({ data, swarmData }) {
                 family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
                 return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
@@ -206,8 +206,8 @@ function EastAltitudePlot({ data, swarmData }) {
             marker: {
                 size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return colors.success;
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    if (String(d.follow) === '0') return colors.success;
+                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
                     else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
                     else return colors.warning;
                 }),
@@ -222,7 +222,7 @@ function EastAltitudePlot({ data, swarmData }) {
                 family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
                 return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
@@ -269,8 +269,8 @@ function NorthAltitudePlot({ data, swarmData }) {
             marker: {
                 size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return colors.success;
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    if (String(d.follow) === '0') return colors.success;
+                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
                     else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
                     else return colors.warning;
                 }),
@@ -285,7 +285,7 @@ function NorthAltitudePlot({ data, swarmData }) {
                 family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
                 return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
@@ -327,11 +327,11 @@ function SwarmPlots({ swarmData }) {
     const [processedData, setProcessedData] = useState([]);
 
     const leaders = swarmData.filter(drone =>
-        drone.follow === '0' || swarmData.some(d => d.follow === drone.hw_id)
+        String(drone.follow) === '0' || swarmData.some(d => String(d.follow) === String(drone.hw_id))
     );
 
     const getCumulativeOffset = (drone) => {
-        if (drone.follow === '0') {
+        if (String(drone.follow) === '0') {
             return {
                 x: 0,
                 y: 0,
@@ -339,7 +339,7 @@ function SwarmPlots({ swarmData }) {
                 heading: 0  // Assume heading is zero for top leaders
             };
         } else {
-            const leader = swarmData.find(d => d.hw_id === drone.follow);
+            const leader = swarmData.find(d => String(d.hw_id) === String(drone.follow));
             const leaderOffset = getCumulativeOffset(leader);
 
             // Parse offsets
@@ -347,7 +347,7 @@ function SwarmPlots({ swarmData }) {
             let offset_e = parseFloat(drone.offset_e);
             let offset_alt = parseFloat(drone.offset_alt);
 
-            if (drone.body_coord === '1') {
+            if (drone.body_coord === '1' || drone.body_coord === 1 || drone.body_coord === true) {
                 // Convert body coordinates to NEA (assuming leader heading is zero)
                 const theta = leaderOffset.heading * Math.PI / 180; // Convert heading to radians
                 const cosTheta = Math.cos(theta);
@@ -398,7 +398,7 @@ function SwarmPlots({ swarmData }) {
     useEffect(() => {
         if (swarmData.length) {
             const leadersList = swarmData.filter(drone =>
-                drone.follow === '0' || swarmData.some(d => d.follow === drone.hw_id)
+                String(drone.follow) === '0' || swarmData.some(d => String(d.follow) === String(drone.hw_id))
             );
 
             if (leadersList.length) {
@@ -423,7 +423,7 @@ function SwarmPlots({ swarmData }) {
                 >
                     {leaders.map(leader => (
                         <option key={leader.hw_id} value={leader.hw_id}>
-                            {leader.hw_id} - {leader.follow === '0' ? 'Top Leader' : 'Intermediate Leader'}
+                            {leader.hw_id} - {String(leader.follow) === '0' ? 'Top Leader' : 'Intermediate Leader'}
                         </option>
                     ))}
                 </select>

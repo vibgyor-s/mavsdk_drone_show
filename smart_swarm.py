@@ -16,14 +16,14 @@
  Description:
    This project implements a smart swarm control system using MAVSDK, designed
    to operate drones in a coordinated formation. The system distinguishes
-   between leader and follower drones based on configuration CSV files. Followers
+   between leader and follower drones based on configuration JSON files. Followers
    receive state updates from the leader, process these with a Kalman filter, and
    compute velocity commands using a PD controller (with low-pass filtering).
    The code is built using Python's asyncio framework for concurrent tasks such as
    state updates, control loops, and dynamic configuration updates.
 
  Features:
-   - Reads drone and swarm configuration from CSV files.
+   - Reads drone and swarm configuration from JSON files.
    - Dynamically updates swarm configuration (role, formation offsets, etc.) during flight.
    - Integrates a primary (telemetry API) and a fallback (HTTP API) source for fetching
      the drone's GPS global origin.
@@ -37,7 +37,7 @@
  Workflow:
    1. Initialization:
       - Read the hardware ID from a .hwID file.
-      - Load drone configuration from config.csv and swarm configuration from swarm.csv.
+      - Load drone configuration from config.json and swarm configuration from swarm.json.
       - Determine if the drone is operating as a Leader or Follower.
       - Set formation offsets and body coordinate mode based on the swarm configuration.
       - For followers, extract leader information and initialize a Kalman filter.
@@ -49,7 +49,7 @@
       - Set the reference position for NED coordinate conversion.
    
    3. Dynamic Configuration Update:
-      - A periodic task (update_swarm_config_periodically) re-reads the swarm CSV at a defined
+      - A periodic task (update_swarm_config_periodically) re-reads the swarm config at a defined
         interval to detect any configuration changes (role, offsets, etc.).
       - On detecting changes:
           * If switching from follower to leader, the follower tasks are cancelled.
@@ -73,7 +73,7 @@
 
  Notes:
    - The project is part of the "mavsdk_drone_show" repository.
-   - Future improvements may include replacing the CSV-based configuration update with a
+   - Future improvements may include replacing the JSON-based configuration update with a
      direct query to a Ground Control Station (GCS) endpoint.
    - This file serves as the central orchestrator for the swarm behavior and leverages
      several modules (e.g., Kalman filter, PD controller, LED controller) for a modular
@@ -137,8 +137,8 @@ SwarmConfig = namedtuple(
 # ----------------------------- #
 
 HW_ID = None  # Hardware ID of the drone
-DRONE_CONFIG = {}  # Drone configurations from config.csv
-SWARM_CONFIG = {}  # Swarm configurations from swarm.csv
+DRONE_CONFIG = {}  # Drone configurations from config.json
+SWARM_CONFIG = {}  # Swarm configurations from swarm.json
 DRONE_STATE = {}  # Own drone's state
 LEADER_STATE = {}  # Leader drone's state
 OWN_STATE = {}  # Own drone's NED state
@@ -219,62 +219,64 @@ def parse_float(field_value, default=0.0):
 #     # Limit the number of log files TODO!
 #     #limit_log_files(logs_directory, MAX_LOG_FILES)
 
-def read_config_csv(filename: str):
+def read_config(filename: str):
     """
-    Reads the drone configurations from the config CSV file and populates DRONE_CONFIG.
+    Reads the drone configurations from the config JSON file and populates DRONE_CONFIG.
 
     Note: x,y positions now come from trajectory CSV files (single source of truth),
-    not from config.csv.
+    not from config.json.
 
     Args:
-        filename (str): Path to the config CSV file.
+        filename (str): Path to the config JSON file.
     """
     logger = logging.getLogger(__name__)
     global DRONE_CONFIG
     try:
-        with open(filename, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
+        import json
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        entries = data.get('drones', data) if isinstance(data, dict) else data
+        for entry in entries:
+            try:
+                hw_id = str(int(entry["hw_id"]))
+                pos_id = int(entry["pos_id"])
+
+                # Get position from trajectory CSV (single source of truth)
+                base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                trajectory_file = os.path.join(
+                    os.path.dirname(__file__),  # Project root
+                    base_dir,
+                    'swarm',
+                    'processed',
+                    f"Drone {pos_id}.csv"
+                )
+
+                x, y = 0.0, 0.0  # Default values
                 try:
-                    hw_id = str(int(row["hw_id"]))
-                    pos_id = int(row["pos_id"])
+                    if os.path.exists(trajectory_file):
+                        with open(trajectory_file, 'r') as traj_f:
+                            traj_reader = csv.DictReader(traj_f)
+                            first_waypoint = next(traj_reader, None)
+                            if first_waypoint:
+                                x = float(first_waypoint.get('px', 0))  # North
+                                y = float(first_waypoint.get('py', 0))  # East
+                            else:
+                                logger.warning(f"Trajectory file empty for pos_id={pos_id}")
+                    else:
+                        logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+                except Exception as e:
+                    logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
 
-                    # Get position from trajectory CSV (single source of truth)
-                    base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
-                    trajectory_file = os.path.join(
-                        os.path.dirname(__file__),  # Project root
-                        base_dir,
-                        'swarm',
-                        'processed',
-                        f"Drone {pos_id}.csv"
-                    )
-
-                    x, y = 0.0, 0.0  # Default values
-                    try:
-                        if os.path.exists(trajectory_file):
-                            with open(trajectory_file, 'r') as traj_f:
-                                traj_reader = csv.DictReader(traj_f)
-                                first_waypoint = next(traj_reader, None)
-                                if first_waypoint:
-                                    x = float(first_waypoint.get('px', 0))  # North
-                                    y = float(first_waypoint.get('py', 0))  # East
-                                else:
-                                    logger.warning(f"Trajectory file empty for pos_id={pos_id}")
-                        else:
-                            logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
-                    except Exception as e:
-                        logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
-
-                    DRONE_CONFIG[hw_id] = {
-                        'hw_id': hw_id,
-                        'pos_id': pos_id,
-                        'x': x,
-                        'y': y,
-                        'ip': row["ip"],
-                        'mavlink_port': int(row["mavlink_port"]),
-                    }
-                except ValueError as ve:
-                    logger.error(f"Invalid data type in config file row: {row}. Error: {ve}")
+                DRONE_CONFIG[hw_id] = {
+                    'hw_id': hw_id,
+                    'pos_id': pos_id,
+                    'x': x,
+                    'y': y,
+                    'ip': entry["ip"],
+                    'mavlink_port': int(entry["mavlink_port"]),
+                }
+            except ValueError as ve:
+                logger.error(f"Invalid data type in config file entry: {entry}. Error: {ve}")
         logger.info(f"Read {len(DRONE_CONFIG)} drone configurations from '{filename}' with positions from trajectory CSV.")
     except FileNotFoundError:
         logger.exception(f"Config file '{filename}' not found.")
@@ -283,31 +285,33 @@ def read_config_csv(filename: str):
         logger.exception(f"Error reading config file '{filename}'.")
         sys.exit(1)
 
-def read_swarm_csv(filename: str):
+def read_swarm(filename: str):
     """
-    Reads the swarm configurations from the swarm CSV file and populates SWARM_CONFIG.
+    Reads the swarm configurations from the swarm JSON file and populates SWARM_CONFIG.
 
     Args:
-        filename (str): Path to the swarm CSV file.
+        filename (str): Path to the swarm JSON file.
     """
     logger = logging.getLogger(__name__)
     global SWARM_CONFIG
     try:
-        with open(filename, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                try:
-                    hw_id = str(int(row["hw_id"]))
-                    SWARM_CONFIG[hw_id] = {
-                        'hw_id': hw_id,
-                        'follow': row["follow"],
-                        'offset_n': float(row["offset_n"]),
-                        'offset_e': float(row["offset_e"]),
-                        'offset_alt': float(row["offset_alt"]),
-                        'body_coord': row["body_coord"] == '1',
-                    }
-                except ValueError as ve:
-                    logger.error(f"Invalid data type in swarm file row: {row}. Error: {ve}")
+        import json
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        entries = data.get('assignments', data) if isinstance(data, dict) else data
+        for entry in entries:
+            try:
+                hw_id = str(int(entry["hw_id"]))
+                SWARM_CONFIG[hw_id] = {
+                    'hw_id': hw_id,
+                    'follow': int(entry["follow"]),
+                    'offset_n': float(entry["offset_n"]),
+                    'offset_e': float(entry["offset_e"]),
+                    'offset_alt': float(entry["offset_alt"]),
+                    'body_coord': bool(entry.get("body_coord", False)),
+                }
+            except ValueError as ve:
+                logger.error(f"Invalid data type in swarm file entry: {entry}. Error: {ve}")
         logger.info(f"Read {len(SWARM_CONFIG)} swarm configurations from '{filename}'.")
     except FileNotFoundError:
         logger.exception(f"Swarm file '{filename}' not found.")
@@ -543,11 +547,11 @@ async def update_swarm_config_periodically(drone):
                     offset_alt_val = parse_float(entry.get('offset_alt', None), default=0.0)
 
                     SWARM_CONFIG[hw_str] = {
-                        'follow':     entry.get('follow', '0'),
+                        'follow':     int(entry.get('follow', 0)),
                         'offset_n':   offset_n_val,
                         'offset_e':   offset_e_val,
                         'offset_alt': offset_alt_val,
-                        'body_coord': entry.get('body_coord', '0') == '1',
+                        'body_coord': bool(entry.get('body_coord', False)),
                     }
 
                 # Grab this drone's new config
@@ -563,7 +567,7 @@ async def update_swarm_config_periodically(drone):
                     }
                     new_body_coord  = new_cfg['body_coord']
                     new_leader      = new_cfg['follow']
-                    new_is_leader   = (new_leader == '0')
+                    new_is_leader   = (new_leader == 0)
 
                     # ROLE CHANGE?
                     if new_is_leader != IS_LEADER:
@@ -1118,11 +1122,11 @@ async def run_smart_swarm():
         logger.error("Hardware ID not found.")
         sys.exit(1)
 
-    # Read configuration CSV files (choose simulation vs. real mode)
-    config_filename = os.path.join('config_sitl.csv' if Params.sim_mode else 'config.csv')
-    swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
-    read_config_csv(config_filename)
-    read_swarm_csv(swarm_filename)
+    # Read configuration JSON files
+    config_filename = Params.config_file_name
+    swarm_filename = Params.swarm_file_name
+    read_config(config_filename)
+    read_swarm(swarm_filename)
 
     # Get own drone configuration
     hw_id_str = str(HW_ID)
@@ -1138,7 +1142,7 @@ async def run_smart_swarm():
         sys.exit(1)
 
     # Determine drone role and set formation parameters
-    IS_LEADER = swarm_config['follow'] == '0'
+    IS_LEADER = swarm_config['follow'] == 0
     OFFSETS['n'] = swarm_config['offset_n']
     OFFSETS['e'] = swarm_config['offset_e']
     OFFSETS['alt'] = swarm_config['offset_alt']

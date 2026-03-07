@@ -24,7 +24,8 @@ import {
   handleSaveChangesToServer,
   handleRevertChanges,
   handleFileChange,
-  exportConfig,
+  exportConfigJSON,
+  exportConfigCSV,
   validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import { toast } from 'react-toastify';
@@ -96,7 +97,7 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Derived Data & Helpers
   // -----------------------------------------------------
-  // Note: x,y positions now come from trajectory CSV files, not config.csv
+  // Note: x,y positions come from trajectory files, not config.json
 
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
   const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
@@ -384,8 +385,13 @@ const MissionConfig = () => {
   };
 
   const handleExportConfigWrapper = () => {
-    exportConfig(configData);
-    toast.success('Configuration exported successfully.');
+    exportConfigJSON(configData);
+    toast.success('Configuration exported as JSON.');
+  };
+
+  const handleExportConfigCSVWrapper = () => {
+    exportConfigCSV(configData);
+    toast.success('Configuration exported as CSV.');
   };
 
   const handleResetToDefault = () => {
@@ -431,6 +437,7 @@ const MissionConfig = () => {
         handleRevertChanges={handleRevertChangesWrapper}
         handleFileChange={handleFileChangeWrapper}
         exportConfig={handleExportConfigWrapper}
+        exportConfigCSV={handleExportConfigCSVWrapper}
         openOriginModal={() => setShowOriginModal(true)}
         openGcsConfigModal={() => setShowGcsConfigModal(true)}
         handleResetToDefault={handleResetToDefault}
