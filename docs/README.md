@@ -180,7 +180,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 4.2
+**Current Version:** 5.0
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 
@@ -262,6 +262,6 @@ Please submit a pull request or open an issue on GitHub.
 
 ---
 
-**Last Updated:** January 2026 (Version 4.2)
+**Last Updated:** March 2026 (Version 5.0)
 
 © 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0

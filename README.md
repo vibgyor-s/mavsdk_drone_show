@@ -32,7 +32,7 @@ MDS is a unified platform for PX4-based drone performances and intelligent swarm
 
 ## Overview
 
-MDS 3 combines three core components into a single, cohesive package:
+MDS combines three core components into a single, cohesive package:
 
 ### 1. Drone Side
 - Runs on any Linux-based autopilot platform (Raspberry Pi, NVIDIA Jetson, or similar)
@@ -51,7 +51,7 @@ MDS 3 combines three core components into a single, cohesive package:
 - **3D Trajectory Planning** with interactive waypoints and terrain elevation
 - Supports both Drone-Show mode and Smart-Swarm mode
 
-**In short, MDS 3 is one package for:**
+**In short, MDS is one package for:**
 - **Offline Drone Shows**: Pre-planned, synchronized formations from SkyBrush CSV
 - **Smart Swarm Missions**: Decentralized leader–follower missions with robust failsafe handling
 
@@ -235,8 +235,7 @@ All project documentation is organized in the `docs/` folder:
 | **Quick Start** | Fast SITL demo setup | [docs/guides/sitl-comprehensive.md](docs/guides/sitl-comprehensive.md) |
 | **Guides** | Comprehensive setup and configuration | [docs/guides/](docs/guides/) |
 | **Features** | Detailed feature documentation | [docs/features/](docs/features/) |
-| **Hardware** | Hardware-specific guides | [docs/hardware/](docs/hardware/) |
-| **API** | API documentation | [docs/api/](docs/api/) |
+| **API** | API documentation | [docs/apis/](docs/apis/) |
 | **Versioning** | Version management workflow | [docs/VERSIONING.md](docs/VERSIONING.md) |
 
 ### Key Guides
@@ -335,31 +334,9 @@ See our [Contributing Guide](CONTRIBUTING.md) for more details.
 
 ## Disclaimer
 
-**⚠️ SAFETY WARNING**
+**⚠️ Using offboard mode or live swarm control on real drones carries significant risk.** Ensure you have the necessary expertise, certifications, and robust failsafe procedures before any real-world flights. The maintainers assume no liability for damage, injury, or legal consequences.
 
-Using offboard mode or live swarm control on real drones carries significant risk. Before attempting any real-world flights:
-
-- Ensure you have the necessary expertise and certifications
-- Understand all safety implications and failure modes
-- Implement robust failsafe procedures
-- Prioritize regulatory compliance and flight safety
-- Conduct extensive testing in controlled environments
-- Follow all local aviation regulations and laws
-
-**The maintainers assume no liability for damage, injury, or legal consequences resulting from use of this software.**
-
-**📄 [Read full legal disclaimer →](DISCLAIMER.md)**
-
-### Ethical Use Statement
-
-This software is developed for peaceful, educational, and research purposes. While we cannot enforce all uses, we strongly encourage ethical applications that:
-
-- Prioritize safety and regulatory compliance
-- Advance education and knowledge
-- Respect human rights and dignity
-- Consider the societal impact of drone technology
-
-**By using this software, you accept full responsibility for your actions and their consequences.**
+📄 **[Full Legal Disclaimer →](DISCLAIMER.md)** | **[Ethical Use Statement →](ETHICAL-USE.md)**
 
 ---
 
@@ -385,34 +362,9 @@ This software is developed for peaceful, educational, and research purposes. Whi
 
 ## License
 
-© 2025 Alireza Ghaderi
+© 2025 Alireza Ghaderi — Dual licensed. See **[LICENSE](LICENSE)** for full details.
 
-### Dual Licensing
-
-This software is available under multiple licenses to support different users:
-
-**📄 [LICENSE](LICENSE)** - Main license file with decision guide
-
-**Free Licenses:**
-- **[PolyForm Noncommercial](LICENSE-NONCOMMERCIAL.md)** - Education, research, non-profits
-- **[PolyForm Small Business](LICENSE-SMALL-BUSINESS.md)** - Small commercial (< 10 drones, < 100 employees, < $1M revenue)
-
-**Commercial License:**
-- **[Commercial Licensing](LICENSE-COMMERCIAL.md)** - Large operations (10+ drones, 100+ employees, or $1M+ revenue)
-
-### Key Terms
-
-**Attribution Required:** All uses must credit the original project
-
-**Free Small Commercial:** Operations with < 10 drones, < 100 employees, and < $1M revenue can use for FREE
-
-**Large Commercial:** Contact p30planets@gmail.com for licensing
-
-### Legal
-
-**📄 [Full License Details →](LICENSE)**
-**📄 [Legal Disclaimer →](DISCLAIMER.md)**
-**📄 [Ethical Use Statement →](ETHICAL-USE.md)**
+📄 [Noncommercial License](LICENSE-NONCOMMERCIAL.md) | [Small Business License](LICENSE-SMALL-BUSINESS.md) | [Commercial License](LICENSE-COMMERCIAL.md) | [Disclaimer](DISCLAIMER.md) | [Ethical Use](ETHICAL-USE.md)
 
 ---
 
