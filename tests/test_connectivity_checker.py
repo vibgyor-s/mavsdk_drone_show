@@ -253,8 +253,8 @@ class TestConnectivityCheckerRun:
             time.sleep(0.05)
             checker.stop()
 
-        # LED should have been set to purple (255, 0, 255)
-        led_controller.set_color.assert_called_with(255, 0, 255)
+        # LED should have been set to dim purple (128, 0, 128) for disconnected state
+        led_controller.set_color.assert_called_with(128, 0, 128)
 
 
 class TestConnectivityCheckerIntegration:

@@ -174,7 +174,7 @@ class TestConfigurationEndpoints:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 2
-        assert data[0]['pos_id'] == 0
+        assert data[0]['pos_id'] == 1
         assert data[0]['hw_id'] == '1'
 
     @patch('app_fastapi.save_config')
