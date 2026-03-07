@@ -553,6 +553,17 @@ def assert_command_success():
 # ============================================================================
 
 @pytest.fixture(autouse=True)
+def disable_git_operations():
+    """Prevent tests from creating real git commits via git_operations()"""
+    try:
+        with patch('utils.git_operations', return_value={'success': True, 'message': 'mocked'}):
+            yield
+    except (ModuleNotFoundError, AttributeError):
+        # utils module not importable outside gcs-server context
+        yield
+
+
+@pytest.fixture(autouse=True)
 def cleanup_async_tasks():
     """Clean up any pending async tasks after each test"""
     yield
