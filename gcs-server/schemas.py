@@ -93,10 +93,10 @@ class SwarmAssignment(BaseModel):
 
     hw_id: int = Field(..., ge=1, description="Hardware ID")
     follow: int = Field(0, ge=0, description="Leader hw_id to follow (0 = independent)")
-    offset_n: float = Field(0.0, description="North offset in meters")
-    offset_e: float = Field(0.0, description="East offset in meters")
-    offset_alt: float = Field(0.0, description="Altitude offset in meters")
-    body_coord: bool = Field(False, description="True = body-frame offsets, False = NED-frame")
+    offset_x: float = Field(0.0, description="Offset axis 1: North (ned) or Forward (body), meters")
+    offset_y: float = Field(0.0, description="Offset axis 2: East (ned) or Right (body), meters")
+    offset_z: float = Field(0.0, description="Offset axis 3: Up (positive = higher), meters")
+    frame: str = Field("ned", pattern=r'^(ned|body)$', description="Coordinate frame: 'ned' (North-East-Up) or 'body' (Forward-Right-Up)")
 
 
 class SwarmConfig(BaseModel):

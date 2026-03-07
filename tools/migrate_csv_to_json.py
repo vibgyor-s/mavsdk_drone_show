@@ -28,9 +28,13 @@ def csv_to_swarm_json(csv_path):
                 if k in ('hw_id', 'follow'):
                     a[k] = int(v) if v.strip() else 0
                 elif k == 'body_coord':
-                    a[k] = bool(int(v)) if v.strip() else False
-                elif k in ('offset_n', 'offset_e', 'offset_alt'):
-                    a[k] = float(v) if v.strip() else 0.0
+                    a['frame'] = 'body' if (v.strip() and int(v)) else 'ned'
+                elif k == 'offset_n':
+                    a['offset_x'] = float(v) if v.strip() else 0.0
+                elif k == 'offset_e':
+                    a['offset_y'] = float(v) if v.strip() else 0.0
+                elif k == 'offset_alt':
+                    a['offset_z'] = float(v) if v.strip() else 0.0
                 else:
                     a[k] = v.strip()
             assignments.append(a)

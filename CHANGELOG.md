@@ -44,13 +44,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - **Config/Swarm migrated from CSV to JSON** (`v4.5.0-config-json`):
   - `config.csv` → `config.json`, `swarm.csv` → `swarm.json` (same for SITL variants)
   - JSON envelope format: `{"version": 1, "drones": [...]}` / `{"version": 1, "assignments": [...]}`
-  - Native types: `mavlink_port`/`baudrate` as int, `body_coord` as bool, `follow` as int
+  - Native types: `mavlink_port`/`baudrate` as int, `follow` as int
   - Pydantic schemas with `extra='allow'` for user-defined custom fields (e.g. `color`, `notes`)
   - Shell scripts use `jq` for config parsing (dependency checked at runtime)
   - Dashboard: JSON import/export (primary), CSV import as fallback
   - Resource templates updated (10 files)
   - One-time migration tool: `tools/migrate_csv_to_json.py`
   - Guide: `docs/guides/config-json-format.md`
+- **Swarm offset fields renamed** for clarity and extensibility:
+  - `offset_n/offset_e/offset_alt` → `offset_x/offset_y/offset_z`
+  - `body_coord` (bool) → `frame` (enum: `"ned"` | `"body"`)
+  - Meaning of x/y/z depends on frame (ned: North/East/Up; body: Forward/Right/Up)
+  - `offset_z` is always positive-up regardless of frame
 
 ---
 

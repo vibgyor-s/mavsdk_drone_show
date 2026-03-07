@@ -278,18 +278,18 @@ http://drone-ip:7070/openapi.json
   {
     "hw_id": "1",
     "follow": "0",
-    "offset_n": "0",
-    "offset_e": "0",
-    "offset_alt": "0",
-    "body_coord": "false"
+    "offset_x": "0",
+    "offset_y": "0",
+    "offset_z": "0",
+    "frame": "ned"
   },
   {
     "hw_id": "2",
     "follow": "1",
-    "offset_n": "5.0",
-    "offset_e": "0.0",
-    "offset_alt": "0.0",
-    "body_coord": "true"
+    "offset_x": "5.0",
+    "offset_y": "0.0",
+    "offset_z": "0.0",
+    "frame": "body"
   }
 ]
 ```

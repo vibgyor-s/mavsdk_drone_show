@@ -25,7 +25,7 @@ function DroneGraph({ swarmData, onSelectDrone }) {
                 data: {
                     source: drone.hw_id,
                     target: drone.follow,
-                    body_coord: drone.body_coord,
+                    frame: drone.frame,
                     id: `${drone.hw_id}-${drone.follow}`
                 }
             }));
@@ -108,7 +108,7 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             }
         },
         {
-            selector: 'edge[body_coord="1"]',
+            selector: 'edge[frame="body"]',
             style: {
                 'line-style': 'dashed',
                 'line-color': '#ff5722',
@@ -117,7 +117,7 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             }
         },
         {
-            selector: 'edge[body_coord="0"]',
+            selector: 'edge[frame="ned"]',
             style: {
                 'line-style': 'solid',
                 'line-color': '#999',

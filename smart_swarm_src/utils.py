@@ -17,14 +17,14 @@ def transform_body_to_nea(offset_forward, offset_right, yaw_deg):
         yaw_deg (float): Yaw angle in degrees.
 
     Returns:
-        tuple: (offset_north, offset_east)
+        tuple: (offset_x, offset_y)
     """
     yaw_rad = math.radians(yaw_deg)
     cos_yaw = math.cos(yaw_rad)
     sin_yaw = math.sin(yaw_rad)
-    offset_n = offset_forward * cos_yaw - offset_right * sin_yaw
-    offset_e = offset_forward * sin_yaw + offset_right * cos_yaw
-    return offset_n, offset_e
+    north = offset_forward * cos_yaw - offset_right * sin_yaw
+    east = offset_forward * sin_yaw + offset_right * cos_yaw
+    return north, east
 
 def lla_to_ned(lat, lon, alt, lat_ref, lon_ref, alt_ref):
     """

@@ -93,23 +93,31 @@ class TestSwarmConfigValidation:
         from gcs_server_schemas import SwarmAssignment
         sa = SwarmAssignment(hw_id=1)
         assert sa.follow == 0
-        assert sa.offset_n == 0.0
-        assert sa.body_coord is False
+        assert sa.offset_x == 0.0
+        assert sa.offset_y == 0.0
+        assert sa.offset_z == 0.0
+        assert sa.frame == "ned"
 
     def test_swarm_assignment_full(self):
         from gcs_server_schemas import SwarmAssignment
-        sa = SwarmAssignment(hw_id=3, follow=2, offset_n=-5.0, offset_e=-5.0, offset_alt=3.0, body_coord=True)
-        assert sa.body_coord is True
-        assert sa.offset_n == -5.0
+        sa = SwarmAssignment(hw_id=3, follow=2, offset_x=-5.0, offset_y=-5.0, offset_z=3.0, frame="body")
+        assert sa.frame == "body"
+        assert sa.offset_x == -5.0
+
+    def test_swarm_assignment_invalid_frame(self):
+        from gcs_server_schemas import SwarmAssignment
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            SwarmAssignment(hw_id=1, frame="invalid")
 
     def test_swarm_config(self):
         from gcs_server_schemas import SwarmConfig, SwarmAssignment
         sc = SwarmConfig(version=1, assignments=[
             SwarmAssignment(hw_id=1),
-            SwarmAssignment(hw_id=3, follow=2, offset_n=-5.0, body_coord=True)
+            SwarmAssignment(hw_id=3, follow=2, offset_x=-5.0, frame="body")
         ])
         assert len(sc.assignments) == 2
-        assert sc.assignments[1].body_coord is True
+        assert sc.assignments[1].frame == "body"
 
 
 class TestPositionGPSValidation:

@@ -343,28 +343,28 @@ function SwarmPlots({ swarmData }) {
             const leaderOffset = getCumulativeOffset(leader);
 
             // Parse offsets
-            let offset_n = parseFloat(drone.offset_n);
-            let offset_e = parseFloat(drone.offset_e);
-            let offset_alt = parseFloat(drone.offset_alt);
+            let offset_x = parseFloat(drone.offset_x);
+            let offset_y = parseFloat(drone.offset_y);
+            let offset_z = parseFloat(drone.offset_z);
 
-            if (drone.body_coord === '1' || drone.body_coord === 1 || drone.body_coord === true) {
+            if (drone.frame === 'body') {
                 // Convert body coordinates to NEA (assuming leader heading is zero)
                 const theta = leaderOffset.heading * Math.PI / 180; // Convert heading to radians
                 const cosTheta = Math.cos(theta);
                 const sinTheta = Math.sin(theta);
 
                 // Rotate the offsets
-                const rotated_n = offset_n * cosTheta - offset_e * sinTheta;
-                const rotated_e = offset_n * sinTheta + offset_e * cosTheta;
+                const rotated_x = offset_x * cosTheta - offset_y * sinTheta;
+                const rotated_y = offset_x * sinTheta + offset_y * cosTheta;
 
-                offset_n = rotated_n;
-                offset_e = rotated_e;
+                offset_x = rotated_x;
+                offset_y = rotated_y;
             }
 
             return {
-                x: leaderOffset.x + offset_e,
-                y: leaderOffset.y + offset_n,
-                z: leaderOffset.z + offset_alt,
+                x: leaderOffset.x + offset_y,
+                y: leaderOffset.y + offset_x,
+                z: leaderOffset.z + offset_z,
                 heading: leaderOffset.heading  // Propagate heading
             };
         }

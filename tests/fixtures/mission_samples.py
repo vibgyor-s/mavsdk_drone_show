@@ -309,34 +309,34 @@ def origin_invalid() -> Dict[str, Any]:
 def swarm_config_single_leader() -> List[Dict[str, Any]]:
     """Swarm config with single leader"""
     return [
-        {'hw_id': '1', 'follow': 0, 'offset_n': 0, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '2', 'follow': 1, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '3', 'follow': 1, 'offset_n': -5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '4', 'follow': 1, 'offset_n': 0, 'offset_e': 5, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '5', 'follow': 1, 'offset_n': 0, 'offset_e': -5, 'offset_alt': 0, 'body_coord': 0},
+        {'hw_id': '1', 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '2', 'follow': 1, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '3', 'follow': 1, 'offset_x': -5, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '4', 'follow': 1, 'offset_x': 0, 'offset_y': 5, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '5', 'follow': 1, 'offset_x': 0, 'offset_y': -5, 'offset_z': 0, 'frame': 'ned'},
     ]
 
 
 def swarm_config_multi_leader() -> List[Dict[str, Any]]:
     """Swarm config with multiple leaders"""
     return [
-        {'hw_id': '1', 'follow': 0, 'offset_n': 0, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '2', 'follow': 0, 'offset_n': 0, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '3', 'follow': 1, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '4', 'follow': 1, 'offset_n': -5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '5', 'follow': 2, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '6', 'follow': 2, 'offset_n': -5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
+        {'hw_id': '1', 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '2', 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '3', 'follow': 1, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '4', 'follow': 1, 'offset_x': -5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '5', 'follow': 2, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '6', 'follow': 2, 'offset_x': -5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
     ]
 
 
 def swarm_config_chain() -> List[Dict[str, Any]]:
     """Swarm config with chain following"""
     return [
-        {'hw_id': '1', 'follow': 0, 'offset_n': 0, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 0},
-        {'hw_id': '2', 'follow': 1, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '3', 'follow': 2, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '4', 'follow': 3, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
-        {'hw_id': '5', 'follow': 4, 'offset_n': 5, 'offset_e': 0, 'offset_alt': 0, 'body_coord': 1},
+        {'hw_id': '1', 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': '2', 'follow': 1, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '3', 'follow': 2, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '4', 'follow': 3, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        {'hw_id': '5', 'follow': 4, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
     ]
 
 

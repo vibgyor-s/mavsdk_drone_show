@@ -4,282 +4,322 @@
     {
       "hw_id": 1,
       "follow": 0,
-      "offset_n": 0.0,
-      "offset_e": 0.0,
-      "offset_alt": 0.0
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "ned"
     },
     {
       "hw_id": 2,
       "follow": 1,
-      "offset_n": -3.0,
-      "offset_e": -3.0,
-      "offset_alt": 0.25
+      "offset_x": -3.0,
+      "offset_y": -3.0,
+      "offset_z": 0.25,
+      "frame": "ned"
     },
     {
       "hw_id": 3,
       "follow": 1,
-      "offset_n": 3.0,
-      "offset_e": 3.0,
-      "offset_alt": 0.5
+      "offset_x": 3.0,
+      "offset_y": 3.0,
+      "offset_z": 0.5,
+      "frame": "ned"
     },
     {
       "hw_id": 4,
       "follow": 1,
-      "offset_n": -3.0,
-      "offset_e": 3.0,
-      "offset_alt": 0.75
+      "offset_x": -3.0,
+      "offset_y": 3.0,
+      "offset_z": 0.75,
+      "frame": "ned"
     },
     {
       "hw_id": 5,
       "follow": 0,
-      "offset_n": 0.0,
-      "offset_e": 0.0,
-      "offset_alt": 1.0
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 1.0,
+      "frame": "ned"
     },
     {
       "hw_id": 6,
       "follow": 5,
-      "offset_n": -3.0,
-      "offset_e": -3.0,
-      "offset_alt": 1.25
+      "offset_x": -3.0,
+      "offset_y": -3.0,
+      "offset_z": 1.25,
+      "frame": "ned"
     },
     {
       "hw_id": 7,
       "follow": 5,
-      "offset_n": 3.0,
-      "offset_e": 3.0,
-      "offset_alt": 1.5
+      "offset_x": 3.0,
+      "offset_y": 3.0,
+      "offset_z": 1.5,
+      "frame": "ned"
     },
     {
       "hw_id": 8,
       "follow": 5,
-      "offset_n": -3.0,
-      "offset_e": 3.0,
-      "offset_alt": 1.75
+      "offset_x": -3.0,
+      "offset_y": 3.0,
+      "offset_z": 1.75,
+      "frame": "ned"
     },
     {
       "hw_id": 9,
       "follow": 0,
-      "offset_n": 0.0,
-      "offset_e": 0.0,
-      "offset_alt": 2.0
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 2.0,
+      "frame": "ned"
     },
     {
       "hw_id": 10,
       "follow": 9,
-      "offset_n": -3.0,
-      "offset_e": -3.0,
-      "offset_alt": 2.25
+      "offset_x": -3.0,
+      "offset_y": -3.0,
+      "offset_z": 2.25,
+      "frame": "ned"
     },
     {
       "hw_id": 11,
       "follow": 9,
-      "offset_n": 3.0,
-      "offset_e": 3.0,
-      "offset_alt": 2.5
+      "offset_x": 3.0,
+      "offset_y": 3.0,
+      "offset_z": 2.5,
+      "frame": "ned"
     },
     {
       "hw_id": 12,
       "follow": 9,
-      "offset_n": -3.0,
-      "offset_e": 3.0,
-      "offset_alt": 2.75
+      "offset_x": -3.0,
+      "offset_y": 3.0,
+      "offset_z": 2.75,
+      "frame": "ned"
     },
     {
       "hw_id": 13,
       "follow": 2,
-      "offset_n": -2.0,
-      "offset_e": 1.2,
-      "offset_alt": 3.0
+      "offset_x": -2.0,
+      "offset_y": 1.2,
+      "offset_z": 3.0,
+      "frame": "ned"
     },
     {
       "hw_id": 14,
       "follow": 6,
-      "offset_n": 3.0,
-      "offset_e": 5.0,
-      "offset_alt": 3.25
+      "offset_x": 3.0,
+      "offset_y": 5.0,
+      "offset_z": 3.25,
+      "frame": "ned"
     },
     {
       "hw_id": 15,
       "follow": 9,
-      "offset_n": 4.0,
-      "offset_e": 10.0,
-      "offset_alt": 3.5
+      "offset_x": 4.0,
+      "offset_y": 10.0,
+      "offset_z": 3.5,
+      "frame": "ned"
     },
     {
       "hw_id": 16,
       "follow": 1,
-      "offset_n": 5.0,
-      "offset_e": 2.0,
-      "offset_alt": 3.75
+      "offset_x": 5.0,
+      "offset_y": 2.0,
+      "offset_z": 3.75,
+      "frame": "ned"
     },
     {
       "hw_id": 17,
       "follow": 7,
-      "offset_n": 2.0,
-      "offset_e": 5.0,
-      "offset_alt": 4.0
+      "offset_x": 2.0,
+      "offset_y": 5.0,
+      "offset_z": 4.0,
+      "frame": "ned"
     },
     {
       "hw_id": 18,
       "follow": 8,
-      "offset_n": 2.0,
-      "offset_e": 5.0,
-      "offset_alt": 4.25
+      "offset_x": 2.0,
+      "offset_y": 5.0,
+      "offset_z": 4.25,
+      "frame": "ned"
     },
     {
       "hw_id": 19,
       "follow": 8,
-      "offset_n": 3.0,
-      "offset_e": 5.0,
-      "offset_alt": 4.5
+      "offset_x": 3.0,
+      "offset_y": 5.0,
+      "offset_z": 4.5,
+      "frame": "ned"
     },
     {
       "hw_id": 20,
       "follow": 9,
-      "offset_n": 3.0,
-      "offset_e": 6.0,
-      "offset_alt": 4.75
+      "offset_x": 3.0,
+      "offset_y": 6.0,
+      "offset_z": 4.75,
+      "frame": "ned"
     },
     {
       "hw_id": 21,
       "follow": 9,
-      "offset_n": 3.0,
-      "offset_e": 6.0,
-      "offset_alt": 5.0
+      "offset_x": 3.0,
+      "offset_y": 6.0,
+      "offset_z": 5.0,
+      "frame": "ned"
     },
     {
       "hw_id": 22,
       "follow": 9,
-      "offset_n": 3.0,
-      "offset_e": 6.0,
-      "offset_alt": 5.25
+      "offset_x": 3.0,
+      "offset_y": 6.0,
+      "offset_z": 5.25,
+      "frame": "ned"
     },
     {
       "hw_id": 23,
       "follow": 10,
-      "offset_n": 4.0,
-      "offset_e": 7.0,
-      "offset_alt": 5.5
+      "offset_x": 4.0,
+      "offset_y": 7.0,
+      "offset_z": 5.5,
+      "frame": "ned"
     },
     {
       "hw_id": 24,
       "follow": 10,
-      "offset_n": 4.0,
-      "offset_e": 7.0,
-      "offset_alt": 5.75
+      "offset_x": 4.0,
+      "offset_y": 7.0,
+      "offset_z": 5.75,
+      "frame": "ned"
     },
     {
       "hw_id": 25,
       "follow": 11,
-      "offset_n": 4.0,
-      "offset_e": 7.0,
-      "offset_alt": 6.0
+      "offset_x": 4.0,
+      "offset_y": 7.0,
+      "offset_z": 6.0,
+      "frame": "ned"
     },
     {
       "hw_id": 26,
       "follow": 11,
-      "offset_n": 4.0,
-      "offset_e": 8.0,
-      "offset_alt": 6.25
+      "offset_x": 4.0,
+      "offset_y": 8.0,
+      "offset_z": 6.25,
+      "frame": "ned"
     },
     {
       "hw_id": 27,
       "follow": 11,
-      "offset_n": 5.0,
-      "offset_e": 8.0,
-      "offset_alt": 6.5
+      "offset_x": 5.0,
+      "offset_y": 8.0,
+      "offset_z": 6.5,
+      "frame": "ned"
     },
     {
       "hw_id": 28,
       "follow": 12,
-      "offset_n": 5.0,
-      "offset_e": 8.0,
-      "offset_alt": 6.75
+      "offset_x": 5.0,
+      "offset_y": 8.0,
+      "offset_z": 6.75,
+      "frame": "ned"
     },
     {
       "hw_id": 29,
       "follow": 12,
-      "offset_n": 5.0,
-      "offset_e": 9.0,
-      "offset_alt": 7.0
+      "offset_x": 5.0,
+      "offset_y": 9.0,
+      "offset_z": 7.0,
+      "frame": "ned"
     },
     {
       "hw_id": 30,
       "follow": 13,
-      "offset_n": 5.0,
-      "offset_e": 9.0,
-      "offset_alt": 7.25
+      "offset_x": 5.0,
+      "offset_y": 9.0,
+      "offset_z": 7.25,
+      "frame": "ned"
     },
     {
       "hw_id": 31,
       "follow": 13,
-      "offset_n": 6.0,
-      "offset_e": 9.0,
-      "offset_alt": 7.5
+      "offset_x": 6.0,
+      "offset_y": 9.0,
+      "offset_z": 7.5,
+      "frame": "ned"
     },
     {
       "hw_id": 32,
       "follow": 13,
-      "offset_n": 6.0,
-      "offset_e": 10.0,
-      "offset_alt": 7.75
+      "offset_x": 6.0,
+      "offset_y": 10.0,
+      "offset_z": 7.75,
+      "frame": "ned"
     },
     {
       "hw_id": 33,
       "follow": 14,
-      "offset_n": 6.0,
-      "offset_e": 10.0,
-      "offset_alt": 8.0
+      "offset_x": 6.0,
+      "offset_y": 10.0,
+      "offset_z": 8.0,
+      "frame": "ned"
     },
     {
       "hw_id": 34,
       "follow": 14,
-      "offset_n": 6.0,
-      "offset_e": 11.0,
-      "offset_alt": 8.25
+      "offset_x": 6.0,
+      "offset_y": 11.0,
+      "offset_z": 8.25,
+      "frame": "ned"
     },
     {
       "hw_id": 35,
       "follow": 15,
-      "offset_n": 7.0,
-      "offset_e": 11.0,
-      "offset_alt": 8.5
+      "offset_x": 7.0,
+      "offset_y": 11.0,
+      "offset_z": 8.5,
+      "frame": "ned"
     },
     {
       "hw_id": 36,
       "follow": 15,
-      "offset_n": 7.0,
-      "offset_e": 11.0,
-      "offset_alt": 8.75
+      "offset_x": 7.0,
+      "offset_y": 11.0,
+      "offset_z": 8.75,
+      "frame": "ned"
     },
     {
       "hw_id": 37,
       "follow": 15,
-      "offset_n": 7.0,
-      "offset_e": 12.0,
-      "offset_alt": 9.0
+      "offset_x": 7.0,
+      "offset_y": 12.0,
+      "offset_z": 9.0,
+      "frame": "ned"
     },
     {
       "hw_id": 38,
       "follow": 16,
-      "offset_n": 7.0,
-      "offset_e": 12.0,
-      "offset_alt": 9.25
+      "offset_x": 7.0,
+      "offset_y": 12.0,
+      "offset_z": 9.25,
+      "frame": "ned"
     },
     {
       "hw_id": 39,
       "follow": 16,
-      "offset_n": 8.0,
-      "offset_e": 12.0,
-      "offset_alt": 9.5
+      "offset_x": 8.0,
+      "offset_y": 12.0,
+      "offset_z": 9.5,
+      "frame": "ned"
     },
     {
       "hw_id": 40,
       "follow": 17,
-      "offset_n": 8.0,
-      "offset_e": 13.0,
-      "offset_alt": 9.75
+      "offset_x": 8.0,
+      "offset_y": 13.0,
+      "offset_z": 9.75,
+      "frame": "ned"
     }
   ]
 }

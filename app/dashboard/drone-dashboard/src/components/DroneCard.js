@@ -17,11 +17,11 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [selectedFollow, setSelectedFollow] = useState(drone.follow);
     const [offsets, setOffsets] = useState({
-        n: drone.offset_n,
-        e: drone.offset_e,
-        alt: drone.offset_alt
+        x: drone.offset_x,
+        y: drone.offset_y,
+        z: drone.offset_z
     });
-    const [isBodyCoord, setIsBodyCoord] = useState(drone.body_coord === '1' || drone.body_coord === 1 || drone.body_coord === true);
+    const [frame, setFrame] = useState(drone.frame === 'body' ? 'body' : 'ned');
 
     // Count followers for each drone
     const followerCounts = {};
@@ -38,22 +38,22 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
 
     useEffect(() => {
         if (String(selectedFollow) === '0') {
-            setOffsets({ n: 0, e: 0, alt: 0 });
+            setOffsets({ x: 0, y: 0, z: 0 });
         }
     }, [selectedFollow]);
 
-    // Dynamic labels based on coordinate system
-    const offsetNLabel = isBodyCoord ? 'Offset Forward (m)' : 'Offset North (m)';
-    const offsetELabel = isBodyCoord ? 'Offset Right (m)' : 'Offset East (m)';
+    // Dynamic labels based on coordinate frame
+    const offsetXLabel = frame === 'body' ? 'Offset Forward (m)' : 'Offset North (m)';
+    const offsetYLabel = frame === 'body' ? 'Offset Right (m)' : 'Offset East (m)';
 
     const handleSave = () => {
         onSaveChanges(drone.hw_id, {
             ...drone,
             follow: selectedFollow,
-            offset_n: offsets.n,
-            offset_e: offsets.e,
-            offset_alt: offsets.alt,
-            body_coord: isBodyCoord ? '1' : '0'
+            offset_x: offsets.x,
+            offset_y: offsets.y,
+            offset_z: offsets.z,
+            frame: frame
         });
         setIsExpanded(false);
     };
@@ -80,7 +80,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
             )}
 
             <p className="collapsible-details">
-                Position Offset (m): {offsetNLabel.split(' ')[1]}: {drone.offset_n}, {offsetELabel.split(' ')[1]}: {drone.offset_e}, Altitude: {drone.offset_alt}
+                Position Offset (m): {offsetXLabel.split(' ')[1]}: {drone.offset_x}, {offsetYLabel.split(' ')[1]}: {drone.offset_y}, Up: {drone.offset_z}
             </p>
 
             {isExpanded && (
@@ -100,31 +100,31 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                     </div>
 
                     <div className="form-group">
-                        <label>{offsetNLabel}: </label>
+                        <label>{offsetXLabel}: </label>
                         <input
                             type="number"
-                            value={offsets.n}
-                            onChange={e => setOffsets(prev => ({ ...prev, n: e.target.value }))}
+                            value={offsets.x}
+                            onChange={e => setOffsets(prev => ({ ...prev, x: e.target.value }))}
                             disabled={String(selectedFollow) === '0'}
                         />
                     </div>
 
                     <div className="form-group">
-                        <label>{offsetELabel}: </label>
+                        <label>{offsetYLabel}: </label>
                         <input
                             type="number"
-                            value={offsets.e}
-                            onChange={e => setOffsets(prev => ({ ...prev, e: e.target.value }))}
+                            value={offsets.y}
+                            onChange={e => setOffsets(prev => ({ ...prev, y: e.target.value }))}
                             disabled={String(selectedFollow) === '0'}
                         />
                     </div>
 
                     <div className="form-group">
-                        <label>Offset Altitude (m): </label>
+                        <label>Offset Up (m): </label>
                         <input
                             type="number"
-                            value={offsets.alt}
-                            onChange={e => setOffsets(prev => ({ ...prev, alt: e.target.value }))}
+                            value={offsets.z}
+                            onChange={e => setOffsets(prev => ({ ...prev, z: e.target.value }))}
                             disabled={String(selectedFollow) === '0'}
                         />
                     </div>
@@ -132,9 +132,9 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                     {/* Coordinate System Selection */}
                     <div className="form-group">
                         <label>Coordinate Type:</label>
-                        <select value={isBodyCoord ? '1' : '0'} onChange={e => setIsBodyCoord(e.target.value === '1')}>
-                            <option value="0">North-East-Altitude (NEA)</option>
-                            <option value="1">Body Coordinates (Forward-Right-Altitude)</option>
+                        <select value={frame} onChange={e => setFrame(e.target.value)}>
+                            <option value="ned">North-East-Up (NEU)</option>
+                            <option value="body">Body (Forward-Right-Up)</option>
                         </select>
                     </div>
 

@@ -80,10 +80,10 @@ const SwarmDesign = () => {
                 merged.push({
                     hw_id: c.hw_id,
                     follow: 0,
-                    offset_n: 0.0,
-                    offset_e: 0.0,
-                    offset_alt: 0.0,
-                    body_coord: false
+                    offset_x: 0.0,
+                    offset_y: 0.0,
+                    offset_z: 0.0,
+                    frame: "ned"
                 });
             }
         });
@@ -160,15 +160,15 @@ const SwarmDesign = () => {
                 Papa.parse(text, {
                     complete: ({ data }) => {
                         const header = data[0].map(h => h.trim());
-                        const expected = ["hw_id", "follow", "offset_n", "offset_e", "offset_alt", "body_coord"];
+                        const expected = ["hw_id", "follow", "offset_x", "offset_y", "offset_z", "frame"];
                         if (header.toString() !== expected.toString()) {
                             return toast.error('CSV header mismatch.');
                         }
                         const parsed = data.slice(1)
                             .map(r => ({
                                 hw_id: r[0], follow: r[1],
-                                offset_n: r[2], offset_e: r[3],
-                                offset_alt: r[4], body_coord: r[5]
+                                offset_x: r[2], offset_y: r[3],
+                                offset_z: r[4], frame: r[5]
                             }))
                             .filter(d => d.hw_id);
                         setSwarmData(parsed);

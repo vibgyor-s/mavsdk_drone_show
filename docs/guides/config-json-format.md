@@ -55,10 +55,10 @@ Any additional fields are preserved. Example: `"drone_type": "quad"`, `"label": 
     {
       "hw_id": 1,
       "follow": 0,
-      "offset_n": 0.0,
-      "offset_e": 0.0,
-      "offset_alt": 0.0,
-      "body_coord": false
+      "offset_x": 0.0,
+      "offset_y": 0.0,
+      "offset_z": 0.0,
+      "frame": "ned"
     }
   ]
 }
@@ -70,10 +70,17 @@ Any additional fields are preserved. Example: `"drone_type": "quad"`, `"label": 
 |-------|------|---------|-------------|
 | `hw_id` | int (>=1) | required | Hardware ID |
 | `follow` | int (>=0) | `0` | Leader hw_id (0 = independent) |
-| `offset_n` | float | `0.0` | North offset (meters) |
-| `offset_e` | float | `0.0` | East offset (meters) |
-| `offset_alt` | float | `0.0` | Altitude offset (meters) |
-| `body_coord` | bool | `false` | Body-frame offsets (true) or NED-frame (false) |
+| `offset_x` | float | `0.0` | X offset in meters (North in NED, Forward in body) |
+| `offset_y` | float | `0.0` | Y offset in meters (East in NED, Right in body) |
+| `offset_z` | float | `0.0` | Z offset in meters (Up, always positive-up regardless of frame) |
+| `frame` | string | `"ned"` | Reference frame: `"ned"` (geographic) or `"body"` (relative to leader heading) |
+
+### Frame Interpretation
+
+| Frame | `offset_x` | `offset_y` | `offset_z` |
+|-------|-----------|-----------|-----------|
+| `"ned"` | North | East | Up |
+| `"body"` | Forward | Right | Up |
 
 ## Mode Selection
 

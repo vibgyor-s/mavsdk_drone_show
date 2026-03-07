@@ -46,10 +46,10 @@ class SwarmSessionManager:
                 fingerprint_data.append({
                     'hw_id': drone.get('hw_id'),
                     'follow': drone.get('follow'),
-                    'offset_n': drone.get('offset_n'),
-                    'offset_e': drone.get('offset_e'),
-                    'offset_alt': drone.get('offset_alt'),
-                    'body_coord': drone.get('body_coord')
+                    'offset_x': drone.get('offset_x'),
+                    'offset_y': drone.get('offset_y'),
+                    'offset_z': drone.get('offset_z'),
+                    'frame': drone.get('frame')
                 })
 
             fingerprint_str = json.dumps(fingerprint_data, sort_keys=True)

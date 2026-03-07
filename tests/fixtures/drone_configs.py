@@ -80,10 +80,10 @@ class DroneConfigData:
 
     # Swarm config
     follow: int = 0  # 0 = leader
-    offset_n: float = 0.0
-    offset_e: float = 0.0
-    offset_alt: float = 0.0
-    body_coord: bool = False
+    offset_x: float = 0.0
+    offset_y: float = 0.0
+    offset_z: float = 0.0
+    frame: str = "ned"
 
     def to_config_row(self) -> Dict[str, Any]:
         """Convert to config JSON entry"""
@@ -101,10 +101,10 @@ class DroneConfigData:
         return {
             'hw_id': self.hw_id,
             'follow': self.follow,
-            'offset_n': self.offset_n,
-            'offset_e': self.offset_e,
-            'offset_alt': self.offset_alt,
-            'body_coord': self.body_coord  # bool, not 0/1
+            'offset_x': self.offset_x,
+            'offset_y': self.offset_y,
+            'offset_z': self.offset_z,
+            'frame': self.frame,
         }
 
     def to_drone_state(self) -> Dict[str, Any]:
@@ -288,20 +288,20 @@ def five_drone_swarm() -> List[DroneConfigData]:
     # Configure as swarm: drone 1 is leader, others follow
     drones[0].follow = 0  # Leader
     drones[1].follow = 1
-    drones[1].offset_n = 5.0
-    drones[1].offset_e = 0.0
+    drones[1].offset_x = 5.0
+    drones[1].offset_y = 0.0
 
     drones[2].follow = 1
-    drones[2].offset_n = -5.0
-    drones[2].offset_e = 0.0
+    drones[2].offset_x = -5.0
+    drones[2].offset_y = 0.0
 
     drones[3].follow = 1
-    drones[3].offset_n = 0.0
-    drones[3].offset_e = 5.0
+    drones[3].offset_x = 0.0
+    drones[3].offset_y = 5.0
 
     drones[4].follow = 1
-    drones[4].offset_n = 0.0
-    drones[4].offset_e = -5.0
+    drones[4].offset_x = 0.0
+    drones[4].offset_y = -5.0
 
     return drones
 
@@ -370,11 +370,10 @@ def drones_to_config_csv(drones: List[DroneConfigData]) -> str:
 
 def drones_to_swarm_csv(drones: List[DroneConfigData]) -> str:
     """Legacy: Convert drone list to swarm.csv format (kept for CSV import tests)"""
-    header = "hw_id,follow,offset_n,offset_e,offset_alt,body_coord"
+    header = "hw_id,follow,offset_x,offset_y,offset_z,frame"
     rows = [header]
     for drone in drones:
-        body = 1 if drone.body_coord else 0
-        row = f"{drone.hw_id},{drone.follow},{drone.offset_n},{drone.offset_e},{drone.offset_alt},{body}"
+        row = f"{drone.hw_id},{drone.follow},{drone.offset_x},{drone.offset_y},{drone.offset_z},{drone.frame}"
         rows.append(row)
     return "\n".join(rows)
 

@@ -62,14 +62,14 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 - ✅ **Cubic Spline Interpolation**: Waypoints → smooth trajectory at 0.05s intervals
 
 **Follower Processing (Respects swarm.json Configuration)**:
-- **Body Coordinate Mode** (`body_coord=1`): Forward/Right relative to lead drone's heading
+- **Body Frame** (`frame="body"`): Forward/Right relative to lead drone's heading
   ```python
-  # offset_n=5m Forward, offset_e=3m Right → rotated by lead drone's yaw
+  # offset_x=5m Forward, offset_y=3m Right → rotated by lead drone's yaw
   # Maintains formation relative to heading direction
   ```
-- **NED Coordinate Mode** (`body_coord=0`): Fixed North/East geographic directions  
+- **NED Frame** (`frame="ned"`): Fixed North/East geographic directions
   ```python
-  # offset_n=5m North, offset_e=3m East → fixed geographic formation
+  # offset_x=5m North, offset_y=3m East → fixed geographic formation
   # Formation maintains geographic orientation regardless of heading
   ```
 

@@ -129,7 +129,7 @@ DroneConfig = namedtuple(
 )
 
 SwarmConfig = namedtuple(
-    "SwarmConfig", "hw_id follow offset_n offset_e offset_alt body_coord"
+    "SwarmConfig", "hw_id follow offset_x offset_y offset_z frame"
 )
 
 # ----------------------------- #
@@ -143,8 +143,8 @@ DRONE_STATE = {}  # Own drone's state
 LEADER_STATE = {}  # Leader drone's state
 OWN_STATE = {}  # Own drone's NED state
 IS_LEADER = False  # Flag indicating if this drone is a leader
-OFFSETS = {'n': 0.0, 'e': 0.0, 'alt': 0.0}  # Offsets from the leader
-BODY_COORD = False  # Flag indicating if offsets are in body coordinates
+OFFSETS = {'x': 0.0, 'y': 0.0, 'z': 0.0}  # Offsets from the leader
+FRAME = "ned"  # Coordinate frame for offsets: "ned" or "body"
 LEADER_HW_ID = None  # Hardware ID of the leader drone
 LEADER_IP = None  # IP address of the leader drone
 LEADER_KALMAN_FILTER = None  # Kalman filter instance for leader state estimation
@@ -305,10 +305,10 @@ def read_swarm(filename: str):
                 SWARM_CONFIG[hw_id] = {
                     'hw_id': hw_id,
                     'follow': int(entry["follow"]),
-                    'offset_n': float(entry["offset_n"]),
-                    'offset_e': float(entry["offset_e"]),
-                    'offset_alt': float(entry["offset_alt"]),
-                    'body_coord': bool(entry.get("body_coord", False)),
+                    'offset_x': float(entry["offset_x"]),
+                    'offset_y': float(entry["offset_y"]),
+                    'offset_z': float(entry["offset_z"]),
+                    'frame': str(entry.get("frame", "ned")),
                 }
             except ValueError as ve:
                 logger.error(f"Invalid data type in swarm file entry: {entry}. Error: {ve}")
@@ -510,7 +510,7 @@ async def update_swarm_config_periodically(drone):
 
     NOTE: Requires Params.GCS_IP and Params.gcs_api_port to be set.
     """
-    global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
+    global SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
     global HW_ID
 
@@ -542,16 +542,16 @@ async def update_swarm_config_periodically(drone):
                     hw_str = str(entry['hw_id'])
 
                     # Safely parse each offset
-                    offset_n_val   = parse_float(entry.get('offset_n', None), default=0.0)
-                    offset_e_val   = parse_float(entry.get('offset_e', None), default=0.0)
-                    offset_alt_val = parse_float(entry.get('offset_alt', None), default=0.0)
+                    offset_x_val   = parse_float(entry.get('offset_x', None), default=0.0)
+                    offset_y_val   = parse_float(entry.get('offset_y', None), default=0.0)
+                    offset_z_val   = parse_float(entry.get('offset_z', None), default=0.0)
 
                     SWARM_CONFIG[hw_str] = {
                         'follow':     int(entry.get('follow', 0)),
-                        'offset_n':   offset_n_val,
-                        'offset_e':   offset_e_val,
-                        'offset_alt': offset_alt_val,
-                        'body_coord': bool(entry.get('body_coord', False)),
+                        'offset_x':   offset_x_val,
+                        'offset_y':   offset_y_val,
+                        'offset_z':   offset_z_val,
+                        'frame':      str(entry.get('frame', 'ned')),
                     }
 
                 # Grab this drone's new config
@@ -559,13 +559,13 @@ async def update_swarm_config_periodically(drone):
                 if new_cfg is None:
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
-                    # Determine new role/offsets/body_coord
+                    # Determine new role/offsets/frame
                     new_offsets     = {
-                        'n':   new_cfg['offset_n'],
-                        'e':   new_cfg['offset_e'],
-                        'alt': new_cfg['offset_alt']
+                        'x':   new_cfg['offset_x'],
+                        'y':   new_cfg['offset_y'],
+                        'z':   new_cfg['offset_z']
                     }
-                    new_body_coord  = new_cfg['body_coord']
+                    new_frame       = new_cfg['frame']
                     new_leader      = new_cfg['follow']
                     new_is_leader   = (new_leader == 0)
 
@@ -625,13 +625,13 @@ async def update_swarm_config_periodically(drone):
                         )
                         OFFSETS.update(new_offsets)
 
-                    # BODY_COORD CHANGE?
-                    if new_body_coord != BODY_COORD:
+                    # FRAME CHANGE?
+                    if new_frame != FRAME:
                         logger.info(
-                            "[Periodic Update] Body coord flag: %s → %s",
-                            BODY_COORD, new_body_coord
+                            "[Periodic Update] Frame changed: %s → %s",
+                            FRAME, new_frame
                         )
-                        BODY_COORD = new_body_coord
+                        FRAME = new_frame
 
             except Exception as e:
                 logger.exception(f"[Periodic Update] Error fetching/updating swarm config: {e}")
@@ -833,10 +833,10 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
     payload = {
         'hw_id':       str(HW_ID),
         'follow':      new_leader_hw_id,
-        'offset_n':    current['offset_n'],
-        'offset_e':    current['offset_e'],
-        'offset_alt':  current['offset_alt'],
-        'body_coord':  '1' if current['body_coord'] else '0'
+        'offset_x':    current['offset_x'],
+        'offset_y':    current['offset_y'],
+        'offset_z':    current['offset_z'],
+        'frame':       current['frame']
     }
 
     try:
@@ -935,20 +935,19 @@ async def control_loop(drone: System):
                 leader_yaw = LEADER_STATE.get('yaw', 0.0)
                 logger.debug(f"Predicted leader state at time {current_time:.3f}s: pos_n={leader_n:.2f}m, pos_e={leader_e:.2f}m, pos_d={leader_d:.2f}m, vel_n={leader_vel_n:.2f}m/s, vel_e={leader_vel_e:.2f}m/s, vel_d={leader_vel_d:.2f}m/s, yaw={leader_yaw:.2f}°")
                 # Calculate offsets
-                if BODY_COORD:
-                    # Note: Although offsets are labeled as N and E, in body coordinate mode, they are Forward and Right
-                    offset_n, offset_e = transform_body_to_nea(OFFSETS['n'], OFFSETS['e'], leader_yaw)
-                    logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']:.2f}m, Right={OFFSETS['e']:.2f}m, Transformed to NED: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
+                if FRAME == "body":
+                    offset_x_ned, offset_y_ned = transform_body_to_nea(OFFSETS['x'], OFFSETS['y'], leader_yaw)
+                    logger.debug(f"Offsets in body frame: Forward={OFFSETS['x']:.2f}m, Right={OFFSETS['y']:.2f}m, Transformed to NED: offset_x={offset_x_ned:.2f}m, offset_y={offset_y_ned:.2f}m")
                 else:
-                    offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
-                    logger.debug(f"Offsets in NED coordinates: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
-                
-                logger.debug(f"Altitude offset: offset_alt={OFFSETS['alt']:.2f}m")
+                    offset_x_ned, offset_y_ned = OFFSETS['x'], OFFSETS['y']
+                    logger.debug(f"Offsets in NED frame: offset_x={offset_x_ned:.2f}m, offset_y={offset_y_ned:.2f}m")
+
+                logger.debug(f"Altitude offset: offset_z={OFFSETS['z']:.2f}m")
                 
                 # Desired positions
-                desired_n = leader_n + offset_n
-                desired_e = leader_e + offset_e
-                desired_d = -1*(leader_d + OFFSETS['alt'])  
+                desired_n = leader_n + offset_x_ned
+                desired_e = leader_e + offset_y_ned
+                desired_d = -1*(leader_d + OFFSETS['z'])  
                 logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
 
                 # Get own position
@@ -1109,7 +1108,7 @@ async def run_smart_swarm():
     Main function to run the smart swarm mode with dynamic configuration updates.
     """
     logger = logging.getLogger(__name__)
-    global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
+    global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, FRAME, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
     global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS
 
     # --------------------------- #
@@ -1143,11 +1142,11 @@ async def run_smart_swarm():
 
     # Determine drone role and set formation parameters
     IS_LEADER = swarm_config['follow'] == 0
-    OFFSETS['n'] = swarm_config['offset_n']
-    OFFSETS['e'] = swarm_config['offset_e']
-    OFFSETS['alt'] = swarm_config['offset_alt']
-    BODY_COORD = swarm_config['body_coord']
-    logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Body Coord: {BODY_COORD}")
+    OFFSETS['x'] = swarm_config['offset_x']
+    OFFSETS['y'] = swarm_config['offset_y']
+    OFFSETS['z'] = swarm_config['offset_z']
+    FRAME = swarm_config['frame']
+    logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Frame: {FRAME}")
 
     # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
     if not IS_LEADER:

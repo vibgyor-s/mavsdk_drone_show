@@ -42,7 +42,7 @@ def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leade
     Args:
         leader_lat, leader_lon, leader_alt: Leader's global position
         leader_yaw: Leader's yaw angle in degrees
-        offset_config: Dict with offset_n, offset_e, offset_alt, body_coord
+        offset_config: Dict with offset_x, offset_y, offset_z, frame
         formation_origin: Formation center point for NED calculations
     """
     try:
@@ -53,24 +53,24 @@ def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leade
             latlon_unit='deg', alt_unit='m', model='wgs84'
         )
         
-        # Apply offset based on coordinate mode
-        if offset_config['body_coord'] == 1:
-            # Body coordinate mode: offset_n=Forward, offset_e=Right
-            offset_n, offset_e = transform_body_to_nea(
-                offset_config['offset_n'], offset_config['offset_e'], leader_yaw
+        # Apply offset based on coordinate frame
+        if offset_config['frame'] == "body":
+            # Body coordinate mode: offset_x=Forward, offset_y=Right
+            offset_x_ned, offset_y_ned = transform_body_to_nea(
+                offset_config['offset_x'], offset_config['offset_y'], leader_yaw
             )
-            logger.debug(f"Body offset: Forward={offset_config['offset_n']}, Right={offset_config['offset_e']} -> N={offset_n:.2f}, E={offset_e:.2f}")
+            logger.debug(f"Body offset: Forward={offset_config['offset_x']}, Right={offset_config['offset_y']} -> N={offset_x_ned:.2f}, E={offset_y_ned:.2f}")
         else:
-            # NED coordinate mode: offset_n=North, offset_e=East  
-            offset_n = offset_config['offset_n']
-            offset_e = offset_config['offset_e']
-            logger.debug(f"NED offset: N={offset_n}, E={offset_e}")
-        
+            # NED coordinate mode: offset_x=North, offset_y=East
+            offset_x_ned = offset_config['offset_x']
+            offset_y_ned = offset_config['offset_y']
+            logger.debug(f"NED offset: N={offset_x_ned}, E={offset_y_ned}")
+
         # Calculate follower NED position
         follower_ned = [
-            leader_ned[0] + offset_n,  # North
-            leader_ned[1] + offset_e,  # East
-            leader_ned[2] + offset_config['offset_alt']  # Down (altitude offset)
+            leader_ned[0] + offset_x_ned,  # North
+            leader_ned[1] + offset_y_ned,  # East
+            leader_ned[2] + offset_config['offset_z']  # Down (altitude offset)
         ]
         
         # Convert back to global coordinates

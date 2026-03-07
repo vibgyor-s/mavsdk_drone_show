@@ -54,10 +54,9 @@ def analyze_swarm_structure(swarm_data=None):
         # Convert string values to appropriate types
         swarm_df['hw_id'] = pd.to_numeric(swarm_df['hw_id'], errors='coerce')
         swarm_df['follow'] = pd.to_numeric(swarm_df['follow'], errors='coerce')
-        swarm_df['offset_n'] = pd.to_numeric(swarm_df['offset_n'], errors='coerce')
-        swarm_df['offset_e'] = pd.to_numeric(swarm_df['offset_e'], errors='coerce')
-        swarm_df['offset_alt'] = pd.to_numeric(swarm_df['offset_alt'], errors='coerce')
-        swarm_df['body_coord'] = pd.to_numeric(swarm_df['body_coord'], errors='coerce')
+        swarm_df['offset_x'] = pd.to_numeric(swarm_df['offset_x'], errors='coerce')
+        swarm_df['offset_y'] = pd.to_numeric(swarm_df['offset_y'], errors='coerce')
+        swarm_df['offset_z'] = pd.to_numeric(swarm_df['offset_z'], errors='coerce')
         
         # Remove any rows with invalid data
         swarm_df = swarm_df.dropna(subset=['hw_id', 'follow'])
