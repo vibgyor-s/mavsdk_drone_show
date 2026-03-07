@@ -1,12 +1,33 @@
 // src/components/map/LeafletMapBase.js
-// Reusable Leaflet map wrapper with white-on-zoom-out fixes baked in
+// Reusable Leaflet map wrapper — Google Satellite default, layer preference persisted
 
-import React from 'react';
-import { MapContainer, TileLayer, LayersControl } from 'react-leaflet';
-import { TILE_LAYERS, LEAFLET_DEFAULTS } from '../../config/mapConfig';
+import React, { useCallback } from 'react';
+import { MapContainer, TileLayer, LayersControl, useMapEvents } from 'react-leaflet';
+import {
+  TILE_LAYERS,
+  LEAFLET_DEFAULTS,
+  getUserTilePreference,
+  setUserTilePreference,
+} from '../../config/mapConfig';
 import '../../styles/MapCommon.css';
 
 const { BaseLayer } = LayersControl;
+
+// Reverse-lookup: tile layer name → config key
+const NAME_TO_KEY = Object.fromEntries(
+  Object.entries(TILE_LAYERS).map(([key, cfg]) => [cfg.name, key])
+);
+
+/** Inner component that listens for layer changes and persists the choice */
+const LayerPersist = () => {
+  useMapEvents({
+    baselayerchange(e) {
+      const key = NAME_TO_KEY[e.name];
+      if (key) setUserTilePreference(key);
+    },
+  });
+  return null;
+};
 
 const LeafletMapBase = ({
   center = [35.6895, 139.6917],
@@ -14,11 +35,13 @@ const LeafletMapBase = ({
   style,
   children,
   showLayerControl = true,
-  defaultLayer = 'osm',
+  defaultLayer,
   onClick,
   className = '',
   ...rest
 }) => {
+  const activeLayer = defaultLayer || getUserTilePreference();
+
   return (
     <div className={`mds-map-container ${className}`} style={style}>
       <MapContainer
@@ -34,50 +57,29 @@ const LeafletMapBase = ({
         {...rest}
       >
         {showLayerControl ? (
-          <LayersControl position="topright">
-            <BaseLayer checked={defaultLayer === 'osm'} name={TILE_LAYERS.osm.name}>
-              <TileLayer
-                url={TILE_LAYERS.osm.url}
-                attribution={TILE_LAYERS.osm.attribution}
-                maxNativeZoom={TILE_LAYERS.osm.maxNativeZoom}
-                maxZoom={LEAFLET_DEFAULTS.maxZoom}
-                noWrap={true}
-              />
-            </BaseLayer>
-            <BaseLayer checked={defaultLayer === 'esriSatellite'} name={TILE_LAYERS.esriSatellite.name}>
-              <TileLayer
-                url={TILE_LAYERS.esriSatellite.url}
-                attribution={TILE_LAYERS.esriSatellite.attribution}
-                maxNativeZoom={TILE_LAYERS.esriSatellite.maxNativeZoom}
-                maxZoom={LEAFLET_DEFAULTS.maxZoom}
-                noWrap={true}
-              />
-            </BaseLayer>
-            <BaseLayer checked={defaultLayer === 'openTopoMap'} name={TILE_LAYERS.openTopoMap.name}>
-              <TileLayer
-                url={TILE_LAYERS.openTopoMap.url}
-                attribution={TILE_LAYERS.openTopoMap.attribution}
-                maxNativeZoom={TILE_LAYERS.openTopoMap.maxNativeZoom}
-                maxZoom={LEAFLET_DEFAULTS.maxZoom}
-                noWrap={true}
-              />
-            </BaseLayer>
-            <BaseLayer checked={defaultLayer === 'googleSatellite'} name={TILE_LAYERS.googleSatellite.name}>
-              <TileLayer
-                url={TILE_LAYERS.googleSatellite.url}
-                attribution={TILE_LAYERS.googleSatellite.attribution}
-                subdomains={TILE_LAYERS.googleSatellite.subdomains}
-                maxNativeZoom={TILE_LAYERS.googleSatellite.maxNativeZoom}
-                maxZoom={LEAFLET_DEFAULTS.maxZoom}
-                noWrap={true}
-              />
-            </BaseLayer>
-          </LayersControl>
+          <>
+            <LayerPersist />
+            <LayersControl position="topright">
+              {Object.entries(TILE_LAYERS).map(([key, cfg]) => (
+                <BaseLayer key={key} checked={activeLayer === key} name={cfg.name}>
+                  <TileLayer
+                    url={cfg.url}
+                    attribution={cfg.attribution}
+                    subdomains={cfg.subdomains}
+                    maxNativeZoom={cfg.maxNativeZoom}
+                    maxZoom={LEAFLET_DEFAULTS.maxZoom}
+                    noWrap={true}
+                  />
+                </BaseLayer>
+              ))}
+            </LayersControl>
+          </>
         ) : (
           <TileLayer
-            url={TILE_LAYERS[defaultLayer]?.url || TILE_LAYERS.osm.url}
-            attribution={TILE_LAYERS[defaultLayer]?.attribution || TILE_LAYERS.osm.attribution}
-            maxNativeZoom={TILE_LAYERS[defaultLayer]?.maxNativeZoom || TILE_LAYERS.osm.maxNativeZoom}
+            url={TILE_LAYERS[activeLayer]?.url || TILE_LAYERS.googleSatellite.url}
+            attribution={TILE_LAYERS[activeLayer]?.attribution || TILE_LAYERS.googleSatellite.attribution}
+            subdomains={TILE_LAYERS[activeLayer]?.subdomains}
+            maxNativeZoom={TILE_LAYERS[activeLayer]?.maxNativeZoom || TILE_LAYERS.googleSatellite.maxNativeZoom}
             maxZoom={LEAFLET_DEFAULTS.maxZoom}
             noWrap={true}
           />

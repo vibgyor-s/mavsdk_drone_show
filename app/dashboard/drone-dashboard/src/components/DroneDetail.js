@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { Marker } from 'react-leaflet';
 import { FaMapMarkerAlt, FaWifi, FaClock, FaBatteryFull, FaCompass, FaSatellite, FaPlane, FaCog, FaNetworkWired } from 'react-icons/fa';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import LeafletMapBase from './map/LeafletMapBase';
 import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
@@ -26,7 +27,6 @@ const droneIcon = new L.Icon({
 const DroneDetail = ({ drone, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
   const [isStale, setIsStale] = useState(false);
-  const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
@@ -367,69 +367,17 @@ const DroneDetail = ({ drone, isAccordionView }) => {
 
   const renderMapTab = () => (
     <div className="detail-content">
-      <div className="map-controls">
-        <select
-          value={currentTileLayer}
-          onChange={(e) => setCurrentTileLayer(e.target.value)}
-          className="tile-layer-select"
-        >
-          <option value="OSM">OpenStreetMap</option>
-          <option value="OTM">OpenTopoMap</option>
-          <option value="ESRI">Esri WorldStreetMap</option>
-          <option value="STAMEN">Stamen Toner</option>
-        </select>
-      </div>
       <div className="map-display">
-        <MapContainer
+        <LeafletMapBase
           center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
           zoom={13}
-          minZoom={2}
-          maxBounds={[[-90,-180],[90,180]]}
-          maxBoundsViscosity={1.0}
-          worldCopyJump={true}
           style={{ height: '100%', width: '100%' }}
         >
-          {currentTileLayer === 'OSM' && (
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              maxNativeZoom={19}
-              maxZoom={22}
-              noWrap={true}
-            />
-          )}
-          {currentTileLayer === 'OTM' && (
-            <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenTopoMap contributors'
-              maxNativeZoom={17}
-              maxZoom={22}
-              noWrap={true}
-            />
-          )}
-          {currentTileLayer === 'ESRI' && (
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-              attribution='&copy; Esri'
-              maxNativeZoom={17}
-              maxZoom={22}
-              noWrap={true}
-            />
-          )}
-          {currentTileLayer === 'STAMEN' && (
-            <TileLayer
-              url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png"
-              attribution='Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
-              maxNativeZoom={18}
-              maxZoom={22}
-              noWrap={true}
-            />
-          )}
           <Marker
             position={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
             icon={droneIcon}
           />
-        </MapContainer>
+        </LeafletMapBase>
       </div>
     </div>
   );

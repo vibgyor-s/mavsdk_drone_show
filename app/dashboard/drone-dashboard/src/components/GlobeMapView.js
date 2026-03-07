@@ -84,7 +84,6 @@ const GlobeMapView = ({ drones }) => {
         <LeafletMapBase
           center={[center.lat || 0, center.lng || 0]}
           zoom={validDrones.length > 0 ? 15 : 3}
-          defaultLayer="esriSatellite"
           style={{ width: '100%', height: '100%' }}
         >
           {validDrones.map(drone => (

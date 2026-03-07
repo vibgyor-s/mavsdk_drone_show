@@ -2,11 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
-import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
+import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
-
-const { BaseLayer } = LayersControl;
+import LeafletMapBase from './map/LeafletMapBase';
 
 // Fix the default icon issue in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -108,30 +107,7 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map (Heading = {forwardHeading}°)</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22}
-        minZoom={2} maxBounds={[[-90,-180],[90,180]]} maxBoundsViscosity={1.0}
-        worldCopyJump={true} scrollWheelZoom>
-        <LayersControl position="topright">
-          <BaseLayer checked name="Satellite">
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
-              maxNativeZoom={17}
-              maxZoom={22}
-              noWrap={true}
-            />
-          </BaseLayer>
-          <BaseLayer name="OpenStreetMap">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
-              maxNativeZoom={19}
-              maxZoom={22}
-              noWrap={true}
-            />
-          </BaseLayer>
-        </LayersControl>
-
+      <LeafletMapBase center={[avgLat, avgLon]} zoom={16}>
         {dronePositions.map((drone) => (
           <Marker
             key={drone.hw_id}
@@ -149,7 +125,7 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
             </Popup>
           </Marker>
         ))}
-      </MapContainer>
+      </LeafletMapBase>
     </div>
   );
 };

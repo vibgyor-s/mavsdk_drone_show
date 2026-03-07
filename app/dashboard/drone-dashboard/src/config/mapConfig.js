@@ -53,6 +53,25 @@ export const LEAFLET_DEFAULTS = {
 };
 
 export const PROVIDER_STORAGE_KEY = 'mds_map_provider';
+export const TILE_STORAGE_KEY = 'mds_tile_layer';
+export const DEFAULT_TILE_KEY = 'googleSatellite';
+
+/** Get the user's saved tile preference (falls back to Google Satellite) */
+export const getUserTilePreference = () => {
+  try {
+    const saved = localStorage.getItem(TILE_STORAGE_KEY);
+    return saved && TILE_LAYERS[saved] ? saved : DEFAULT_TILE_KEY;
+  } catch {
+    return DEFAULT_TILE_KEY;
+  }
+};
+
+/** Persist the user's tile layer choice */
+export const setUserTilePreference = (key) => {
+  try {
+    if (TILE_LAYERS[key]) localStorage.setItem(TILE_STORAGE_KEY, key);
+  } catch { /* ignore storage errors */ }
+};
 
 // Mapbox connectivity check URL (lightweight style metadata)
 export const MAPBOX_PING_URL = (token) =>

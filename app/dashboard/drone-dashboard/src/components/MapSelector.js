@@ -1,19 +1,13 @@
 // src/components/MapSelector.js
 
 import React, { useEffect, useState } from 'react';
-import {
-  MapContainer,
-  TileLayer,
-  useMapEvents,
-  Marker,
-  Popup,
-  LayersControl,
-} from 'react-leaflet';
+import { useMapEvents, Marker, Popup } from 'react-leaflet';
 import '../styles/MapSelector.css';
 import PropTypes from 'prop-types';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import LeafletMapBase from './map/LeafletMapBase';
 
 // Fix Leaflet's default icon paths
 delete L.Icon.Default.prototype._getIconUrl;
@@ -64,67 +58,19 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
   return (
     <div className="map-selector">
-      <MapContainer
+      <LeafletMapBase
         center={[mapCenter.lat, mapCenter.lon]}
         zoom={13}
-        maxZoom={22}
-        minZoom={2}
-        maxBounds={[[-90,-180],[90,180]]}
-        maxBoundsViscosity={1.0}
-        worldCopyJump={true}
-        scrollWheelZoom
+        className="map-selector-leaflet"
       >
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="OpenStreetMap">
-            <TileLayer
-              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxNativeZoom={19}
-              maxZoom={22}
-              noWrap={true}
-            />
-          </LayersControl.BaseLayer>
-
-          <LayersControl.BaseLayer name="OpenTopoMap">
-            <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenTopoMap"
-              maxNativeZoom={17}
-              maxZoom={22}
-              noWrap={true}
-            />
-          </LayersControl.BaseLayer>
-
-          <LayersControl.BaseLayer name="Satellite (Esri)">
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
-              maxNativeZoom={17}
-              maxZoom={22}
-              noWrap={true}
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Google Satellite">
-            <TileLayer
-              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-              attribution="Map data &copy; Google"
-              maxNativeZoom={20}
-              maxZoom={22}
-              noWrap={true}
-            />
-        </LayersControl.BaseLayer>
-        </LayersControl>
-
         <MapEvents />
 
-        {/* Marker if there's an initial position */}
         {initialPosition && (
           <Marker position={[initialPosition.lat, initialPosition.lon]}>
             <Popup>Selected Location</Popup>
           </Marker>
         )}
-      </MapContainer>
+      </LeafletMapBase>
     </div>
   );
 };
