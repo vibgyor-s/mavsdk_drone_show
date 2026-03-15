@@ -1,13 +1,14 @@
 // src/components/map/LeafletMapBase.js
 // Reusable Leaflet map wrapper — Google Satellite default, layer preference persisted
 
-import React, { useCallback } from 'react';
+import React from 'react';
 import { MapContainer, TileLayer, LayersControl, useMapEvents } from 'react-leaflet';
 import {
-  TILE_LAYERS,
   LEAFLET_DEFAULTS,
   getUserTilePreference,
   setUserTilePreference,
+  getLeafletTileLayerConfig,
+  TILE_LAYERS,
 } from '../../config/mapConfig';
 import '../../styles/MapCommon.css';
 
@@ -41,6 +42,7 @@ const LeafletMapBase = ({
   ...rest
 }) => {
   const activeLayer = defaultLayer || getUserTilePreference();
+  const resolvedActiveLayer = getLeafletTileLayerConfig(activeLayer);
 
   return (
     <div className={`mds-map-container ${className}`} style={style}>
@@ -60,26 +62,29 @@ const LeafletMapBase = ({
           <>
             <LayerPersist />
             <LayersControl position="topright">
-              {Object.entries(TILE_LAYERS).map(([key, cfg]) => (
-                <BaseLayer key={key} checked={activeLayer === key} name={cfg.name}>
-                  <TileLayer
-                    url={cfg.url}
-                    attribution={cfg.attribution}
-                    subdomains={cfg.subdomains}
-                    maxNativeZoom={cfg.maxNativeZoom}
-                    maxZoom={LEAFLET_DEFAULTS.maxZoom}
-                    noWrap={true}
-                  />
-                </BaseLayer>
-              ))}
+              {Object.keys(TILE_LAYERS).map((key) => {
+                const cfg = getLeafletTileLayerConfig(key);
+                return (
+                  <BaseLayer key={key} checked={activeLayer === key} name={cfg.name}>
+                    <TileLayer
+                      url={cfg.url}
+                      attribution={cfg.attribution}
+                      subdomains={cfg.subdomains}
+                      maxNativeZoom={cfg.maxNativeZoom}
+                      maxZoom={LEAFLET_DEFAULTS.maxZoom}
+                      noWrap={true}
+                    />
+                  </BaseLayer>
+                );
+              })}
             </LayersControl>
           </>
         ) : (
           <TileLayer
-            url={TILE_LAYERS[activeLayer]?.url || TILE_LAYERS.googleSatellite.url}
-            attribution={TILE_LAYERS[activeLayer]?.attribution || TILE_LAYERS.googleSatellite.attribution}
-            subdomains={TILE_LAYERS[activeLayer]?.subdomains}
-            maxNativeZoom={TILE_LAYERS[activeLayer]?.maxNativeZoom || TILE_LAYERS.googleSatellite.maxNativeZoom}
+            url={resolvedActiveLayer.url}
+            attribution={resolvedActiveLayer.attribution}
+            subdomains={resolvedActiveLayer.subdomains}
+            maxNativeZoom={resolvedActiveLayer.maxNativeZoom}
             maxZoom={LEAFLET_DEFAULTS.maxZoom}
             noWrap={true}
           />

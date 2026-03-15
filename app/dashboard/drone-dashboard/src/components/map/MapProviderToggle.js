@@ -20,7 +20,7 @@ const MapProviderToggle = () => {
         onChange={(e) => setProvider(e.target.value)}
       >
         <option value={MAP_PROVIDERS.MAPBOX}>Mapbox</option>
-        <option value={MAP_PROVIDERS.LEAFLET}>OpenStreetMap</option>
+        <option value={MAP_PROVIDERS.LEAFLET}>Leaflet Tiles</option>
       </select>
     </div>
   );

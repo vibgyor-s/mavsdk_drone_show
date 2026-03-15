@@ -26,7 +26,7 @@ const MapFallbackBanner = () => {
   return (
     <div className="mds-map-fallback-banner">
       <span className="mds-map-fallback-banner-text">
-        Mapbox unavailable — using OpenStreetMap.
+        Mapbox unavailable — using Leaflet tile fallback.
         {fallbackReason && <small style={{ opacity: 0.7 }}> ({fallbackReason})</small>}
       </span>
       <div className="mds-map-fallback-banner-actions">

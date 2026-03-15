@@ -19,6 +19,7 @@ export const TILE_LAYERS = {
     name: 'OpenStreetMap',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
+    subdomains: 'abc',
     maxNativeZoom: 19,
   },
   esriSatellite: {
@@ -31,6 +32,7 @@ export const TILE_LAYERS = {
     name: 'OpenTopoMap',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenTopoMap contributors',
+    subdomains: 'abc',
     maxNativeZoom: 17,
   },
   googleSatellite: {
@@ -43,6 +45,7 @@ export const TILE_LAYERS = {
 };
 
 export const DEFAULT_CENTER = { lat: 35.6895, lng: 139.6917 }; // Tokyo
+export const DEFAULT_LEAFLET_SUBDOMAINS = 'abc';
 
 export const LEAFLET_DEFAULTS = {
   minZoom: 2,
@@ -55,6 +58,25 @@ export const LEAFLET_DEFAULTS = {
 export const PROVIDER_STORAGE_KEY = 'mds_map_provider';
 export const TILE_STORAGE_KEY = 'mds_tile_layer';
 export const DEFAULT_TILE_KEY = 'googleSatellite';
+
+/**
+ * Return a Leaflet-safe tile layer configuration.
+ *
+ * Leaflet requires `subdomains` whenever a tile URL contains `{s}`.
+ * Some providers work with the default `abc`, while custom providers can
+ * override that in TILE_LAYERS.
+ */
+export const getLeafletTileLayerConfig = (key) => {
+  const layer = TILE_LAYERS[key] || TILE_LAYERS[DEFAULT_TILE_KEY];
+  const usesSubdomains = layer.url.includes('{s}');
+
+  return {
+    ...layer,
+    subdomains: usesSubdomains
+      ? (layer.subdomains || DEFAULT_LEAFLET_SUBDOMAINS)
+      : layer.subdomains,
+  };
+};
 
 /** Get the user's saved tile preference (falls back to Google Satellite) */
 export const getUserTilePreference = () => {
