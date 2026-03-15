@@ -75,7 +75,9 @@ class HeartbeatSender:
         - current Netbird IP (or fallback to CSV ip)
         - timestamp
         """
-        hw_id = self.drone_config.hw_id
+        # API payloads use string IDs for backward compatibility across mixed
+        # drone/GCS versions, even though local config stores hw_id as int.
+        hw_id = str(self.drone_config.hw_id)
         pos_id = self.drone_config.pos_id
         detected_pos_id = self.drone_config.detected_pos_id
 

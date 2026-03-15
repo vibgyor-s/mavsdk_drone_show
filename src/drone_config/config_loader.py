@@ -37,6 +37,26 @@ class ConfigLoader:
     """
 
     @staticmethod
+    def _extract_entries(data: Any, filename: str) -> Any:
+        """
+        Extract wrapped config entries from JSON payloads.
+
+        Supports both fleet wrappers (`{"drones": [...]}`) and swarm wrappers
+        (`{"assignments": [...]}`), while remaining backward compatible with
+        legacy raw lists.
+        """
+        if isinstance(data, dict):
+            if 'drones' in data:
+                return data['drones']
+            if 'assignments' in data:
+                return data['assignments']
+            raise ValueError(
+                f"Unsupported JSON structure in {filename}. "
+                "Expected 'drones' or 'assignments' wrapper."
+            )
+        return data
+
+    @staticmethod
     def get_hw_id(hw_id: Optional[int] = None) -> Optional[int]:
         """
         Retrieve the hardware ID from provided value or .hwID file.
@@ -86,8 +106,9 @@ class ConfigLoader:
             import json
             with open(filename, 'r') as f:
                 data = json.load(f)
-            # Support both wrapped {"drones": [...]} and raw [...] format
-            entries = data.get('drones', data) if isinstance(data, dict) else data
+            entries = ConfigLoader._extract_entries(data, filename)
+            if not isinstance(entries, list):
+                raise ValueError(f"Expected a list of entries in {filename}")
             for entry in entries:
                 if int(entry.get('hw_id', -1)) == hw_id:
                     logger.info(f"Configuration for HW_ID {hw_id} found in {source}.")

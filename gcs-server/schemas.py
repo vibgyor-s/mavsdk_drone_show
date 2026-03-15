@@ -12,7 +12,7 @@ Last Updated: 2025-11-22
 import os
 import sys
 
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
@@ -234,6 +234,21 @@ class HeartbeatRequest(BaseModel):
     pos_id: int = Field(..., ge=0, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
     timestamp: Optional[int] = Field(None, description="Client timestamp (Unix ms)")
+
+    @field_validator("hw_id", mode="before")
+    @classmethod
+    def normalize_hw_id(cls, value):
+        """Accept legacy int IDs and normalize to string at the API boundary."""
+        if value is None:
+            raise ValueError("hw_id is required")
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise ValueError("hw_id must not be empty")
+            return value
+        if isinstance(value, int):
+            return str(value)
+        raise ValueError("hw_id must be a string or integer")
 
 
 class HeartbeatPostResponse(BaseModel):

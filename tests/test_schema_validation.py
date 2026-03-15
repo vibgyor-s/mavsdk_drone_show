@@ -232,6 +232,17 @@ class TestHeartbeatValidation:
         assert heartbeat.pos_id == 1
         assert heartbeat.hw_id == "drone1"
 
+    def test_integer_hw_id_is_normalized(self):
+        """Test legacy integer hw_id values are accepted and normalized."""
+        from gcs_server_schemas import HeartbeatRequest
+
+        heartbeat = HeartbeatRequest(
+            pos_id=1,
+            hw_id=1
+        )
+
+        assert heartbeat.hw_id == "1"
+
     def test_negative_pos_id_heartbeat(self):
         """Test rejection of negative pos_id in heartbeat"""
         from gcs_server_schemas import HeartbeatRequest

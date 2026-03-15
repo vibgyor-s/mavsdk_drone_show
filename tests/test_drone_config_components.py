@@ -58,6 +58,26 @@ class TestConfigLoader:
         assert result['pos_id'] == 1
         assert result['ip'] == '10.0.0.1'
 
+    def test_read_file_supports_swarm_assignments_wrapper(self, tmp_path):
+        """Test reading a wrapped swarm JSON file."""
+        import json
+
+        json_content = {
+            "version": 1,
+            "assignments": [
+                {"hw_id": 1, "follow": 0, "frame": "body"},
+                {"hw_id": 2, "follow": 1, "frame": "ned"},
+            ],
+        }
+        json_file = tmp_path / "test_swarm.json"
+        json_file.write_text(json.dumps(json_content))
+
+        result = ConfigLoader.read_file(str(json_file), 'test swarm', 2)
+        assert result is not None
+        assert result['hw_id'] == 2
+        assert result['follow'] == 1
+        assert result['frame'] == 'ned'
+
     def test_read_file_hw_id_not_found(self, tmp_path):
         """Test reading JSON when hw_id doesn't exist"""
         import json

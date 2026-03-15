@@ -36,6 +36,10 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
     if not hw_id:
         raise ValueError("Missing hw_id")
 
+    hw_id = str(hw_id).strip()
+    if not hw_id:
+        raise ValueError("Missing hw_id")
+
     # We can do further validation if needed
     with last_heartbeats_lock:
         # Professional heartbeat logging: Only log first heartbeat and periodic confirmations

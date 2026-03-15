@@ -81,6 +81,7 @@ MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 # MAVLink Router for SITL (external routing - replaces internal MavlinkManager)
 MAVLINK_ROUTER_SCRIPT="$BASE_DIR/tools/run_mavlink_router.sh"
 MAVLINK_ROUTER_LOG="$BASE_DIR/logs/mavlink_router.log"
+PX4_MAVLINK_PORT_DETECTOR="$BASE_DIR/multiple_sitl/detect_px4_mavlink_port.py"
 
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
@@ -152,6 +153,11 @@ cleanup() {
     if [[ -n "${mavlink2rest_pid:-}" ]]; then
         kill "$mavlink2rest_pid" 2>/dev/null || true
         log_message "Terminated mavlink2rest with PID: $mavlink2rest_pid"
+    fi
+
+    if [[ -n "${mavlink_router_pid:-}" ]]; then
+        kill "$mavlink_router_pid" 2>/dev/null || true
+        log_message "Terminated MAVLink router with PID: $mavlink_router_pid"
     fi
 
     if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
@@ -338,7 +344,8 @@ update_repository() {
 
 # Function to run MAVLink router for SITL (external routing)
 # This replaces the internal MavlinkManager and provides MAVLink routing
-# to MAVSDK (14540), mavlink2rest (14569), and GCS (14550)
+# from PX4's detected GCS UDP port to mavlink2rest (14569),
+# LocalMavlinkController (12550), and remote GCS (24550)
 run_mavlink_router() {
     log_message "Starting MAVLink router for SITL..."
 
@@ -353,21 +360,70 @@ run_mavlink_router() {
 
     # Check if mavlink-routerd is installed
     if ! command -v mavlink-routerd &> /dev/null; then
-        log_message "WARNING: mavlink-routerd not installed. MAVLink routing will be handled by internal fallback."
+        log_message "WARNING: mavlink-routerd not installed. MAVLink routing cannot start."
         log_message "To install: git clone https://github.com/alireza787b/mavlink-anywhere && cd mavlink-anywhere && sudo ./install_mavlink_router.sh"
         return 1
     fi
 
     # Run mavlink router in the background
     if [ -x "$MAVLINK_ROUTER_SCRIPT" ]; then
-        $MAVLINK_ROUTER_SCRIPT &> "$MAVLINK_ROUTER_LOG" &
+        local router_input_port="${PX4_GCS_MAVLINK_PORT:-14550}"
+        log_message "MAVLink router input port: $router_input_port"
+        $MAVLINK_ROUTER_SCRIPT "$router_input_port" &> "$MAVLINK_ROUTER_LOG" &
         mavlink_router_pid=$!
         log_message "MAVLink router started with PID: $mavlink_router_pid. Logs: $MAVLINK_ROUTER_LOG"
         sleep 2  # Wait for router to initialize before starting other services
+        if ! kill -0 "$mavlink_router_pid" 2>/dev/null; then
+            log_message "ERROR: MAVLink router exited during startup. Recent log lines:"
+            if [ -f "$MAVLINK_ROUTER_LOG" ]; then
+                while IFS= read -r line; do
+                    log_message "  $line"
+                done < <(tail -n 20 "$MAVLINK_ROUTER_LOG")
+            fi
+            return 1
+        fi
     else
         log_message "WARNING: MAVLink router script not found or not executable: $MAVLINK_ROUTER_SCRIPT"
         return 1
     fi
+}
+
+# Detect PX4's live MAVLink GCS output port so the router matches the image's
+# actual runtime behavior instead of relying on a single hardcoded assumption.
+detect_px4_mavlink_port() {
+    local default_port="${MDS_PX4_GCS_PORT:-14550}"
+    local detection_log="$BASE_DIR/logs/mavlink_port_detection.log"
+
+    if [ -n "${MDS_PX4_GCS_PORT:-}" ]; then
+        PX4_GCS_MAVLINK_PORT="$MDS_PX4_GCS_PORT"
+        log_message "Using PX4 MAVLink port override from MDS_PX4_GCS_PORT: $PX4_GCS_MAVLINK_PORT"
+        return 0
+    fi
+
+    if [ ! -f "$PX4_MAVLINK_PORT_DETECTOR" ]; then
+        PX4_GCS_MAVLINK_PORT="$default_port"
+        log_message "WARNING: MAVLink port detector not found. Falling back to port $PX4_GCS_MAVLINK_PORT"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$detection_log")"
+    PX4_GCS_MAVLINK_PORT=$(python3 "$PX4_MAVLINK_PORT_DETECTOR" \
+        --default-port "$default_port" \
+        --timeout 12 \
+        --poll-interval 0.5 \
+        --sitl-log "$BASE_DIR/logs/sitl_simulation.log" \
+        --exclude-port 12550 \
+        --exclude-port 14540 \
+        --exclude-port 14569 \
+        --exclude-port 24550 \
+        2>>"$detection_log")
+
+    if [[ ! "$PX4_GCS_MAVLINK_PORT" =~ ^[0-9]+$ ]]; then
+        PX4_GCS_MAVLINK_PORT="$default_port"
+        log_message "WARNING: Invalid detected PX4 MAVLink port. Falling back to $PX4_GCS_MAVLINK_PORT"
+    fi
+
+    log_message "Detected PX4 MAVLink GCS port: $PX4_GCS_MAVLINK_PORT"
 }
 
 # Function to run mavlink2rest in the background
@@ -639,9 +695,15 @@ determine_simulation_command
 # Start SITL simulation
 start_simulation
 
+# Detect PX4's actual MAVLink output port before routing.
+detect_px4_mavlink_port
+
 # Start MAVLink router for external routing (replaces internal MavlinkManager)
-# This routes MAVLink from SITL to MAVSDK (14540), mavlink2rest (14569), and GCS
-run_mavlink_router
+# This routes MAVLink from the detected PX4 GCS port to local consumers and remote GCS.
+if ! run_mavlink_router; then
+    log_message "ERROR: Failed to start MAVLink router."
+    exit 1
+fi
 
 # Start coordinator.py
 run_coordinator

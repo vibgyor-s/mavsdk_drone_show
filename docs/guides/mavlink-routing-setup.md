@@ -80,10 +80,17 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
 For SITL containers, MAVLink routing is handled automatically by `startup_sitl.sh` which calls `tools/run_mavlink_router.sh`. No manual setup is required.
 
 **Key points for SITL:**
-- PX4 SITL automatically streams to ports 14540 and 14550
+- PX4 SITL automatically streams to port 14540 for MAVSDK and to a GCS UDP port that is usually 14550
 - MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)
-- Router takes port 14550 and distributes to: 12550, 14569, and GCS_IP:24550
+- `startup_sitl.sh` now auto-detects the live PX4 GCS UDP port before starting the router, which keeps mixed/legacy SITL images working even if their runtime port differs
+- Router takes the detected PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550
 - Remote GCS connects on port **24550** (not 14550)
+
+If detection fails, SITL falls back to `14550`. Advanced users can override detection explicitly:
+
+```bash
+export MDS_PX4_GCS_PORT=14550
+```
 
 ### Option B: Real Hardware (Raspberry Pi) - Manual Setup
 

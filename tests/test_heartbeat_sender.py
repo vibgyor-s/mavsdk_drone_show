@@ -136,7 +136,7 @@ class TestHeartbeatSending:
     def test_send_heartbeat_success(self):
         """Test successful heartbeat POST request"""
         mock_config = Mock()
-        mock_config.hw_id = '1'
+        mock_config.hw_id = 1
         mock_config.pos_id = 1
         mock_config.detected_pos_id = 0
         mock_config.config = {'ip': '10.0.0.1'}
