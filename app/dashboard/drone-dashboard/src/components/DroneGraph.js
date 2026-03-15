@@ -1,148 +1,243 @@
-// DroneGraph.js
-
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import '../styles/DroneGraph.css';
 
-function DroneGraph({ swarmData, onSelectDrone }) {
-    const cyRef = useRef(null);
+function buildGraphElements(drones) {
+  const nodes = drones.map((drone) => ({
+    data: {
+      id: drone.hw_id,
+      label: `A${drone.hw_id}\nP${drone.pos_id}`,
+      role: drone.role,
+      warningState: drone.hasWarnings ? 'attention' : 'clear',
+      roleSwapState: drone.isRoleSwap ? 'swap' : 'native',
+    },
+  }));
 
-    const transformToGraphData = (swarmData) => {
-        const nodes = swarmData.map(drone => {
-            let role = 'Follower';
-            if (String(drone.follow) === '0') {
-                role = 'Top Leader';
-            } else if (swarmData.some(d => String(d.follow) === String(drone.hw_id))) {
-                role = 'Intermediate Leader';
-            }
-            return {
-                data: { id: drone.hw_id, label: drone.hw_id, role: role, ...drone }
-            };
-        });
-        const edges = swarmData
-            .filter(drone => String(drone.follow) !== '0')
-            .map(drone => ({
-                data: {
-                    source: drone.hw_id,
-                    target: drone.follow,
-                    frame: drone.frame,
-                    id: `${drone.hw_id}-${drone.follow}`
-                }
-            }));
-        return [...nodes, ...edges];
+  const edges = drones
+    .filter((drone) => drone.follow !== '0' && drone.followTargetExists && drone.follow !== drone.hw_id)
+    .map((drone) => ({
+      data: {
+        id: `${drone.follow}-${drone.hw_id}`,
+        source: drone.follow,
+        target: drone.hw_id,
+        frame: drone.frame,
+      },
+    }));
+
+  return [...nodes, ...edges];
+}
+
+function applySelectionClasses(cy, selectedDroneId) {
+  cy.nodes().removeClass('is-selected is-upstream is-downstream');
+  cy.edges().removeClass('is-upstream is-downstream');
+
+  if (!selectedDroneId) {
+    return;
+  }
+
+  const node = cy.getElementById(String(selectedDroneId));
+  if (!node || node.length === 0) {
+    return;
+  }
+
+  node.addClass('is-selected');
+  node.predecessors().addClass('is-upstream');
+  node.successors().addClass('is-downstream');
+}
+
+function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
+  const cyRef = useRef(null);
+
+  const graphElements = buildGraphElements(swarmData);
+  const graphDataKey = swarmData
+    .map((drone) => `${drone.hw_id}:${drone.pos_id}:${drone.follow}:${drone.frame}:${drone.role}:${drone.hasWarnings ? 1 : 0}`)
+    .join('|');
+  const topLeaderIds = swarmData
+    .filter((drone) => drone.role === 'topLeader')
+    .map((drone) => drone.hw_id);
+  const topLeaderKey = topLeaderIds.join('|');
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return undefined;
+    }
+
+    cy.batch(() => {
+      cy.elements().remove();
+      cy.add(graphElements);
+    });
+
+    cy.layout({
+      name: 'breadthfirst',
+      directed: true,
+      padding: 24,
+      spacingFactor: 1.15,
+      animate: false,
+      fit: true,
+      roots: topLeaderIds,
+    }).run();
+
+    cy.fit(undefined, 36);
+
+    return undefined;
+  }, [graphDataKey, topLeaderKey]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return undefined;
+    }
+
+    applySelectionClasses(cy, selectedDroneId);
+    return undefined;
+  }, [selectedDroneId]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return undefined;
+    }
+
+    const handleTap = (event) => {
+      onSelectDrone(event.target.id());
     };
 
-    const elements = transformToGraphData(swarmData);
+    cy.on('tap', 'node', handleTap);
 
-    useEffect(() => {
-        if (cyRef.current) {
-            // Update elements in the graph
-            cyRef.current.batch(() => {
-                cyRef.current.remove(cyRef.current.elements());
-                cyRef.current.add(elements);
-            });
-
-            // Run the layout and fit the graph
-            cyRef.current.layout(coseLayout).run();
-            cyRef.current.fit();
-
-            // Add a resize listener
-            cyRef.current.on('resize', () => {
-                cyRef.current.layout(coseLayout).run();
-            });
-
-            // Node click listener
-            cyRef.current.on('tap', 'node', function (evt) {
-                const clickedNodeId = evt.target.id();
-                onSelectDrone(clickedNodeId);
-            });
-
-            // Cleanup on unmount
-            return () => {
-                if (cyRef.current) {
-                    cyRef.current.removeListener('tap', 'node');
-                    cyRef.current.removeListener('resize');
-                }
-            };
-        }
-    }, [swarmData, onSelectDrone]);
-
-    const coseLayout = {
-        name: 'cose',
-        directed: true,
-        padding: 10,
-        fit: true,
+    return () => {
+      cy.removeListener('tap', 'node', handleTap);
     };
+  }, [onSelectDrone]);
 
-    const style = {
-        width: '100%',
-        height: '100vh',
-    };
+  const stylesheet = [
+    {
+      selector: 'node',
+      style: {
+        'shape': 'ellipse',
+        'width': 70,
+        'height': 70,
+        'background-color': '#1e90ff',
+        'border-width': 2,
+        'border-color': '#8abfff',
+        'label': 'data(label)',
+        'font-size': 12,
+        'font-weight': 700,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'text-wrap': 'wrap',
+        'text-max-width': 64,
+        'color': '#f7fbff',
+        'transition-property': 'background-color, border-color, border-width, width, height',
+        'transition-duration': '150ms',
+      },
+    },
+    {
+      selector: 'node[role = "topLeader"]',
+      style: {
+        'shape': 'round-rectangle',
+        'width': 84,
+        'height': 64,
+        'background-color': '#169b62',
+        'border-color': '#76d3ac',
+      },
+    },
+    {
+      selector: 'node[role = "relayLeader"]',
+      style: {
+        'shape': 'hexagon',
+        'background-color': '#e0a100',
+        'border-color': '#ffe18c',
+        'color': '#1f2128',
+      },
+    },
+    {
+      selector: 'node[warningState = "attention"]',
+      style: {
+        'border-width': 4,
+        'border-color': '#ff866b',
+      },
+    },
+    {
+      selector: 'node[roleSwapState = "swap"]',
+      style: {
+        'border-style': 'dashed',
+      },
+    },
+    {
+      selector: 'edge',
+      style: {
+        'curve-style': 'bezier',
+        'width': 3,
+        'line-color': '#77849b',
+        'target-arrow-color': '#77849b',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 1.1,
+      },
+    },
+    {
+      selector: 'edge[frame = "body"]',
+      style: {
+        'line-style': 'dashed',
+        'line-color': '#ff9f43',
+        'target-arrow-color': '#ff9f43',
+      },
+    },
+    {
+      selector: 'node.is-selected',
+      style: {
+        'width': 92,
+        'height': 92,
+        'border-width': 6,
+        'border-color': '#00d4ff',
+        'overlay-color': '#00d4ff',
+        'overlay-opacity': 0.08,
+      },
+    },
+    {
+      selector: 'node.is-upstream, edge.is-upstream',
+      style: {
+        'background-color': '#5cc7ff',
+        'border-color': '#9de0ff',
+        'line-color': '#5cc7ff',
+        'target-arrow-color': '#5cc7ff',
+        'opacity': 1,
+      },
+    },
+    {
+      selector: 'node.is-downstream, edge.is-downstream',
+      style: {
+        'background-color': '#8abfff',
+        'border-color': '#cfe5ff',
+        'line-color': '#8abfff',
+        'target-arrow-color': '#8abfff',
+        'opacity': 1,
+      },
+    },
+    {
+      selector: 'node, edge',
+      style: {
+        'opacity': 0.95,
+      },
+    },
+  ];
 
-    const styles = [
-        {
-            selector: 'node',
-            style: {
-                'label': 'data(hw_id)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                color: 'white'
-            }
-        },
-        {
-            selector: 'node[role="Top Leader"]',
-            style: {
-                'background-color': '#28a745'
-            }
-        },
-        {
-            selector: 'node[role="Intermediate Leader"]',
-            style: {
-                'background-color': '#ffcc00'
-            }
-        },
-        {
-            selector: 'node[role="Follower"]',
-            style: {
-                'background-color': '#007bff'
-            }
-        },
-        {
-            selector: 'edge[frame="body"]',
-            style: {
-                'line-style': 'dashed',
-                'line-color': '#ff5722',
-                'target-arrow-color': '#ff5722',
-                'target-arrow-shape': 'triangle'
-            }
-        },
-        {
-            selector: 'edge[frame="ned"]',
-            style: {
-                'line-style': 'solid',
-                'line-color': '#999',
-                'target-arrow-color': '#999',
-                'target-arrow-shape': 'triangle'
-            }
-        },
-        {
-            selector: 'node:selected',
-            style: {
-                'border-width': '4px',
-                'border-color': '#ff5733'
-            }
-        }
-    ];
-
-    return (
-        <CytoscapeComponent
-            cy={(cy) => { cyRef.current = cy; }}
-            elements={elements}
-            style={style}
-            stylesheet={styles}
-            layout={coseLayout}
-        />
-    );
+  return (
+    <div className="swarm-graph-shell">
+      <CytoscapeComponent
+        cy={(cy) => {
+          cyRef.current = cy;
+        }}
+        elements={graphElements}
+        layout={{ name: 'preset' }}
+        stylesheet={stylesheet}
+        style={{ width: '100%', height: '100%' }}
+        minZoom={0.3}
+        maxZoom={2.4}
+        wheelSensitivity={0.18}
+      />
+    </div>
+  );
 }
 
 export default DroneGraph;

@@ -1,441 +1,335 @@
-//app/dashboard/drone-dashboard/src/components/SwarmPlots.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Plot from 'react-plotly.js';
-
+import { calculateClusterPlotData } from '../utilities/swarmDesignUtils';
 import '../styles/SwarmPlots.css';
 
-// Theme-aware color scheme
-const getThemeColors = () => {
-    const rootStyles = getComputedStyle(document.documentElement);
-    return {
-        bg: rootStyles.getPropertyValue('--color-bg-primary').trim(),
-        paper: rootStyles.getPropertyValue('--color-bg-secondary').trim(),
-        text: rootStyles.getPropertyValue('--color-text-primary').trim(),
-        grid: rootStyles.getPropertyValue('--color-border-primary').trim(),
-        primary: rootStyles.getPropertyValue('--color-primary').trim(),
-        success: rootStyles.getPropertyValue('--color-success').trim(),
-        warning: rootStyles.getPropertyValue('--color-warning').trim(),
-        info: rootStyles.getPropertyValue('--color-info').trim(),
-    };
+const plotConfig = {
+  responsive: true,
+  displayModeBar: false,
+  staticPlot: false,
+  scrollZoom: false,
 };
 
-// Theme-aware plot layout
-const getBaseLayout = (colors, is3D = false) => ({
+function getThemeColors() {
+  const rootStyles = getComputedStyle(document.documentElement);
+
+  return {
+    bg: rootStyles.getPropertyValue('--color-bg-primary').trim(),
+    text: rootStyles.getPropertyValue('--color-text-primary').trim(),
+    grid: rootStyles.getPropertyValue('--color-border-primary').trim(),
+    success: rootStyles.getPropertyValue('--color-success').trim(),
+    warning: rootStyles.getPropertyValue('--color-warning').trim(),
+    info: rootStyles.getPropertyValue('--color-info').trim(),
+    fontFamily: rootStyles.getPropertyValue('--font-family-primary').trim(),
+  };
+}
+
+function getRoleColor(role, colors) {
+  if (role === 'topLeader') {
+    return colors.success;
+  }
+
+  if (role === 'relayLeader') {
+    return colors.warning;
+  }
+
+  return colors.info;
+}
+
+function getBaseLayout(colors, isThreeDimensional = false) {
+  return {
     plot_bgcolor: colors.bg,
     paper_bgcolor: colors.bg,
     font: {
-        color: colors.text,
-        family: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-        size: 11
+      color: colors.text,
+      family: colors.fontFamily,
+      size: 11,
     },
-    margin: { l: 50, r: 20, t: 20, b: 50 },
+    margin: { l: 52, r: 18, t: 18, b: 50 },
     showlegend: false,
     autosize: true,
     responsive: true,
     xaxis: {
-        gridcolor: colors.grid,
-        zerolinecolor: colors.grid,
-        tickfont: { color: colors.text, size: 10 },
-        titlefont: { color: colors.text, size: 12 }
+      gridcolor: colors.grid,
+      zerolinecolor: colors.grid,
+      tickfont: { color: colors.text, size: 10 },
     },
     yaxis: {
-        gridcolor: colors.grid,
-        zerolinecolor: colors.grid,
-        tickfont: { color: colors.text, size: 10 },
-        titlefont: { color: colors.text, size: 12 }
+      gridcolor: colors.grid,
+      zerolinecolor: colors.grid,
+      tickfont: { color: colors.text, size: 10 },
+    },
+    ...(isThreeDimensional
+      ? {}
+      : {
+          hovermode: 'closest',
+        }),
+  };
+}
+
+function buildHoverText(points) {
+  return points.map((point) => {
+    if (point.follow === '0') {
+      return `Airframe ${point.hw_id} · Position ${point.pos_id} · Top leader`;
     }
-});
 
-// Plot configuration for responsive behavior
-const plotConfig = {
-    responsive: true,
-    displayModeBar: false,
-    staticPlot: false,
-    scrollZoom: false
-};
-
-
-function ThreeDPlot({ data, swarmData }) {
-    const colors = getThemeColors();
-
-    const plotData = [
-        {
-            x: data.map(d => d.x),
-            y: data.map(d => d.y),
-            z: data.map(d => d.z),
-            mode: 'markers+text',
-            marker: {
-                size: 12,
-                color: data.map(d => {
-                    if (String(d.follow) === '0') return colors.success;
-                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
-                    else return colors.warning;
-                }),
-                opacity: 0.8,
-                line: { color: colors.text, width: 1 }
-            },
-            type: 'scatter3d',
-            text: data.map(d => d.hw_id.toString()),
-            textposition: 'middle center',
-            textfont: {
-                color: colors.text,
-                size: 10,
-                family: 'Inter, sans-serif'
-            },
-            hovertext: data.map(d => {
-                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
-                return `Drone ${d.hw_id} → Follows ${d.follow}`;
-            }),
-            hoverinfo: 'text',
-        }
-    ];
-
-    const layout = {
-        ...getBaseLayout(colors, true),
-        scene: {
-            bgcolor: colors.bg,
-            camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } },
-            xaxis: {
-                title: { text: 'East (m)', font: { color: colors.text, size: 11 } },
-                gridcolor: colors.grid,
-                tickfont: { color: colors.text, size: 9 }
-            },
-            yaxis: {
-                title: { text: 'North (m)', font: { color: colors.text, size: 11 } },
-                gridcolor: colors.grid,
-                tickfont: { color: colors.text, size: 9 }
-            },
-            zaxis: {
-                title: { text: 'Altitude (m)', font: { color: colors.text, size: 11 } },
-                gridcolor: colors.grid,
-                tickfont: { color: colors.text, size: 9 }
-            }
-        }
-    };
-
-    return (
-        <div className="plot-wrapper plot-3d">
-            <div className="plot-title">3D Formation View</div>
-            <div className="plot-content">
-                <Plot
-                    data={plotData}
-                    layout={layout}
-                    config={plotConfig}
-                    style={{ width: '100%', height: '100%' }}
-                    useResizeHandler={true}
-                />
-            </div>
-        </div>
-    );
+    return `Airframe ${point.hw_id} · Position ${point.pos_id} · Follows ${point.follow}`;
+  });
 }
 
-
-function NorthEastPlot({ data, swarmData }) {
-    const colors = getThemeColors();
-
-    const plotData = [
-        {
-            x: data.map(d => d.x),
-            y: data.map(d => d.y),
-            mode: 'markers+text',
-            marker: {
-                size: 14,
-                color: data.map(d => {
-                    if (String(d.follow) === '0') return colors.success;
-                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
-                    else return colors.warning;
-                }),
-                opacity: 0.8,
-                line: { color: colors.text, width: 1 }
-            },
-            text: data.map(d => d.hw_id.toString()),
-            textposition: 'middle center',
-            textfont: {
-                color: colors.text,
-                size: 9,
-                family: 'Inter, sans-serif'
-            },
-            hovertext: data.map(d => {
-                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
-                return `Drone ${d.hw_id} → Follows ${d.follow}`;
-            }),
-            hoverinfo: 'text',
-        }
-    ];
-
-    const layout = {
-        ...getBaseLayout(colors),
-        xaxis: {
-            ...getBaseLayout(colors).xaxis,
-            title: { text: 'East (m)', font: { color: colors.text, size: 12 } }
-        },
-        yaxis: {
-            ...getBaseLayout(colors).yaxis,
-            title: { text: 'North (m)', font: { color: colors.text, size: 12 } }
-        },
-        hovermode: 'closest'
-    };
-
-    return (
-        <div className="plot-wrapper">
-            <div className="plot-title">North-East View</div>
-            <div className="plot-content">
-                <Plot
-                    data={plotData}
-                    layout={layout}
-                    config={plotConfig}
-                    style={{ width: '100%', height: '100%' }}
-                    useResizeHandler={true}
-                />
-            </div>
-        </div>
-    );
+function buildMarker(points, colors) {
+  return {
+    size: 14,
+    color: points.map((point) => getRoleColor(point.role, colors)),
+    opacity: 0.88,
+    line: {
+      color: colors.text,
+      width: 1,
+    },
+  };
 }
 
-
-function EastAltitudePlot({ data, swarmData }) {
-    const colors = getThemeColors();
-
-    const plotData = [
-        {
-            x: data.map(d => d.x),
-            y: data.map(d => d.z),
-            mode: 'markers+text',
-            marker: {
-                size: 14,
-                color: data.map(d => {
-                    if (String(d.follow) === '0') return colors.success;
-                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
-                    else return colors.warning;
-                }),
-                opacity: 0.8,
-                line: { color: colors.text, width: 1 }
-            },
-            text: data.map(d => d.hw_id.toString()),
-            textposition: 'middle center',
-            textfont: {
-                color: colors.text,
-                size: 9,
-                family: 'Inter, sans-serif'
-            },
-            hovertext: data.map(d => {
-                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
-                return `Drone ${d.hw_id} → Follows ${d.follow}`;
-            }),
-            hoverinfo: 'text',
-        }
-    ];
-
-    const layout = {
-        ...getBaseLayout(colors),
-        xaxis: {
-            ...getBaseLayout(colors).xaxis,
-            title: { text: 'East (m)', font: { color: colors.text, size: 12 } }
-        },
-        yaxis: {
-            ...getBaseLayout(colors).yaxis,
-            title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } }
-        },
-        hovermode: 'closest'
-    };
-
+function PlotFrame({ title, data, layout, config = plotConfig, className = '', hasData = true }) {
+  if (!hasData) {
     return (
-        <div className="plot-wrapper">
-            <div className="plot-title">East-Altitude View</div>
-            <div className="plot-content">
-                <Plot
-                    data={plotData}
-                    layout={layout}
-                    config={plotConfig}
-                    style={{ width: '100%', height: '100%' }}
-                    useResizeHandler={true}
-                />
-            </div>
-        </div>
+      <div className={['plot-wrapper', className].filter(Boolean).join(' ')}>
+        <div className="plot-title">{title}</div>
+        <div className="plot-empty-state">Select a valid top-leader cluster to render formation analysis.</div>
+      </div>
     );
+  }
+
+  return (
+    <div className={['plot-wrapper', className].filter(Boolean).join(' ')}>
+      <div className="plot-title">{title}</div>
+      <div className="plot-content">
+        <Plot
+          data={data}
+          layout={layout}
+          config={config}
+          style={{ width: '100%', height: '100%' }}
+          useResizeHandler
+        />
+      </div>
+    </div>
+  );
 }
 
-function NorthAltitudePlot({ data, swarmData }) {
-    const colors = getThemeColors();
+function ThreeDPlot({ points }) {
+  const colors = getThemeColors();
 
-    const plotData = [
-        {
-            x: data.map(d => d.y),
-            y: data.map(d => d.z),
-            mode: 'markers+text',
-            marker: {
-                size: 14,
-                color: data.map(d => {
-                    if (String(d.follow) === '0') return colors.success;
-                    else if (swarmData.some(drone => String(drone.follow) === String(d.hw_id)) && String(d.follow) !== '0') return colors.warning;
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
-                    else return colors.warning;
-                }),
-                opacity: 0.8,
-                line: { color: colors.text, width: 1 }
-            },
-            text: data.map(d => d.hw_id.toString()),
-            textposition: 'middle center',
-            textfont: {
-                color: colors.text,
-                size: 9,
-                family: 'Inter, sans-serif'
-            },
-            hovertext: data.map(d => {
-                if (String(d.follow) === '0') return `Top Leader: ${d.hw_id}`;
-                return `Drone ${d.hw_id} → Follows ${d.follow}`;
-            }),
-            hoverinfo: 'text',
-        }
-    ];
+  const data = [
+    {
+      x: points.map((point) => point.x),
+      y: points.map((point) => point.y),
+      z: points.map((point) => point.z),
+      mode: 'markers+text',
+      type: 'scatter3d',
+      marker: {
+        ...buildMarker(points, colors),
+        size: 11,
+      },
+      text: points.map((point) => `A${point.hw_id}`),
+      textposition: 'middle center',
+      textfont: {
+        color: colors.text,
+        size: 10,
+        family: colors.fontFamily,
+      },
+      hovertext: buildHoverText(points),
+      hoverinfo: 'text',
+    },
+  ];
 
-    const layout = {
-        ...getBaseLayout(colors),
-        xaxis: {
-            ...getBaseLayout(colors).xaxis,
-            title: { text: 'North (m)', font: { color: colors.text, size: 12 } }
-        },
-        yaxis: {
-            ...getBaseLayout(colors).yaxis,
-            title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } }
-        },
-        hovermode: 'closest'
-    };
+  const layout = {
+    ...getBaseLayout(colors, true),
+    scene: {
+      bgcolor: colors.bg,
+      camera: { eye: { x: 1.45, y: 1.4, z: 1.15 } },
+      xaxis: {
+        title: { text: 'East (m)', font: { color: colors.text, size: 11 } },
+        gridcolor: colors.grid,
+        tickfont: { color: colors.text, size: 9 },
+      },
+      yaxis: {
+        title: { text: 'North (m)', font: { color: colors.text, size: 11 } },
+        gridcolor: colors.grid,
+        tickfont: { color: colors.text, size: 9 },
+      },
+      zaxis: {
+        title: { text: 'Altitude (m)', font: { color: colors.text, size: 11 } },
+        gridcolor: colors.grid,
+        tickfont: { color: colors.text, size: 9 },
+      },
+    },
+  };
 
-    return (
-        <div className="plot-wrapper">
-            <div className="plot-title">North-Altitude View</div>
-            <div className="plot-content">
-                <Plot
-                    data={plotData}
-                    layout={layout}
-                    config={plotConfig}
-                    style={{ width: '100%', height: '100%' }}
-                    useResizeHandler={true}
-                />
-            </div>
-        </div>
-    );
+  return <PlotFrame title="3D Cluster Formation" data={data} layout={layout} className="plot-3d" hasData={points.length > 0} />;
 }
 
+function NorthEastPlot({ points }) {
+  const colors = getThemeColors();
 
-function SwarmPlots({ swarmData }) {
-    const [selectedCluster, setSelectedCluster] = useState(undefined);
-    const [processedData, setProcessedData] = useState([]);
+  const data = [
+    {
+      x: points.map((point) => point.x),
+      y: points.map((point) => point.y),
+      mode: 'markers+text',
+      marker: buildMarker(points, colors),
+      text: points.map((point) => `A${point.hw_id}`),
+      textposition: 'middle center',
+      textfont: {
+        color: colors.text,
+        size: 9,
+        family: colors.fontFamily,
+      },
+      hovertext: buildHoverText(points),
+      hoverinfo: 'text',
+    },
+  ];
 
-    const leaders = swarmData.filter(drone =>
-        String(drone.follow) === '0' || swarmData.some(d => String(d.follow) === String(drone.hw_id))
+  const layout = {
+    ...getBaseLayout(colors),
+    xaxis: {
+      ...getBaseLayout(colors).xaxis,
+      title: { text: 'East (m)', font: { color: colors.text, size: 12 } },
+    },
+    yaxis: {
+      ...getBaseLayout(colors).yaxis,
+      title: { text: 'North (m)', font: { color: colors.text, size: 12 } },
+    },
+  };
+
+  return <PlotFrame title="North-East View" data={data} layout={layout} hasData={points.length > 0} />;
+}
+
+function EastAltitudePlot({ points }) {
+  const colors = getThemeColors();
+
+  const data = [
+    {
+      x: points.map((point) => point.x),
+      y: points.map((point) => point.z),
+      mode: 'markers+text',
+      marker: buildMarker(points, colors),
+      text: points.map((point) => `A${point.hw_id}`),
+      textposition: 'middle center',
+      textfont: {
+        color: colors.text,
+        size: 9,
+        family: colors.fontFamily,
+      },
+      hovertext: buildHoverText(points),
+      hoverinfo: 'text',
+    },
+  ];
+
+  const layout = {
+    ...getBaseLayout(colors),
+    xaxis: {
+      ...getBaseLayout(colors).xaxis,
+      title: { text: 'East (m)', font: { color: colors.text, size: 12 } },
+    },
+    yaxis: {
+      ...getBaseLayout(colors).yaxis,
+      title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } },
+    },
+  };
+
+  return <PlotFrame title="East-Altitude View" data={data} layout={layout} hasData={points.length > 0} />;
+}
+
+function NorthAltitudePlot({ points }) {
+  const colors = getThemeColors();
+
+  const data = [
+    {
+      x: points.map((point) => point.y),
+      y: points.map((point) => point.z),
+      mode: 'markers+text',
+      marker: buildMarker(points, colors),
+      text: points.map((point) => `A${point.hw_id}`),
+      textposition: 'middle center',
+      textfont: {
+        color: colors.text,
+        size: 9,
+        family: colors.fontFamily,
+      },
+      hovertext: buildHoverText(points),
+      hoverinfo: 'text',
+    },
+  ];
+
+  const layout = {
+    ...getBaseLayout(colors),
+    xaxis: {
+      ...getBaseLayout(colors).xaxis,
+      title: { text: 'North (m)', font: { color: colors.text, size: 12 } },
+    },
+    yaxis: {
+      ...getBaseLayout(colors).yaxis,
+      title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } },
+    },
+  };
+
+  return <PlotFrame title="North-Altitude View" data={data} layout={layout} hasData={points.length > 0} />;
+}
+
+function SwarmPlots({ swarmData, configData, selectedClusterId }) {
+  const [activeClusterId, setActiveClusterId] = useState(selectedClusterId || null);
+  const { data, clusters } = calculateClusterPlotData(swarmData, configData, activeClusterId);
+
+  useEffect(() => {
+    if (!clusters.length) {
+      if (activeClusterId !== null) {
+        setActiveClusterId(null);
+      }
+      return;
+    }
+
+    const nextClusterId = (
+      (selectedClusterId && clusters.some((cluster) => cluster.id === selectedClusterId) && selectedClusterId)
+      || (activeClusterId && clusters.some((cluster) => cluster.id === activeClusterId) && activeClusterId)
+      || clusters[0].id
     );
 
-    const getCumulativeOffset = (drone) => {
-        if (String(drone.follow) === '0') {
-            return {
-                x: 0,
-                y: 0,
-                z: 0,
-                heading: 0  // Assume heading is zero for top leaders
-            };
-        } else {
-            const leader = swarmData.find(d => String(d.hw_id) === String(drone.follow));
-            const leaderOffset = getCumulativeOffset(leader);
+    if (nextClusterId !== activeClusterId) {
+      setActiveClusterId(nextClusterId);
+    }
+  }, [activeClusterId, clusters, selectedClusterId]);
 
-            // Parse offsets
-            let offset_x = parseFloat(drone.offset_x);
-            let offset_y = parseFloat(drone.offset_y);
-            let offset_z = parseFloat(drone.offset_z);
-
-            if (drone.frame === 'body') {
-                // Convert body coordinates to NEA (assuming leader heading is zero)
-                const theta = leaderOffset.heading * Math.PI / 180; // Convert heading to radians
-                const cosTheta = Math.cos(theta);
-                const sinTheta = Math.sin(theta);
-
-                // Rotate the offsets
-                const rotated_x = offset_x * cosTheta - offset_y * sinTheta;
-                const rotated_y = offset_x * sinTheta + offset_y * cosTheta;
-
-                offset_x = rotated_x;
-                offset_y = rotated_y;
-            }
-
-            return {
-                x: leaderOffset.x + offset_y,
-                y: leaderOffset.y + offset_x,
-                z: leaderOffset.z + offset_z,
-                heading: leaderOffset.heading  // Propagate heading
-            };
-        }
-    };
-
-    const processSwarmData = (selectedLeaderId) => {
-        const selectedLeader = swarmData.find(drone => drone.hw_id === selectedLeaderId);
-
-        // Position the selected leader at the origin
-        let processed = [{ ...selectedLeader, x: 0, y: 0, z: 0 }];
-
-        swarmData.forEach(drone => {
-            if (drone.hw_id !== selectedLeaderId) {
-                const position = getCumulativeOffset(drone);
-                processed.push({
-                    ...drone,
-                    x: position.x,
-                    y: position.y,
-                    z: position.z
-                });
-            }
-        });
-
-        setProcessedData(processed);
-    };
-
-    useEffect(() => {
-        console.log("Swarm data updated:", swarmData);
-    }, [swarmData]);
-
-    useEffect(() => {
-        if (swarmData.length) {
-            const leadersList = swarmData.filter(drone =>
-                String(drone.follow) === '0' || swarmData.some(d => String(d.follow) === String(drone.hw_id))
-            );
-
-            if (leadersList.length) {
-                setSelectedCluster(leadersList[0]?.hw_id);
-            }
-        }
-    }, [swarmData]);
-
-    useEffect(() => {
-        if (selectedCluster) {
-            processSwarmData(selectedCluster);
-        }
-    }, [selectedCluster]);
-
-    return (
-        <div className="swarm-plots-container">
-            <div className="cluster-selection">
-                <label>Select Cluster: </label>
-                <select
-                    value={selectedCluster || ''}
-                    onChange={e => setSelectedCluster(e.target.value)}
-                >
-                    {leaders.map(leader => (
-                        <option key={leader.hw_id} value={leader.hw_id}>
-                            {leader.hw_id} - {String(leader.follow) === '0' ? 'Top Leader' : 'Intermediate Leader'}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div className="plots-grid">
-                <ThreeDPlot data={processedData} swarmData={swarmData} />
-                <NorthEastPlot data={processedData} swarmData={swarmData} />
-                <EastAltitudePlot data={processedData} swarmData={swarmData} />
-                <NorthAltitudePlot data={processedData} swarmData={swarmData} />
-            </div>
+  return (
+    <div className="swarm-plots-container">
+      <div className="cluster-selection">
+        <div className="cluster-selection__text">
+          <strong>Formation Analysis Cluster</strong>
+          <span>Preview offsets relative to the selected top leader.</span>
         </div>
-    );
+        <select
+          value={activeClusterId || ''}
+          onChange={(event) => setActiveClusterId(event.target.value)}
+          disabled={clusters.length === 0}
+        >
+          {clusters.length === 0 ? (
+            <option value="">No valid cluster available</option>
+          ) : (
+            clusters.map((cluster) => (
+              <option key={cluster.id} value={cluster.id}>
+                {cluster.title} · {cluster.counts.total} airframes
+              </option>
+            ))
+          )}
+        </select>
+      </div>
+
+      <div className="plots-grid">
+        <ThreeDPlot points={data} />
+        <NorthEastPlot points={data} />
+        <EastAltitudePlot points={data} />
+        <NorthAltitudePlot points={data} />
+      </div>
+    </div>
+  );
 }
 
 export default SwarmPlots;
