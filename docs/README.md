@@ -27,9 +27,9 @@ Start here to get your first drone show simulation running:
 
 1. **[SITL Comprehensive Guide](guides/sitl-comprehensive.md)** - Recommended for first-time users
    - Complete step-by-step SITL setup
-   - Network configuration, Docker setup, dashboard startup
+   - Mega image download, `7z` extraction, Docker setup, dashboard startup
 
-2. **[Deployment Quick Reference](guides/deployment-quick-reference.md)** - Essential commands only
+2. **[Advanced SITL Guide](guides/advanced-sitl.md)** - Use this if you maintain your own fork or custom Docker image
 
 ### Choose Your Path
 
@@ -51,7 +51,6 @@ Start here to get your first drone show simulation running:
 |-------|-------------|----------|
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
-| **[Deployment Quick Reference](guides/deployment-quick-reference.md)** | Quick command reference for deployment | All users |
 
 ### Configuration
 

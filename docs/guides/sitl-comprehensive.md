@@ -15,11 +15,11 @@ This document provides a complete, all-in-one framework for setting up and runni
 - **Decentralized Drone Shows** (offline, pre-planned trajectories), and
 - **Live, Cooperative Swarm Missions** (real-time, leader–follower clustering with dynamic role changes).
 
-MDS 3.5 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released September 2025). It supports:
+MDS 5.0 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository. It supports:
 - **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
 - **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
 
-In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in. Both drone-show artists and swarm-mission engineers will find this guide relevant for taking advantage of MDS 3.5's unified feature set.
+In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in.
 
 For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutorial playlist linked in the [GitHub repository](https://github.com/alireza787b/mavsdk_drone_show).
 
@@ -87,28 +87,31 @@ ssh root@your_server_ip
 
 ### Package and Software Installation
 
-First, ensure that your system package list and Python3 pip package are up-to-date by running the following commands:
+First, install the base packages required for the SITL workflow, including the Mega downloader and `7z` extraction tools used for the distributed Docker image:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip tmux lsof git
+sudo apt install -y python3 python3-venv python3-pip tmux lsof git megatools p7zip-full
 ```
 
 #### Downloading the Custom Drone Image
 
-Download the latest SITL drone image from the [MDS Releases page](https://github.com/alireza787b/mavsdk_drone_show/releases) or the link provided in the repository README. The image file is named `drone-template_v<VERSION>.tar` (e.g., `drone-template_v3.tar`).
+The current SITL image is **not** published in GitHub Releases yet. For now, download the compressed archive from Mega, extract it locally, then load the resulting tar into Docker.
 
 ```bash
 cd ~
-wget <DOWNLOAD_URL> -O drone-template.tar
+megadl 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE'
+7z x drone-template-v4.7z
 ```
 
-> **Example** (v3 image via Mediafire):
-> ```bash
-> # If direct download doesn't work, open the link in a browser,
-> # start the download, pause it, and copy the actual download URL:
-> wget "http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar" -O drone-template.tar
-> ```
+After extraction you should have:
+- `drone-template-v4.7z` - compressed archive from Mega
+- `drone-template-v4.tar` - Docker image tar produced by `7z`
+
+> **Notes**
+> - `megadl` comes from the `megatools` package and works with this public link without logging in.
+> - If you need authenticated transfers or account-based resume/management for large files, use the official MEGAcmd tools (`mega-login`, `mega-get`) instead.
+> - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
 
 ### Docker Installation
 
@@ -118,21 +121,21 @@ Install Docker:
 sudo apt install docker.io
 ```
 
-Load the downloaded image into Docker:
+Load the extracted image into Docker:
 
 ```bash
-docker load < drone-template.tar
+docker load < drone-template-v4.tar
 ```
 
-This outputs something like: `Loaded image: drone-template:v3.0`
+This should output something like: `Loaded image: drone-template:v4.0`
 
 Tag it as `latest` so the drone creation scripts can find it:
 
 ```bash
-docker tag drone-template:v3.0 drone-template:latest
+docker tag drone-template:v4.0 drone-template:latest
 ```
 
-> **Important:** Replace `v3.0` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required.
+> **Important:** Replace `v4.0` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required.
 
 #### Image Features and Components
 
@@ -166,7 +169,7 @@ docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always \
   -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
 ```
 
-YoAccess Portainer via the browser using your domain, IP address, or the reverse DNS provided by your hosting service like Linode. e.g., `https://drone.YOUR_DOMAIN.com:9443`
+Access Portainer via the browser using your domain, IP address, or the reverse DNS provided by your hosting service like Linode. e.g., `https://drone.YOUR_DOMAIN.com:9443`
 
 ## Drone Configuration and Setup
 
@@ -226,7 +229,7 @@ You can configure your mission, swarm design, or drone show using SkyBrush or si
 
 Remember, if you want to make any changes to these configurations, you should push those changes to your own forked GitHub repo; otherwise, none of these settings will take effect and will be overwritten (pulled) from the main MDS repo.
 
-Certainly! Below is the updated **Run Drone Instances** section for your README. It is structured to cater to both novice users and advanced users who wish to deploy drones across multiple servers (VPS). The section includes clear instructions, detailed explanations, and links to additional resources for advanced configurations.
+The following section covers the standard flow for launching SITL drone instances, with an optional note for multi-server scaling.
 
 ---
 

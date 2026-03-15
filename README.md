@@ -140,15 +140,12 @@ The fastest way to try MDS is with our SITL (Software-In-The-Loop) demo:
 📖 **[SITL Demo Guide](docs/guides/sitl-comprehensive.md)** - Complete step-by-step setup
 
 This guide covers:
-- Docker image pull/load commands
-- Environment setup (`setup_environment.sh`, `create_dockers.sh`)
+- Mega image download, `7z` extraction, and `docker load` commands
+- Container setup (`multiple_sitl/create_dockers.sh`, `multiple_sitl/startup_sitl.sh`)
 - Network, MAVLink Router, Netbird VPN configuration
 - React dashboard startup (`linux_dashboard_start.sh --sitl`)
 - Uploading offline trajectories or launching live swarm missions
 - 3D Trajectory Planning setup (add Mapbox access token to `.env`)
-
-**Quick Start Option:**
-📖 **[Deployment Quick Reference](docs/guides/deployment-quick-reference.md)** - Essential commands only
 
 ### Advanced Configuration
 

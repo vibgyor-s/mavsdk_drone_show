@@ -8,6 +8,8 @@ This guide is for advanced users who want to use their own forked repository or 
 > - Good understanding of Git, Docker, and Linux
 > - Experience with environment variables and bash commands
 > - Ability to maintain forked repositories
+> - `p7zip-full` for working with the distributed `.7z` image archives
+> - `pv` if you want progress output while exporting large Docker images
 
 > **⚠️ Important Warning:**
 > Using custom repositories disconnects you from automatic MDS updates. You'll need to manually sync your fork with upstream changes.
@@ -221,27 +223,32 @@ git pull origin your-branch
 exit
 
 # Commit container to new image version
-docker commit -m "Updated custom drone image" my-drone-dev drone-template:v3.1
+docker commit -m "Updated custom drone image" my-drone-dev drone-template:v4.0
 
 # Tag as latest (optional)
-docker tag drone-template:v3.1 drone-template:latest
+docker tag drone-template:v4.0 drone-template:latest
 ```
 
 ### Step 4: Export Container (Optional)
 
 ```bash
-# Export to tar file for backup/distribution
-docker save -o ~/drone-template_v3.tar drone-template:v3.1
+# Install optional helper tools if needed
+sudo apt install -y p7zip-full pv
 
-# Or compress with 7z for smaller size
-docker save drone-template:v3.1 | 7z a -si ~/drone-template_v3.7z
+cd ~
+
+# Export to tar file for backup/distribution
+docker save drone-template:v4.0 | pv > drone-template-v4.tar
+
+# Optional: compress the tar afterwards for storage or sharing
+7z a drone-template-v4.7z drone-template-v4.tar
 ```
 
 ### Step 5: Use Your Custom Image for Real SITL Operations
 
 ```bash
 # Set your custom image for future SITL deployments
-export MDS_DOCKER_IMAGE="drone-template:v3.1"
+export MDS_DOCKER_IMAGE="drone-template:v4.0"
 
 # NOW use create_dockers.sh for actual SITL drone operations
 # (This will properly generate hwid and configure each drone)
@@ -260,8 +267,8 @@ git pull
 
 # Exit and commit new version
 exit
-docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v3.2
-docker tag drone-template:v3.2 drone-template:latest
+docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v4.1
+docker tag drone-template:v4.1 drone-template:latest
 
 # Clean up old containers
 docker rm my-drone-dev my-drone-dev-v2
