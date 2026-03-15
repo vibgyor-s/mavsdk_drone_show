@@ -88,11 +88,12 @@ def validate_and_process_config(config_data, sim_mode=None):
 
     This function:
     1. Validates trajectory CSV exists for each pos_id
-    2. Detects duplicate pos_id values (collision risk)
-    3. Identifies missing trajectory files
-    4. Tracks role swaps (hw_id ≠ pos_id)
-    5. Removes x,y fields from config (no longer stored in config)
-    6. Returns comprehensive validation report
+    2. Detects duplicate hw_id values (invalid identity mapping)
+    3. Detects duplicate pos_id values (collision risk)
+    4. Identifies missing trajectory files
+    5. Tracks role swaps (hw_id ≠ pos_id)
+    6. Removes x,y fields from config (no longer stored in config)
+    7. Returns comprehensive validation report
 
     NOTE: x,y positions are NOT stored in config. They are always fetched
     from trajectory CSV files (single source of truth). Use get_all_drone_positions()
@@ -114,6 +115,7 @@ def validate_and_process_config(config_data, sim_mode=None):
     # Initialize tracking structures
     updated_config = []
     warnings = {
+        "duplicate_hw_ids": [],
         "duplicates": [],
         "missing_trajectories": [],
         "role_swaps": []
@@ -123,6 +125,7 @@ def validate_and_process_config(config_data, sim_mode=None):
     }
 
     # Track pos_id usage for duplicate detection
+    hw_id_usage = defaultdict(list)
     pos_id_usage = defaultdict(list)
 
     # Load original config for comparison
@@ -143,6 +146,7 @@ def validate_and_process_config(config_data, sim_mode=None):
                 pos_id = int(pos_id)
 
             # Track pos_id usage for duplicate detection
+            hw_id_usage[hw_id].append(pos_id)
             pos_id_usage[pos_id].append(hw_id)
 
             # Track pos_id changes
@@ -188,6 +192,15 @@ def validate_and_process_config(config_data, sim_mode=None):
             updated_config.append(dict(drone))
 
     # Detect duplicate pos_id values
+    for hw_id, pos_ids in hw_id_usage.items():
+        if len(pos_ids) > 1:
+            warnings["duplicate_hw_ids"].append({
+                "hw_id": hw_id,
+                "pos_ids": pos_ids,
+                "message": f"INVALID CONFIG: hw_id {hw_id} is defined multiple times"
+            })
+
+    # Detect duplicate pos_id values
     for pos_id, hw_ids in pos_id_usage.items():
         if len(hw_ids) > 1:
             warnings["duplicates"].append({
@@ -205,6 +218,7 @@ def validate_and_process_config(config_data, sim_mode=None):
         "summary": {
             "total_drones": len(updated_config),
             "pos_id_changes_count": len(changes["pos_id_changes"]),
+            "duplicate_hw_ids_count": len(warnings["duplicate_hw_ids"]),
             "duplicates_count": len(warnings["duplicates"]),
             "missing_trajectories_count": len(warnings["missing_trajectories"]),
             "role_swaps_count": len(warnings["role_swaps"])

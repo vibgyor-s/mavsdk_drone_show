@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ReplaceDroneWizard.css';
+import { getHeartbeatTimestamp, normalizeComparableId } from '../utilities/missionIdentityUtils';
 
 /**
  * ReplaceDroneWizard — 3-step modal wizard for replacing a failed drone.
@@ -18,7 +19,7 @@ export default function ReplaceDroneWizard({
   preselectedHwId,
 }) {
   const [step, setStep] = useState(1);
-  const [selectedHwId, setSelectedHwId] = useState(preselectedHwId || '');
+  const [selectedHwId, setSelectedHwId] = useState(normalizeComparableId(preselectedHwId));
   const [newHwId, setNewHwId] = useState('');
   const [newIp, setNewIp] = useState('');
   const [newPort, setNewPort] = useState('');
@@ -27,7 +28,7 @@ export default function ReplaceDroneWizard({
   // Initialize preselected drone on open
   React.useEffect(() => {
     if (isOpen && preselectedHwId) {
-      setSelectedHwId(preselectedHwId);
+      setSelectedHwId(normalizeComparableId(preselectedHwId));
     }
   }, [isOpen, preselectedHwId]);
 
@@ -35,7 +36,7 @@ export default function ReplaceDroneWizard({
   React.useEffect(() => {
     if (!isOpen) {
       setStep(1);
-      setSelectedHwId(preselectedHwId || '');
+      setSelectedHwId(normalizeComparableId(preselectedHwId));
       setNewHwId('');
       setNewIp('');
       setNewPort('');
@@ -45,11 +46,11 @@ export default function ReplaceDroneWizard({
 
   // Spare drones: detected via heartbeat but NOT in configData
   const spareDrones = useMemo(() => {
-    const configHwIds = new Set(configData.map((d) => d.hw_id));
+    const configHwIds = new Set(configData.map((drone) => normalizeComparableId(drone.hw_id)).filter(Boolean));
     return Object.entries(heartbeats)
-      .filter(([hwId]) => !configHwIds.has(hwId))
+      .filter(([hwId]) => !configHwIds.has(normalizeComparableId(hwId)))
       .map(([hwId, hb]) => ({
-        hw_id: hwId,
+        hw_id: normalizeComparableId(hwId),
         ip: hb.ip || '',
         port: hb.mavlink_port || '',
       }));
@@ -57,11 +58,11 @@ export default function ReplaceDroneWizard({
 
   // Helper: get heartbeat status label for a drone
   const getStatusLabel = (hwId) => {
-    const hb = heartbeats[hwId];
+    const hb = heartbeats[normalizeComparableId(hwId)];
     if (!hb) return 'No heartbeat';
-    const ts = hb.last_heartbeat || hb.timestamp;
-    if (typeof ts !== 'number') return 'No heartbeat';
-    const ageSec = Math.floor((Date.now() - ts) / 1000);
+    const timestamp = getHeartbeatTimestamp(hb);
+    if (timestamp === null) return 'No heartbeat';
+    const ageSec = Math.floor((Date.now() - timestamp) / 1000);
     if (ageSec < 20) return 'Online';
     if (ageSec < 60) return 'Stale';
     return 'Offline';
@@ -73,11 +74,11 @@ export default function ReplaceDroneWizard({
   };
 
   // The drone being replaced
-  const failedDrone = configData.find((d) => d.hw_id === selectedHwId);
+  const failedDrone = configData.find((drone) => normalizeComparableId(drone.hw_id) === normalizeComparableId(selectedHwId));
 
   // When user selects a spare drone from list
   const handleSelectSpare = (spare) => {
-    setNewHwId(spare.hw_id);
+    setNewHwId(normalizeComparableId(spare.hw_id));
     setNewIp(spare.ip);
     setNewPort(spare.port);
     setUseManualEntry(false);
@@ -85,20 +86,27 @@ export default function ReplaceDroneWizard({
 
   // Confirm and apply
   const handleConfirm = () => {
-    if (!failedDrone || !newHwId) return;
+    const normalizedSelectedHwId = normalizeComparableId(selectedHwId);
+    const normalizedNewHwId = normalizeComparableId(newHwId);
+
+    if (!failedDrone || !normalizedNewHwId) return;
 
     // Prevent duplicate hw_id conflicts
-    const existingDrone = configData.find(d => d.hw_id === newHwId && d.hw_id !== selectedHwId);
+    const existingDrone = configData.find(
+      (drone) =>
+        normalizeComparableId(drone.hw_id) === normalizedNewHwId &&
+        normalizeComparableId(drone.hw_id) !== normalizedSelectedHwId
+    );
     if (existingDrone) {
-      alert(`Hardware ID ${newHwId} is already assigned to Position ${existingDrone.pos_id}. Choose a different ID.`);
+      alert(`Hardware ID ${normalizedNewHwId} is already assigned to Show Slot ${existingDrone.pos_id}. Choose a different ID.`);
       return;
     }
 
     const updatedConfig = configData.map((drone) => {
-      if (drone.hw_id !== selectedHwId) return drone;
+      if (normalizeComparableId(drone.hw_id) !== normalizedSelectedHwId) return drone;
       return {
         ...drone,
-        hw_id: newHwId,
+        hw_id: normalizedNewHwId,
         ip: newIp || drone.ip,
         mavlink_port: newPort || drone.mavlink_port,
         // pos_id stays the same — that is the point of replacement
@@ -143,21 +151,21 @@ export default function ReplaceDroneWizard({
           <div className="wizard-body">
             <h3>Step 1: Select the Failed Drone</h3>
             <p className="wizard-description">
-              Choose which drone is being replaced. Offline drones are highlighted.
+              Choose which airframe is being replaced. Offline aircraft are highlighted.
             </p>
             <div className="drone-select-list">
               {configData.map((drone) => {
                 const status = getStatusLabel(drone.hw_id);
                 const offline = isOffline(drone.hw_id);
-                const selected = selectedHwId === drone.hw_id;
+                const selected = normalizeComparableId(selectedHwId) === normalizeComparableId(drone.hw_id);
                 return (
                   <div
                     key={drone.hw_id}
                     className={`drone-select-item ${selected ? 'selected' : ''} ${offline ? 'offline-highlight' : ''}`}
-                    onClick={() => setSelectedHwId(drone.hw_id)}
+                    onClick={() => setSelectedHwId(normalizeComparableId(drone.hw_id))}
                   >
                     <div className="drone-select-info">
-                      <strong>Position {drone.pos_id}</strong> (HW {drone.hw_id})
+                      <strong>Show Slot {drone.pos_id}</strong> · Airframe {drone.hw_id}
                     </div>
                     <div className={`drone-select-status ${offline ? 'offline' : 'online'}`}>
                       {status}
@@ -174,7 +182,7 @@ export default function ReplaceDroneWizard({
           <div className="wizard-body">
             <h3>Step 2: Select Replacement Drone</h3>
             <p className="wizard-description">
-              Enter a new hardware ID or select a detected spare drone.
+              Keep the failed airframe&apos;s show slot and assign it to another hardware ID.
             </p>
 
             {/* Option A: Manual Entry */}
@@ -194,7 +202,7 @@ export default function ReplaceDroneWizard({
                     <input
                       type="text"
                       value={newHwId}
-                      onChange={(e) => setNewHwId(e.target.value)}
+                      onChange={(e) => setNewHwId(normalizeComparableId(e.target.value))}
                       placeholder="e.g., 42"
                       className="wizard-input"
                     />
@@ -239,10 +247,10 @@ export default function ReplaceDroneWizard({
                     {spareDrones.map((spare) => (
                       <div
                         key={spare.hw_id}
-                        className={`spare-drone-item ${newHwId === spare.hw_id ? 'selected' : ''}`}
+                        className={`spare-drone-item ${normalizeComparableId(newHwId) === normalizeComparableId(spare.hw_id) ? 'selected' : ''}`}
                         onClick={() => handleSelectSpare(spare)}
                       >
-                        <strong>HW {spare.hw_id}</strong>
+                        <strong>Airframe {spare.hw_id}</strong>
                         {spare.ip && <span className="spare-detail">IP: {spare.ip}</span>}
                         {spare.port && <span className="spare-detail">Port: {spare.port}</span>}
                       </div>
@@ -288,17 +296,17 @@ export default function ReplaceDroneWizard({
 
             <div className="summary-card">
               <div className="summary-row">
-                <span className="summary-label">Position transferred:</span>
+                <span className="summary-label">Show slot transferred:</span>
                 <span className="summary-value">{failedDrone.pos_id}</span>
               </div>
               <div className="summary-divider" />
               <div className="summary-row">
                 <span className="summary-label">From (being replaced):</span>
-                <span className="summary-value summary-old">Hardware {selectedHwId}</span>
+                <span className="summary-value summary-old">Airframe {selectedHwId}</span>
               </div>
               <div className="summary-row">
                 <span className="summary-label">To (replacement):</span>
-                <span className="summary-value summary-new">Hardware {newHwId}</span>
+                <span className="summary-value summary-new">Airframe {newHwId}</span>
               </div>
               <div className="summary-divider" />
               <div className="summary-row">
@@ -355,5 +363,5 @@ ReplaceDroneWizard.propTypes = {
   configData: PropTypes.array.isRequired,
   heartbeats: PropTypes.object.isRequired,
   onSave: PropTypes.func.isRequired,
-  preselectedHwId: PropTypes.string,
+  preselectedHwId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };

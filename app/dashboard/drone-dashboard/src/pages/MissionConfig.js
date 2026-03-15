@@ -28,6 +28,16 @@ import {
   exportConfigCSV,
   validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
+import {
+  buildSuggestedHwIds,
+  compareMissionIds,
+  getDuplicateAssignments,
+  getOnlineDroneCount,
+  getRoleSwaps,
+  normalizeComparableId,
+  normalizeDroneConfigData,
+  normalizeDroneConfigEntry,
+} from '../utilities/missionIdentityUtils';
 import { toast } from 'react-toastify';
 import { getBackendURL } from '../utilities/utilities';
 
@@ -82,6 +92,10 @@ const MissionConfig = () => {
   const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
   const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
 
+  const applyNormalizedConfigData = (nextConfig) => {
+    setConfigData(normalizeDroneConfigData(nextConfig));
+  };
+
   // -----------------------------------------------------
   // Data Fetching using custom hooks
   // -----------------------------------------------------
@@ -98,20 +112,17 @@ const MissionConfig = () => {
   // Derived Data & Helpers
   // -----------------------------------------------------
   // Note: x,y positions come from trajectory files, not config.json
-
-  const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
-  const availableHwIds = Array.from(
-    { length: maxHwId },
-    (_, i) => (i + 1).toString()
-  ).filter((id) => !allHwIds.has(id));
+  const availableHwIds = buildSuggestedHwIds(configData);
+  const roleSwaps = getRoleSwaps(configData);
+  const { duplicateHwIds, duplicatePosIds } = getDuplicateAssignments(configData);
+  const onlineDroneCount = getOnlineDroneCount(heartbeats);
 
   // -----------------------------------------------------
   // Effects: Update local state when data is fetched
   // -----------------------------------------------------
   useEffect(() => {
     if (configDataFetched) {
-      setConfigData(configDataFetched);
+      applyNormalizedConfigData(configDataFetched);
     }
   }, [configDataFetched]);
 
@@ -160,8 +171,11 @@ const MissionConfig = () => {
     if (heartbeatsFetched && heartbeatsFetched.heartbeats) {
       // Convert heartbeats array to dict keyed by hw_id for easy lookup
       const heartbeatsDict = {};
-      heartbeatsFetched.heartbeats.forEach(hb => {
-        heartbeatsDict[hb.hw_id] = hb;
+      heartbeatsFetched.heartbeats.forEach((hb) => {
+        const normalizedHwId = normalizeComparableId(hb.hw_id);
+        if (normalizedHwId) {
+          heartbeatsDict[normalizedHwId] = hb;
+        }
       });
       setHeartbeats(heartbeatsDict);
     }
@@ -178,22 +192,33 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   useEffect(() => {
     const heartbeatHwIds = Object.keys(heartbeats);
+    const configuredHwIds = new Set(
+      configData.map((drone) => normalizeComparableId(drone.hw_id)).filter(Boolean)
+    );
 
     const newDrones = [];
     for (const hbHwId of heartbeatHwIds) {
-      if (!configData.some((d) => d.hw_id === hbHwId)) {
-        const hb = heartbeats[hbHwId];
-        newDrones.push({
-          hw_id: hbHwId,
-          pos_id: hb.pos_id || hbHwId,
-          ip: hb.ip || '',
-          x: '0',
-          y: '0',
-          mavlink_port: (14550 + parseInt(hbHwId, 10)).toString(),
-          serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
-          baudrate: '57600',           // Standard baudrate
-          isNew: true,
-        });
+      const normalizedHwId = normalizeComparableId(hbHwId);
+      if (!normalizedHwId || configuredHwIds.has(normalizedHwId)) {
+        continue;
+      }
+
+      const hb = heartbeats[hbHwId];
+      const normalizedDrone = normalizeDroneConfigEntry({
+        hw_id: normalizedHwId,
+        pos_id: hb.pos_id || normalizedHwId,
+        ip: hb.ip || '',
+        x: '0',
+        y: '0',
+        mavlink_port: String(14550 + parseInt(normalizedHwId, 10)),
+        serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
+        baudrate: '57600',           // Standard baudrate
+        isNew: true,
+      });
+
+      if (normalizedDrone) {
+        newDrones.push(normalizedDrone);
+        configuredHwIds.add(normalizedHwId);
       }
     }
 
@@ -208,8 +233,20 @@ const MissionConfig = () => {
   // CRUD operations
   // -----------------------------------------------------
   const saveChanges = (originalHwId, updatedData) => {
+    const normalizedOriginalHwId = normalizeComparableId(originalHwId);
+    const normalizedUpdatedDrone = normalizeDroneConfigEntry(updatedData);
+
+    if (!normalizedUpdatedDrone) {
+      toast.error('Invalid drone configuration. Hardware ID is required.');
+      return;
+    }
+
     if (
-      configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)
+      configData.some(
+        (drone) =>
+          normalizeComparableId(drone.hw_id) === normalizedUpdatedDrone.hw_id &&
+          normalizeComparableId(drone.hw_id) !== normalizedOriginalHwId
+      )
     ) {
       alert('The selected Hardware ID is already in use. Please choose another one.');
       return;
@@ -217,22 +254,24 @@ const MissionConfig = () => {
 
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
-        drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
+        normalizeComparableId(drone.hw_id) === normalizedOriginalHwId
+          ? { ...normalizedUpdatedDrone, isNew: false }
+          : drone
       )
     );
     setEditingDroneId(null);
-    toast.success(`Drone ${originalHwId} updated successfully.`);
+    toast.success(`Airframe ${normalizedOriginalHwId} updated successfully.`);
   };
 
   const addNewDrone = () => {
-    const newHwId = availableHwIds[0]?.toString() || maxHwId.toString();
+    const newHwId = availableHwIds[0]?.toString() || '1';
     if (!newHwId) return;
 
     const commonSubnet = configData.length > 0
       ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
       : '';
 
-    const newDrone = {
+    const newDrone = normalizeDroneConfigEntry({
       hw_id: newHwId,
       ip: commonSubnet,
       mavlink_port: (14550 + parseInt(newHwId, 10)).toString(),
@@ -242,16 +281,23 @@ const MissionConfig = () => {
       serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
       baudrate: '57600',           // Standard baudrate
       isNew: true,
-    };
+    });
+
+    if (!newDrone) {
+      return;
+    }
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
-    toast.success(`New drone ${newHwId} added.`);
+    toast.success(`New airframe ${newHwId} added.`);
   };
 
   const removeDrone = (hw_id) => {
-    if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
-      setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
-      toast.success(`Drone ${hw_id} removed.`);
+    const normalizedHwId = normalizeComparableId(hw_id);
+    if (window.confirm(`Are you sure you want to remove Airframe ${normalizedHwId}?`)) {
+      setConfigData((prevConfig) =>
+        prevConfig.filter((drone) => normalizeComparableId(drone.hw_id) !== normalizedHwId)
+      );
+      toast.success(`Airframe ${normalizedHwId} removed.`);
     }
   };
 
@@ -348,11 +394,11 @@ const MissionConfig = () => {
   // File ops & config save
   // -----------------------------------------------------
   const handleFileChangeWrapper = (e) => {
-    handleFileChange(e, setConfigData);
+    handleFileChange(e, applyNormalizedConfigData);
   };
 
   const handleRevertChangesWrapper = () => {
-    handleRevertChanges(setConfigData);
+    handleRevertChanges(applyNormalizedConfigData);
     toast.info('All unsaved changes have been reverted.');
   };
 
@@ -374,7 +420,7 @@ const MissionConfig = () => {
   const handleConfirmSave = async () => {
     // User confirmed - proceed with actual save
     setShowSaveReviewDialog(false);
-    await handleSaveChangesToServer(configData, setConfigData, setLoading);
+    await handleSaveChangesToServer(configData, applyNormalizedConfigData, setLoading);
   };
 
   const handleCancelSave = () => {
@@ -396,31 +442,33 @@ const MissionConfig = () => {
 
   const handleResetToDefault = () => {
     // Find drones that need to be reset (hw_id !== pos_id)
-    const dronesNeedingReset = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
+    const dronesNeedingReset = configData.filter(
+      (drone) => normalizeComparableId(drone.hw_id) !== normalizeComparableId(drone.pos_id, drone.hw_id)
+    );
 
     if (dronesNeedingReset.length === 0) {
-      toast.info('All drones are already set to default (each hardware flies its own position)');
+      toast.info('All airframes already fly their own assigned show slot.');
       return;
     }
 
     // Show confirmation dialog with preview
-    const message = `Reset ${dronesNeedingReset.length} drone(s) so each hardware flies its own position?\n\nThis will set Position = Hardware ID for:\n${dronesNeedingReset.map(d => `Hardware ${d.hw_id}: Position ${d.pos_id} → ${d.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git"`;
+    const message = `Reset ${dronesNeedingReset.length} airframe(s) so each airframe flies its own show slot?\n\nThis will set Show Slot = Hardware ID for:\n${dronesNeedingReset.map((drone) => `Airframe ${drone.hw_id}: Slot ${drone.pos_id} → ${drone.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git".`;
 
     if (window.confirm(message)) {
       // Reset pos_id to hw_id for all drones
-      const updatedConfig = configData.map(drone => ({
+      const updatedConfig = configData.map((drone) => ({
         ...drone,
         pos_id: drone.hw_id
       }));
 
       setConfigData(updatedConfig);
-      toast.success(`✅ Reset ${dronesNeedingReset.length} drone(s) to default. Remember to save your changes!`);
+      toast.success(`Reset ${dronesNeedingReset.length} airframe assignment(s). Remember to save your changes.`);
     }
   };
 
   // Sort config data by pos_id (show position order)
   const sortedConfigData = [...configData].sort(
-    (a, b) => parseInt(a.pos_id, 10) - parseInt(b.pos_id, 10)
+    (left, right) => compareMissionIds(left.pos_id, right.pos_id)
   );
 
   // -----------------------------------------------------
@@ -428,7 +476,32 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   return (
     <div className="mission-config-container">
-      <h2>Mission Configuration</h2>
+      <header className="mission-config-page-header">
+        <div>
+          <h2 className="mission-config-title">Mission Configuration</h2>
+          <p className="mission-config-subtitle">
+            Assign physical airframes to show slots, verify live identity telemetry, and prepare the fleet for drone-show or cooperative mission execution.
+          </p>
+        </div>
+      </header>
+
+      <section className="mission-identity-brief" aria-label="Hardware and position ID guidance">
+        <div className="identity-brief-card">
+          <span className="identity-brief-label">Hardware ID</span>
+          <strong>Physical aircraft identity</strong>
+          <p>Matches the labeled airframe and the companion computer identity used by the vehicle at runtime.</p>
+        </div>
+        <div className="identity-brief-card">
+          <span className="identity-brief-label">Position ID</span>
+          <strong>Show slot / trajectory slot</strong>
+          <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that airframe will fly.</p>
+        </div>
+        <div className="identity-brief-card identity-brief-card-wide">
+          <span className="identity-brief-label">Operational rule</span>
+          <strong>Role swaps are valid. Swarm follow-links still use Hardware ID.</strong>
+          <p>Use a role swap when a spare aircraft must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
+        </div>
+      </section>
 
       {/* Top Control Buttons */}
       <ControlButtons
@@ -446,57 +519,55 @@ const MissionConfig = () => {
         loading={loading}
       />
 
-      {/* Warning Banner for Duplicate pos_id and Role Swaps */}
-      {(() => {
-        const roleSwaps = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
-        const posIdCounts = {};
-        configData.forEach(d => {
-          const posId = parseInt(d.pos_id);
-          if (!isNaN(posId)) {
-            posIdCounts[posId] = (posIdCounts[posId] || []).concat(parseInt(d.hw_id));
-          }
-        });
-        const duplicates = Object.entries(posIdCounts).filter(([_, hwIds]) => hwIds.length > 1);
-
-        return (roleSwaps.length > 0 || duplicates.length > 0) && (
-          <div className="config-warning-banner">
-            {duplicates.length > 0 && (
-              <div className="warning-section collision-warning">
-                <FontAwesomeIcon icon={faExclamationTriangle} />
-                <strong> COLLISION RISK:</strong> Duplicate Position detected!
-                {duplicates.map(([posId, hwIds]) => (
-                  <span key={posId} className="duplicate-detail">
-                    {' '}Position {posId} → Hardware IDs {hwIds.join(', ')}
-                  </span>
-                ))}
-              </div>
-            )}
-            {roleSwaps.length > 0 && (
-              <div className="warning-section role-swap-info">
-                <FontAwesomeIcon icon={faExchangeAlt} />
-                <strong> {roleSwaps.length} Role Swap(s) Active:</strong>
-                {roleSwaps.slice(0, 3).map(d => (
-                  <span key={d.hw_id} className="role-swap-detail">
-                    {' '}Hardware {d.hw_id} → Position {d.pos_id}
-                  </span>
-                ))}
-                {roleSwaps.length > 3 && (
-                  <span
-                    className="role-swap-more-link"
-                    onClick={() => {
-                      setRoleSwapData(roleSwaps);
-                      setShowRoleSwapModal(true);
-                    }}
-                    style={{ cursor: 'pointer', textDecoration: 'underline', color: '#3b82f6', marginLeft: '4px' }}
-                  >
-                    and {roleSwaps.length - 3} more
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0) && (
+        <div className="config-warning-banner">
+          {duplicateHwIds.length > 0 && (
+            <div className="warning-section collision-warning">
+              <FontAwesomeIcon icon={faExclamationTriangle} />
+              <strong> Invalid Hardware IDs:</strong>
+              {duplicateHwIds.map((duplicate) => (
+                <span key={duplicate.hw_id} className="duplicate-detail">
+                  {' '}Airframe {duplicate.hw_id} appears multiple times
+                </span>
+              ))}
+            </div>
+          )}
+          {duplicatePosIds.length > 0 && (
+            <div className="warning-section collision-warning">
+              <FontAwesomeIcon icon={faExclamationTriangle} />
+              <strong> Collision Risk:</strong>
+              {duplicatePosIds.map((duplicate) => (
+                <span key={duplicate.pos_id} className="duplicate-detail">
+                  {' '}Show Slot {duplicate.pos_id} → Airframes {duplicate.hw_ids.join(', ')}
+                </span>
+              ))}
+            </div>
+          )}
+          {roleSwaps.length > 0 && (
+            <div className="warning-section role-swap-info">
+              <FontAwesomeIcon icon={faExchangeAlt} />
+              <strong> {roleSwaps.length} Active Role Swap(s):</strong>
+              {roleSwaps.slice(0, 3).map((drone) => (
+                <span key={drone.hw_id} className="role-swap-detail">
+                  {' '}Airframe {drone.hw_id} → Show Slot {drone.pos_id}
+                </span>
+              ))}
+              {roleSwaps.length > 3 && (
+                <button
+                  type="button"
+                  className="role-swap-more-link"
+                  onClick={() => {
+                    setRoleSwapData(roleSwaps);
+                    setShowRoleSwapModal(true);
+                  }}
+                >
+                  and {roleSwaps.length - 3} more
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!originAvailable && (
         <div className="origin-warning">
@@ -544,25 +615,25 @@ const MissionConfig = () => {
               All Active Role Swaps ({roleSwapData.length})
             </h3>
             <p style={{ marginBottom: '16px' }}>
-              These drones are flying different positions' trajectories:
+              These airframes are assigned to a different show slot than their own:
             </p>
             <table>
               <thead>
                 <tr>
-                  <th>Hardware ID</th>
+                  <th>Airframe</th>
                   <th style={{ textAlign: 'center' }}>→</th>
-                  <th>Position ID (Show)</th>
+                  <th>Show Slot</th>
                 </tr>
               </thead>
               <tbody>
                 {roleSwapData.map((drone) => (
                   <tr key={drone.hw_id}>
                     <td>
-                      <strong>Hardware {drone.hw_id}</strong>
+                      <strong>Airframe {drone.hw_id}</strong>
                     </td>
                     <td style={{ textAlign: 'center' }}>→</td>
                     <td>
-                      <strong>Position {drone.pos_id}</strong>
+                      <strong>Show Slot {drone.pos_id}</strong>
                     </td>
                   </tr>
                 ))}
@@ -588,23 +659,23 @@ const MissionConfig = () => {
         <div className="drone-stats-summary">
           <div className="stat-item">
             <span className="stat-number">{configData.length}</span>
-            <span className="stat-label">Total Drones</span>
+            <span className="stat-label">Airframes</span>
           </div>
           <div className="stat-item">
-            <span className="stat-number">
-              {Object.keys(heartbeats).filter(id => {
-                const hb = heartbeats[id];
-                const age = hb?.timestamp ? Math.floor((Date.now() - hb.timestamp) / 1000) : null;
-                return age !== null && age < 20;
-              }).length}
-            </span>
+            <span className="stat-number">{onlineDroneCount}</span>
             <span className="stat-label">Online</span>
           </div>
           <div className="stat-item">
-            <span className="stat-number">
-              {configData.filter(drone => drone.isNew).length}
-            </span>
-            <span className="stat-label">New</span>
+            <span className="stat-number">{roleSwaps.length}</span>
+            <span className="stat-label">Role Swaps</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">{duplicatePosIds.length}</span>
+            <span className="stat-label">Duplicate Slots</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">{configData.filter((drone) => drone.isNew).length}</span>
+            <span className="stat-label">New Airframes</span>
           </div>
           <div className="stat-item">
             <span className="stat-number">
@@ -654,10 +725,14 @@ const MissionConfig = () => {
                 saveChanges={saveChanges}
                 removeDrone={removeDrone}
                 onReplace={(hwId) => {
-                  setReplaceDroneTarget(hwId);
+                  setReplaceDroneTarget(normalizeComparableId(hwId));
                   setReplaceDroneModalOpen(true);
                 }}
-                networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+                networkInfo={
+                  networkInfo.find(
+                    (info) => normalizeComparableId(info.hw_id) === normalizeComparableId(drone.hw_id)
+                  )
+                }
                 heartbeatData={heartbeats[drone.hw_id] || null}
                 style={{ animationDelay: `${index * 0.1}s` }}
               />
@@ -673,7 +748,7 @@ const MissionConfig = () => {
             deviationData={deviationData}
             origin={origin}
             forwardHeading={forwardHeading}
-            onDroneClick={setEditingDroneId}
+            onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
             onRefresh={handleManualRefresh}
           />
 
@@ -697,8 +772,8 @@ const MissionConfig = () => {
         heartbeats={heartbeats}
         preselectedHwId={replaceDroneTarget}
         onSave={(updatedConfig) => {
-          setConfigData(updatedConfig);
-          toast.success('Drone replacement applied. Remember to save your changes!');
+          applyNormalizedConfigData(updatedConfig);
+          toast.success('Airframe replacement applied. Remember to save your changes.');
         }}
       />
 

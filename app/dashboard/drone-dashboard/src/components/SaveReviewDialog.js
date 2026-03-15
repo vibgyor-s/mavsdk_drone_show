@@ -30,13 +30,14 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
   if (!isOpen || !validationReport) return null;
 
   const { warnings, changes, summary } = validationReport;
+  const hasDuplicateHardwareIds = warnings.duplicate_hw_ids && warnings.duplicate_hw_ids.length > 0;
   const hasDuplicates = warnings.duplicates && warnings.duplicates.length > 0;
   const hasMissingTrajectories = warnings.missing_trajectories && warnings.missing_trajectories.length > 0;
   const hasRoleSwaps = warnings.role_swaps && warnings.role_swaps.length > 0;
   const hasChanges = changes.pos_id_changes.length > 0;
 
-  // Disable confirm button if duplicates exist and not acknowledged, or if missing trajectories
-  const canConfirm = (!hasDuplicates || duplicateAcknowledged) && !hasMissingTrajectories;
+  // Disable confirm button if invalid identity state exists, if duplicates exist and not acknowledged, or if missing trajectories
+  const canConfirm = !hasDuplicateHardwareIds && (!hasDuplicates || duplicateAcknowledged) && !hasMissingTrajectories;
 
   const handleConfirm = () => {
     if (canConfirm) {
@@ -66,6 +67,24 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
           <FontAwesomeIcon icon={faInfoCircle} /> Review Configuration Changes
         </h3>
 
+        {hasDuplicateHardwareIds && (
+          <div className="review-section error-section">
+            <h4>
+              <FontAwesomeIcon icon={faTimesCircle} /> Duplicate Hardware IDs
+            </h4>
+            <p className="error-text">
+              Cannot save: each physical airframe must have one unique Hardware ID.
+            </p>
+            <ul className="error-list">
+              {warnings.duplicate_hw_ids.map((item, idx) => (
+                <li key={idx}>
+                  <strong>Airframe {item.hw_id}</strong> is defined more than once
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Missing Trajectories - BLOCKING ERROR */}
         {hasMissingTrajectories && (
           <div className="review-section error-section">
@@ -73,17 +92,17 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faTimesCircle} /> Missing Trajectory Files
             </h4>
             <p className="error-text">
-              Cannot save: The following drones have Position values without corresponding trajectory files:
+              Cannot save: the following airframes have show slots without corresponding trajectory files:
             </p>
             <ul className="error-list">
               {warnings.missing_trajectories.map((item, idx) => (
                 <li key={idx}>
-                  <strong>Hardware {item.hw_id}</strong> → Position {item.pos_id}: {item.message}
+                  <strong>Airframe {item.hw_id}</strong> → Show Slot {item.pos_id}: {item.message}
                 </li>
               ))}
             </ul>
             <p className="error-hint">
-              Please upload a drone show with trajectory files for these positions, or change the pos_id values.
+              Upload trajectory files for those show slots or reassign the Position ID values.
             </p>
           </div>
         )}
@@ -92,15 +111,15 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {hasDuplicates && (
           <div className="review-section warning-section">
             <h4>
-              <FontAwesomeIcon icon={faExclamationTriangle} /> COLLISION RISK: Duplicate Position IDs
+              <FontAwesomeIcon icon={faExclamationTriangle} /> Collision Risk: Duplicate Show Slots
             </h4>
             <p className="warning-text">
-              Multiple drones are assigned the same Position! They will fly IDENTICAL trajectories and COLLIDE!
+              Multiple airframes are assigned the same show slot. They will fly identical trajectories and collide.
             </p>
             <ul className="warning-list">
               {warnings.duplicates.map((dup, idx) => (
                 <li key={idx}>
-                  <strong>Position {dup.pos_id}</strong> assigned to Hardware IDs: {dup.hw_ids.join(', ')}
+                  <strong>Show Slot {dup.pos_id}</strong> assigned to Airframes: {dup.hw_ids.join(', ')}
                 </li>
               ))}
             </ul>
@@ -124,11 +143,11 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             <h4>
               <FontAwesomeIcon icon={faExchangeAlt} /> Active Role Swaps
             </h4>
-            <p>The following drones will fly different positions' trajectories:</p>
+            <p>The following airframes will fly a different show slot than their own:</p>
             <ul className="info-list">
               {warnings.role_swaps.map((swap, idx) => (
                 <li key={idx}>
-                  Drone <strong>{swap.hw_id}</strong> → will fly Position <strong>{swap.pos_id}</strong>'s show
+                  Airframe <strong>{swap.hw_id}</strong> → Show Slot <strong>{swap.pos_id}</strong>
                 </li>
               ))}
             </ul>
@@ -138,18 +157,18 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {/* pos_id Changes */}
         {changes.pos_id_changes.length > 0 && (
           <div className="review-section changes-section">
-            <h4>Position ID Changes ({changes.pos_id_changes.length})</h4>
+            <h4>Show Slot Changes ({changes.pos_id_changes.length})</h4>
             <p className="info-hint">
               <FontAwesomeIcon icon={faInfoCircle} />
-              {' '}Position coordinates come from trajectory CSV files (single source of truth)
+              {' '}Trajectory positions come from the assigned show slot CSV file (single source of truth)
             </p>
             <table className="changes-table">
               <thead>
                 <tr>
-                  <th>Hardware ID</th>
-                  <th>Old Position</th>
+                  <th>Airframe</th>
+                  <th>Old Slot</th>
                   <th></th>
-                  <th>New Position</th>
+                  <th>New Slot</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,11 +196,16 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
 
         {/* Summary */}
         <div className="review-summary">
-          <strong>Summary:</strong> {summary.total_drones} drones,
-          {' '}{summary.pos_id_changes_count} position changes
+          <strong>Summary:</strong> {summary.total_drones} airframes,
+          {' '}{summary.pos_id_changes_count} show slot changes
+          {summary.duplicate_hw_ids_count > 0 && (
+            <span className="summary-warning">
+              , <FontAwesomeIcon icon={faTimesCircle} /> {summary.duplicate_hw_ids_count} duplicate hardware IDs
+            </span>
+          )}
           {summary.duplicates_count > 0 && (
             <span className="summary-warning">
-              , <FontAwesomeIcon icon={faExclamationTriangle} /> {summary.duplicates_count} duplicates
+              , <FontAwesomeIcon icon={faExclamationTriangle} /> {summary.duplicates_count} duplicate slots
             </span>
           )}
         </div>
@@ -201,15 +225,17 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             disabled={!canConfirm}
             aria-label="Confirm and Save"
             title={
-              hasMissingTrajectories
-                ? "Cannot save: Missing trajectory files"
+              hasDuplicateHardwareIds
+                ? "Cannot save: Duplicate hardware IDs"
+                : hasMissingTrajectories
+                  ? "Cannot save: Missing trajectory files"
                 : hasDuplicates && !duplicateAcknowledged
                   ? "Please acknowledge collision risk to proceed"
                   : "Save configuration"
             }
           >
             <FontAwesomeIcon icon={faCheckCircle} />
-            {hasMissingTrajectories ? 'Cannot Save' : 'Confirm & Save'}
+            {hasDuplicateHardwareIds || hasMissingTrajectories ? 'Cannot Save' : 'Confirm & Save'}
           </button>
         </div>
       </div>
@@ -221,6 +247,7 @@ SaveReviewDialog.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   validationReport: PropTypes.shape({
     warnings: PropTypes.shape({
+      duplicate_hw_ids: PropTypes.array,
       duplicates: PropTypes.array,
       missing_trajectories: PropTypes.array,
       role_swaps: PropTypes.array
@@ -231,6 +258,7 @@ SaveReviewDialog.propTypes = {
     summary: PropTypes.shape({
       total_drones: PropTypes.number,
       pos_id_changes_count: PropTypes.number,
+      duplicate_hw_ids_count: PropTypes.number,
       duplicates_count: PropTypes.number,
       missing_trajectories_count: PropTypes.number,
       role_swaps_count: PropTypes.number

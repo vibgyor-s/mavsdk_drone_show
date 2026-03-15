@@ -161,10 +161,10 @@ const ControlButtons = ({
         <button
           className="reset-default"
           onClick={handleResetToDefault}
-          title="Reset all drones to default (hw_id = pos_id)"
+          title="Reset all airframes so each one flies its own show slot (Position ID = Hardware ID)"
         >
           <FontAwesomeIcon icon={faSync} />
-          Reset to Default
+          Reset Slot Assignments
         </button>
       </div>
     </div>

@@ -2,14 +2,12 @@
 import axios from 'axios';
 import { getBackendURL } from './utilities';
 import { convertToLatLon } from './geoutilities'; // Importing the convertToLatLon function
+import { normalizeDroneConfigData, toBackendConfigDrone } from './missionIdentityUtils';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Core required fields — must always be present on every drone
 const CORE_FIELDS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
-
-// Known optional fields (preserved when present, not required)
-const OPTIONAL_FIELDS = ['color', 'notes'];
 
 /**
  * Clean a drone object for sending to the backend.
@@ -28,7 +26,8 @@ const cleanDroneForBackend = (drone) => {
     delete cleanedDrone.x;
     delete cleanedDrone.y;
     delete cleanedDrone.isNew;
-    return cleanedDrone;
+
+    return toBackendConfigDrone(cleanedDrone) || cleanedDrone;
 };
 
 /**
@@ -104,8 +103,9 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         setConfigData(refreshResponse.data);
 
         // Success toast with git info
-        if (response.data.git_info) {
-            if (response.data.git_info.success) {
+        const gitInfo = response.data.git_result || response.data.git_info;
+        if (gitInfo) {
+            if (gitInfo.success) {
                 toast.success(
                     `✅ Configuration saved and committed to git successfully!
 
@@ -114,7 +114,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
                 );
             } else {
                 toast.warning(
-                    `Configuration saved, but git commit failed: ${response.data.git_info.message}`,
+                    `Configuration saved, but git commit failed: ${gitInfo.message}`,
                     { autoClose: 8000 }
                 );
             }
@@ -173,7 +173,7 @@ export const handleFileChange = (event, setConfigData) => {
             const data = JSON.parse(text);
             const drones = data.drones || (Array.isArray(data) ? data : []);
             if (drones.length > 0) {
-                setConfigData(drones);
+                setConfigData(normalizeDroneConfigData(drones));
                 toast.success(`Imported ${drones.length} drones from JSON`);
             } else {
                 toast.error('No drones found in JSON file');
@@ -182,7 +182,7 @@ export const handleFileChange = (event, setConfigData) => {
             // Fall back to CSV parsing
             const drones = parseCSV(text);
             if (drones && validateDrones(drones)) {
-                setConfigData(drones);
+                setConfigData(normalizeDroneConfigData(drones));
                 toast.success(`Imported ${drones.length} drones from CSV`);
             } else {
                 toast.error('Invalid file format. Please use JSON or CSV format.');
@@ -225,9 +225,9 @@ export const parseCSV = (data) => {
 
 export const validateDrones = (drones) => {
     for (const drone of drones) {
-        for (const key in drone) {
-            if (!drone[key]) {
-                alert(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
+        for (const field of ['hw_id', 'pos_id', 'ip', 'mavlink_port']) {
+            if (drone[field] === undefined || drone[field] === null || drone[field] === '') {
+                alert(`Empty field detected for Drone ID ${drone.hw_id}, field: ${field}.`);
                 return false;
             }
         }
@@ -256,14 +256,17 @@ export const exportConfigJSON = (configData) => {
  */
 export const exportConfigCSV = (configData) => {
     const header = ["hw_id", "pos_id", "ip", "mavlink_port", "serial_port", "baudrate"];
-    const csvRows = configData.map(drone => [
-        drone.hw_id,
-        drone.pos_id,
-        drone.ip,
-        drone.mavlink_port,
-        drone.serial_port || '/dev/ttyS0',  // Default if missing
-        drone.baudrate || '57600'            // Default if missing
-    ].join(","));
+    const csvRows = configData.map(drone => {
+        const cleanedDrone = cleanDroneForBackend(drone);
+        return [
+            cleanedDrone.hw_id,
+            cleanedDrone.pos_id,
+            cleanedDrone.ip,
+            cleanedDrone.mavlink_port,
+            cleanedDrone.serial_port ?? '',
+            cleanedDrone.baudrate ?? 0
+        ].join(",");
+    });
     const csvData = [header.join(",")].concat(csvRows).join("\n");
 
     const blob = new Blob([csvData], { type: "text/csv" });
