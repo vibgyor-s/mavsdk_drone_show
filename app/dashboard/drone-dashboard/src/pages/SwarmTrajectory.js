@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getBackendURL } from '../utilities/utilities';
 import { getProcessingRecommendation, processTrajectories, clearProcessedData } from '../services/droneApiService';
 import '../styles/SwarmTrajectory.css';
@@ -19,6 +20,11 @@ const SwarmTrajectory = () => {
   const [kmlProgress, setKmlProgress] = useState(null);
   const [recommendation, setRecommendation] = useState(null);
   const [clearingData, setClearingData] = useState(false);
+  const processedDroneIds = results?.processed_drone_list || status?.processed_drones || [];
+  const processedDroneSet = new Set(processedDroneIds);
+  const visibleClusterLeaders = leaders.filter(
+    (leaderId) => uploadedLeaders.has(leaderId) && processedDroneSet.has(leaderId)
+  );
 
   useEffect(() => {
     initializeComponent();
@@ -95,6 +101,26 @@ const SwarmTrajectory = () => {
       
       if (data.success) {
         setStatus(data.status);
+        setResults((prev) => {
+          if (!prev) {
+            return data.status.has_results ? prev : null;
+          }
+
+          if (!data.status.has_results) {
+            return null;
+          }
+
+          return {
+            ...prev,
+            processed_drones: data.status.processed_trajectories,
+            processed_drone_list: data.status.processed_drones || [],
+            statistics: {
+              ...prev.statistics,
+              leaders: data.status.leader_count ?? prev.statistics?.leaders ?? 0,
+              followers: data.status.follower_count ?? prev.statistics?.followers ?? 0,
+            },
+          };
+        });
       }
     } catch (error) {
       console.error('Error fetching status:', error);
@@ -373,6 +399,10 @@ const SwarmTrajectory = () => {
     return followerDetails[leaderId] || [];
   };
 
+  const getProcessedFollowersForLeader = (leaderId) => {
+    return getFollowersForLeader(leaderId).filter((droneId) => processedDroneSet.has(droneId));
+  };
+
   const clearSingleTrajectory = async (leaderId) => {
     if (!window.confirm(`Clear trajectory for Drone ${leaderId}? This will also remove all associated follower trajectories.`)) {
       return;
@@ -530,9 +560,9 @@ const SwarmTrajectory = () => {
           <div className="guide-text">
             <span className="guide-main">Complete Workflow:</span>
             <span className="guide-steps">
-              1. <a href="/swarm-design" className="guide-link">Design your swarm structure</a>
+              1. <Link to="/swarm-design" className="guide-link">Design your swarm structure</Link>
               {' → '}
-              2. <a href="/trajectory-planning" className="guide-link">Plan trajectories</a>
+              2. <Link to="/trajectory-planning" className="guide-link">Plan trajectories</Link>
               {' → '}
               3. Upload exported CSV files here to generate swarm trajectories
             </span>
@@ -761,7 +791,7 @@ const SwarmTrajectory = () => {
                       
                       <div className="preview-content">
                         {/* Cluster-based organization */}
-                        {leaders.filter(leaderId => uploadedLeaders.has(leaderId)).map(leaderId => (
+                        {visibleClusterLeaders.map(leaderId => (
                           <div key={leaderId} className="cluster-section">
                             <div className="cluster-header">
                               <h4>🎯 Cluster {leaderId} Formation</h4>
@@ -846,13 +876,6 @@ const SwarmTrajectory = () => {
                                     <h6>Drone {leaderId}</h6>
                                     <div className="header-actions">
                                       <span className="drone-type-badge leader">LEAD</span>
-                                      <button 
-                                        className="delete-drone-btn"
-                                        onClick={() => clearIndividualDrone(leaderId)}
-                                        title="Delete this drone's trajectory"
-                                      >
-                                        🗑️
-                                      </button>
                                     </div>
                                   </div>
                                   
@@ -898,7 +921,7 @@ const SwarmTrajectory = () => {
                                 </div>
 
                                 {/* Followers */}
-                                {getFollowersForLeader(leaderId).map(followerId => (
+                                {getProcessedFollowersForLeader(leaderId).map(followerId => (
                                   <div key={followerId} className="drone-preview-card">
                                     <div className="preview-header">
                                       <h6>Drone {followerId}</h6>

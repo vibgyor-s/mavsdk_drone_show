@@ -429,6 +429,40 @@ class TestSwarmEndpoints:
 
 
 # ============================================================================
+# Swarm Trajectory Tests
+# ============================================================================
+
+class TestSwarmTrajectoryEndpoints:
+    """Test swarm trajectory route registration after FastAPI migration."""
+
+    def test_swarm_trajectory_routes_registered(self):
+        """All routes used by the React page should be present on FastAPI."""
+        from app_fastapi import app
+
+        route_paths = {route.path for route in app.routes}
+
+        expected_paths = {
+            '/api/swarm/leaders',
+            '/api/swarm/trajectory/upload/{leader_id}',
+            '/api/swarm/trajectory/process',
+            '/api/swarm/trajectory/recommendation',
+            '/api/swarm/trajectory/status',
+            '/api/swarm/trajectory/clear-processed',
+            '/api/swarm/trajectory/clear',
+            '/api/swarm/trajectory/clear-leader/{leader_id}',
+            '/api/swarm/trajectory/remove/{leader_id}',
+            '/api/swarm/trajectory/download/{drone_id}',
+            '/api/swarm/trajectory/download-kml/{drone_id}',
+            '/api/swarm/trajectory/download-cluster-kml/{leader_id}',
+            '/api/swarm/trajectory/clear-drone/{drone_id}',
+            '/api/swarm/trajectory/commit',
+        }
+
+        missing_paths = expected_paths - route_paths
+        assert not missing_paths, f"Missing swarm trajectory routes: {sorted(missing_paths)}"
+
+
+# ============================================================================
 # Command Tests
 # ============================================================================
 

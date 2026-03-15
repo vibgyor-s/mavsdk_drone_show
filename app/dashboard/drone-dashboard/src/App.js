@@ -81,6 +81,9 @@ const App = () => {
 
             {/* QuickScout SAR */}
             <Route path="/quickscout" element={<QuickScoutPage />} />
+
+            {/* Backward-compatible alias used by workflow guidance */}
+            <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />
             
             {/* Default route */}
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />

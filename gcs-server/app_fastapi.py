@@ -28,6 +28,7 @@ import threading
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
+from functools import partial
 
 from fastapi import (
     FastAPI, HTTPException, WebSocket, WebSocketDisconnect,
@@ -72,12 +73,8 @@ from command_tracker import get_command_tracker, init_command_tracker
 from sar.routes import router as sar_router
 
 # Import swarm trajectory functions
-from functions.swarm_analyzer import analyze_swarm_structure
-from functions.swarm_trajectory_processor import (
-    process_swarm_trajectories, get_processing_recommendation, clear_processed_data
-)
+from functions import swarm_trajectory_service
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
-from functions.file_management import clear_directory
 
 # Import logging system
 from logging_config import (
@@ -1365,32 +1362,23 @@ async def import_show(file: UploadFile = File(...)):
 # Swarm Trajectory Routes
 # ============================================================================
 
+def _swarm_error_response(exc: swarm_trajectory_service.SwarmTrajectoryError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.message},
+    )
+
+
 @app.get("/api/swarm/leaders", tags=["Swarm Trajectories"])
 async def get_swarm_leaders():
     """Get list of top leaders from swarm configuration"""
     try:
-        swarm_data = load_swarm()
-        structure = analyze_swarm_structure(swarm_data)
-
-        folders = get_swarm_trajectory_folders()
-        uploaded_leaders = []
-
-        for leader_id in structure['top_leaders']:
-            csv_path = os.path.join(folders['raw'], f'Drone {leader_id}.csv')
-            if os.path.exists(csv_path):
-                uploaded_leaders.append(leader_id)
-
-        return JSONResponse(content={
-            'success': True,
-            'leaders': structure['top_leaders'],
-            'hierarchies': {k: len(v) for k, v in structure['hierarchies'].items()},
-            'follower_details': structure['hierarchies'],
-            'uploaded_leaders': uploaded_leaders,
-            'simulation_mode': Params.sim_mode
-        })
-
+        return JSONResponse(content=swarm_trajectory_service.get_swarm_leaders_payload())
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log_system_error(f"Failed to get swarm leaders: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.post("/api/swarm/trajectory/upload/{leader_id}", tags=["Swarm Trajectories"])
@@ -1400,90 +1388,238 @@ async def upload_leader_trajectory(
 ):
     """Upload CSV trajectory for specific leader"""
     try:
-        if not file.filename.endswith('.csv'):
-            raise HTTPException(status_code=400, detail="File must be CSV format")
-
-        folders = get_swarm_trajectory_folders()
-        os.makedirs(folders['raw'], exist_ok=True)
-
-        filepath = os.path.join(folders['raw'], f'Drone {leader_id}.csv')
-
-        with open(filepath, 'wb') as f:
-            content = await file.read()
-            f.write(content)
-
-        return JSONResponse(content={
-            'success': True,
-            'message': f'Drone {leader_id} trajectory uploaded successfully',
-            'filepath': filepath
-        })
-
+        payload = swarm_trajectory_service.save_uploaded_trajectory(
+            leader_id=leader_id,
+            filename=file.filename or "",
+            content=await file.read(),
+        )
+        return JSONResponse(content=payload)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log_system_error(f"Failed to upload swarm trajectory for leader {leader_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.post("/api/swarm/trajectory/process", tags=["Swarm Trajectories"])
 async def process_trajectories(request: Request):
     """Smart processing with automatic change detection"""
     try:
-        data = await request.json() if request.headers.get('content-type') == 'application/json' else {}
-        force_clear = data.get('force_clear', False)
-        auto_reload = data.get('auto_reload', True)
+        content_type = request.headers.get("content-type", "")
+        data = await request.json() if content_type.startswith("application/json") else {}
+        force_clear = data.get("force_clear", False)
+        auto_reload = data.get("auto_reload", True)
 
-        result = process_swarm_trajectories(force_clear=force_clear, auto_reload=auto_reload)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                swarm_trajectory_service.process_trajectories_payload,
+                force_clear=force_clear,
+                auto_reload=auto_reload,
+            ),
+        )
         return JSONResponse(content=result)
-
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log_system_error(f"Failed to process swarm trajectories: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.get("/api/swarm/trajectory/recommendation", tags=["Swarm Trajectories"])
 async def get_trajectory_recommendation():
     """Get smart processing recommendation based on current state"""
     try:
-        recommendation = get_processing_recommendation()
-        log_system_event(f"Processing recommendation: {recommendation['action']}", "INFO", "swarm")
-        return JSONResponse(content={
-            'success': True,
-            'recommendation': recommendation
-        })
+        loop = asyncio.get_running_loop()
+        payload = await loop.run_in_executor(None, swarm_trajectory_service.get_processing_recommendation_payload)
+        log_system_event(f"Processing recommendation: {payload['recommendation']['action']}", "INFO", "swarm")
+        return JSONResponse(content=payload)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
         log_system_error(f"Failed to get recommendation: {e}", "swarm")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.get("/api/swarm/trajectory/status", tags=["Swarm Trajectories"])
 async def get_processing_status():
     """Get current processing status and file counts"""
     try:
-        folders = get_swarm_trajectory_folders()
-
-        raw_count = len([f for f in os.listdir(folders['raw']) if f.endswith('.csv')]) if os.path.exists(folders['raw']) else 0
-        processed_count = len([f for f in os.listdir(folders['processed']) if f.endswith('.csv')]) if os.path.exists(folders['processed']) else 0
-        plot_count = len([f for f in os.listdir(folders['plots']) if f.endswith('.jpg')]) if os.path.exists(folders['plots']) else 0
-
-        return JSONResponse(content={
-            'success': True,
-            'status': {
-                'raw_trajectories': raw_count,
-                'processed_trajectories': processed_count,
-                'generated_plots': plot_count,
-                'has_results': processed_count > 0 and plot_count > 0
-            }
-        })
-
+        return JSONResponse(content=swarm_trajectory_service.get_processing_status_payload())
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log_system_error(f"Failed to get swarm trajectory status: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 @app.post("/api/swarm/trajectory/clear-processed", tags=["Swarm Trajectories"])
 async def clear_processed_trajectories():
     """Explicitly clear all processed data and plots"""
     try:
-        result = clear_processed_data()
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, swarm_trajectory_service.clear_processed_payload)
         return JSONResponse(content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        log_system_error(f"Failed to clear processed swarm trajectories: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.post("/api/swarm/trajectory/clear", tags=["Swarm Trajectories"])
+async def clear_all_trajectories():
+    """Clear all raw, processed, and generated swarm trajectory artifacts."""
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, swarm_trajectory_service.clear_all_payload)
+        return JSONResponse(content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to clear all swarm trajectories: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.post("/api/swarm/trajectory/clear-leader/{leader_id}", tags=["Swarm Trajectories"])
+async def clear_leader_trajectory(
+    leader_id: int = PathParam(..., description="Leader drone ID"),
+):
+    """Clear a leader upload together with all cluster outputs."""
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.clear_leader_trajectory_payload, leader_id),
+        )
+        return JSONResponse(content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to clear leader trajectory for drone {leader_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.delete("/api/swarm/trajectory/remove/{leader_id}", tags=["Swarm Trajectories"])
+async def remove_leader_trajectory(
+    leader_id: int = PathParam(..., description="Leader drone ID"),
+):
+    """Remove a leader upload together with all cluster outputs."""
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.remove_leader_trajectory_payload, leader_id),
+        )
+        return JSONResponse(content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to remove leader trajectory for drone {leader_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.get("/api/swarm/trajectory/download/{drone_id}", tags=["Swarm Trajectories"])
+async def download_drone_trajectory(
+    drone_id: int = PathParam(..., description="Drone ID"),
+):
+    """Download a processed drone trajectory CSV."""
+    try:
+        file_path, filename = swarm_trajectory_service.get_processed_trajectory_download(drone_id)
+        return FileResponse(file_path, filename=filename, media_type="text/csv")
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to download trajectory for drone {drone_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.get("/api/swarm/trajectory/download-kml/{drone_id}", tags=["Swarm Trajectories"])
+async def download_drone_kml(
+    drone_id: int = PathParam(..., description="Drone ID"),
+):
+    """Generate and download a KML file for a single drone trajectory."""
+    try:
+        loop = asyncio.get_running_loop()
+        content, filename = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.get_drone_kml_download, drone_id),
+        )
+        return Response(
+            content=content,
+            media_type="application/vnd.google-earth.kml+xml",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to generate KML for drone {drone_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.get("/api/swarm/trajectory/download-cluster-kml/{leader_id}", tags=["Swarm Trajectories"])
+async def download_cluster_kml(
+    leader_id: int = PathParam(..., description="Leader drone ID"),
+):
+    """Generate and download a KML file for a full cluster."""
+    try:
+        loop = asyncio.get_running_loop()
+        content, filename = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.get_cluster_kml_download, leader_id),
+        )
+        return Response(
+            content=content,
+            media_type="application/vnd.google-earth.kml+xml",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to generate cluster KML for leader {leader_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.post("/api/swarm/trajectory/clear-drone/{drone_id}", tags=["Swarm Trajectories"])
+async def clear_individual_drone(
+    drone_id: int = PathParam(..., description="Drone ID"),
+):
+    """Clear a single follower trajectory and invalidate stale plots."""
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.clear_individual_drone_payload, drone_id),
+        )
+        return JSONResponse(content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to clear trajectory for drone {drone_id}: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+
+@app.post("/api/swarm/trajectory/commit", tags=["Swarm Trajectories"])
+async def commit_trajectory_changes(request: Request):
+    """Commit and push swarm trajectory changes to git."""
+    try:
+        content_type = request.headers.get("content-type", "")
+        data = await request.json() if content_type.startswith("application/json") else {}
+        commit_message = data.get("message")
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(swarm_trajectory_service.commit_trajectory_changes_payload, commit_message),
+        )
+        status_code = 200 if result.get("success") else 500
+        return JSONResponse(status_code=status_code, content=result)
+    except swarm_trajectory_service.SwarmTrajectoryError as exc:
+        return _swarm_error_response(exc)
+    except Exception as e:
+        log_system_error(f"Failed to commit swarm trajectory changes: {e}", "swarm")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
 # ============================================================================

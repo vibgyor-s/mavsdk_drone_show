@@ -4,8 +4,9 @@ Analyzes swarm data to identify leaders, followers, and hierarchies
 """
 import pandas as pd
 import logging
-import requests
 import os
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,17 @@ def get_backend_url():
     return os.getenv('BACKEND_URL', 'http://localhost:5000')
 
 def fetch_swarm_data():
-    """Fetch swarm data from the backend API"""
+    """Load swarm data locally, falling back to the backend API if needed."""
+    try:
+        from config import load_swarm
+
+        swarm_data = load_swarm()
+        if isinstance(swarm_data, list):
+            logger.info(f"Loaded swarm data locally: {len(swarm_data)} drones")
+            return swarm_data
+    except Exception as e:
+        logger.warning(f"Local swarm config load failed, falling back to API: {e}")
+
     try:
         backend_url = get_backend_url()
         response = requests.get(f"{backend_url}/get-swarm-data", timeout=10)

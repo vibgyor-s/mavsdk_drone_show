@@ -155,8 +155,9 @@ functions/
 #### API Layer (`gcs-server/`)
 ```
 gcs-server/
-├── swarm_trajectory_routes.py # REST API endpoints
-└── app.py                     # Route registration
+└── app_fastapi.py             # FastAPI route registration
+functions/
+└── swarm_trajectory_service.py # Shared route/service logic
 ```
 
 #### Frontend (`app/dashboard/drone-dashboard/src/`)
@@ -332,12 +333,12 @@ swarm_missing_leader_strategy = 'skip'  # 'skip' or 'error'
 - **Fix**: Ensure CSV has all required columns (Name, Latitude, Longitude, etc.)
 
 #### "Files not found during execution"
-- **Cause**: Path resolution issue between gcs-server and root directory
-- **Fix**: Check file paths in `get_swarm_trajectory_folders()`
+- **Cause**: The project is being launched from an unexpected working directory
+- **Fix**: `get_swarm_trajectory_folders()` now resolves from the repository root; if this persists, verify the repo checkout itself is intact
 
 #### "Clear all doesn't delete everything"
-- **Cause**: Path resolution issue - clearing from wrong directory
-- **Status**: Known issue, fix in progress
+- **Cause**: Usually indicates manual files were placed outside `shapes*/swarm_trajectory/`
+- **Fix**: Re-run the clear action and verify stray files are not being written outside the standard swarm trajectory folders
 
 ### Debugging Tips
 

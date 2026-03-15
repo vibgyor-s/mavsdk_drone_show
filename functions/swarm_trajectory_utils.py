@@ -3,24 +3,29 @@ Swarm Trajectory Utilities
 Common utilities for swarm trajectory processing
 """
 
-import os
+from pathlib import Path
+
 from src.params import Params
 
-def get_swarm_trajectory_folders():
-    """Get folder paths following existing pattern"""
-    # Get the root project directory (parent of current working directory if in gcs-server)
-    current_dir = os.getcwd()
-    if current_dir.endswith('gcs-server'):
-        root_dir = os.path.dirname(current_dir)
-    else:
-        root_dir = current_dir
 
-    base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
-    base_path = os.path.join(root_dir, base_folder)
+def get_project_root(base_dir=None):
+    """Return the repository root independent of the current working directory."""
+    if base_dir is not None:
+        return str(Path(base_dir).resolve())
+
+    return str(Path(__file__).resolve().parents[1])
+
+
+def get_swarm_trajectory_folders(sim_mode=None, base_dir=None):
+    """Get swarm trajectory directories for the requested mode."""
+    use_sim_mode = Params.sim_mode if sim_mode is None else sim_mode
+    root_dir = get_project_root(base_dir=base_dir)
+    base_folder = 'shapes_sitl' if use_sim_mode else 'shapes'
+    base_path = Path(root_dir) / base_folder
 
     return {
-        'base': base_path,
-        'raw': os.path.join(base_path, 'swarm_trajectory', 'raw'),
-        'processed': os.path.join(base_path, 'swarm_trajectory', 'processed'),
-        'plots': os.path.join(base_path, 'swarm_trajectory', 'plots')
+        'base': str(base_path),
+        'raw': str(base_path / 'swarm_trajectory' / 'raw'),
+        'processed': str(base_path / 'swarm_trajectory' / 'processed'),
+        'plots': str(base_path / 'swarm_trajectory' / 'plots'),
     }

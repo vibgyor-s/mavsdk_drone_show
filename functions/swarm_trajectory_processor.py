@@ -360,6 +360,7 @@ def _execute_trajectory_processing(available_leaders: List[int], session_manager
         return {
             'success': True,
             'processed_drones': total_processed,
+            'processed_drone_list': sorted(all_trajectories.keys()),
             'statistics': processing_stats,
             'session_id': session.session_id,
             'recommendation': recommendation,

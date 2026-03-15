@@ -25,9 +25,10 @@ import os
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 _GCS_SERVER = os.path.join(_PROJECT_ROOT, 'gcs-server')
+_SRC_DIR = os.path.join(_PROJECT_ROOT, 'src')
 
 # Add paths in order of priority
-for _path in [_PROJECT_ROOT, _GCS_SERVER]:
+for _path in [_PROJECT_ROOT, _GCS_SERVER, _SRC_DIR]:
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
