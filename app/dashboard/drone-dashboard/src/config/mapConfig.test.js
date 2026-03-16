@@ -1,6 +1,7 @@
 import {
   DEFAULT_LEAFLET_SUBDOMAINS,
   getLeafletTileLayerConfig,
+  resolveTileLayerKey,
 } from './mapConfig';
 
 describe('getLeafletTileLayerConfig', () => {
@@ -27,7 +28,13 @@ describe('getLeafletTileLayerConfig', () => {
   test('falls back to default layer for unknown keys', () => {
     const layer = getLeafletTileLayerConfig('missing-layer');
 
+    expect(layer.key).toBe('esriSatellite');
     expect(layer.name).toBe('Satellite (Esri)');
     expect(layer.url).toContain('arcgisonline');
+  });
+
+  test('normalizes invalid tile keys to the default layer key', () => {
+    expect(resolveTileLayerKey('missing-layer')).toBe('esriSatellite');
+    expect(resolveTileLayerKey('osm')).toBe('osm');
   });
 });

@@ -62,6 +62,10 @@ export const TILE_STORAGE_KEY = 'mds_tile_layer';
 // automatic default for operational views.
 export const DEFAULT_TILE_KEY = 'esriSatellite';
 
+export const resolveTileLayerKey = (key) => (
+  key && TILE_LAYERS[key] ? key : DEFAULT_TILE_KEY
+);
+
 /**
  * Return a Leaflet-safe tile layer configuration.
  *
@@ -70,10 +74,12 @@ export const DEFAULT_TILE_KEY = 'esriSatellite';
  * override that in TILE_LAYERS.
  */
 export const getLeafletTileLayerConfig = (key) => {
-  const layer = TILE_LAYERS[key] || TILE_LAYERS[DEFAULT_TILE_KEY];
+  const resolvedKey = resolveTileLayerKey(key);
+  const layer = TILE_LAYERS[resolvedKey];
   const usesSubdomains = layer.url.includes('{s}');
 
   return {
+    key: resolvedKey,
     ...layer,
     subdomains: usesSubdomains
       ? (layer.subdomains || DEFAULT_LEAFLET_SUBDOMAINS)
@@ -85,7 +91,7 @@ export const getLeafletTileLayerConfig = (key) => {
 export const getUserTilePreference = () => {
   try {
     const saved = localStorage.getItem(TILE_STORAGE_KEY);
-    return saved && TILE_LAYERS[saved] ? saved : DEFAULT_TILE_KEY;
+    return resolveTileLayerKey(saved);
   } catch {
     return DEFAULT_TILE_KEY;
   }
