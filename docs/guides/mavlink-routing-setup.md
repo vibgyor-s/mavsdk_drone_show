@@ -80,6 +80,7 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
 For SITL containers, MAVLink routing is handled automatically by `startup_sitl.sh` which calls `tools/run_mavlink_router.sh`. No manual setup is required.
 
 **Key points for SITL:**
+- Docker SITL now standardizes on headless PX4 Gazebo Harmonic via `HEADLESS=1 make px4_sitl gz_x500`
 - PX4 SITL automatically streams to port 14540 for MAVSDK and to a GCS UDP port that is usually 14550
 - MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)
 - `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup

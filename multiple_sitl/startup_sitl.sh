@@ -2,10 +2,9 @@
 
 # =============================================================================
 # Script Name: startup_sitl.sh
-# Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
-#              Configures environment, updates repository, sets system IDs, synchronizes
-#              system time with NTP using an external script, and starts the SITL simulation
-#              along with coordinator.py and mavlink2rest.
+# Description: Initializes and manages the Docker SITL runtime for MAVSDK_Drone_Show.
+#              The supported simulator path is PX4 SITL with Gazebo Harmonic
+#              (`make px4_sitl gz_x500`) in headless mode.
 # Author: Alireza Ghaderi
 # Date: September 2024
 # =============================================================================
@@ -13,13 +12,6 @@
 # Exit immediately if a command exits with a non-zero status,
 # if an undefined variable is used, or if any command in a pipeline fails
 set -euo pipefail
-
-# Enable debug mode if needed (uncomment the following line for debugging)
-# set -x
-
-# =============================================================================
-# Configuration Variables
-# =============================================================================
 
 # =============================================================================
 # REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
@@ -62,6 +54,20 @@ DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
 
+# Script Metadata and repository path detection
+SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_BASE_FROM_SCRIPT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# The launcher may copy this script outside the repo (for example to /tmp inside
+# the container). Prefer an explicit MDS_BASE_DIR, otherwise fall back to the
+# repo-relative location only when the script is still running from inside the repo.
+if [ -d "$REPO_BASE_FROM_SCRIPT/.git" ]; then
+    DEFAULT_BASE_DIR="$REPO_BASE_FROM_SCRIPT"
+else
+    DEFAULT_BASE_DIR="$HOME/mavsdk_drone_show"
+fi
+
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
 
@@ -71,10 +77,14 @@ DEFAULT_LON=51.275581311948706
 DEFAULT_ALT=1278
 
 # Directory Paths
-BASE_DIR="$HOME/mavsdk_drone_show"
+BASE_DIR="${MDS_BASE_DIR:-$DEFAULT_BASE_DIR}"
+HWID_DIR="${MDS_HWID_DIR:-$BASE_DIR}"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.json"
-PX4_DIR="$HOME/PX4-Autopilot"
+PX4_DIR="${MDS_PX4_DIR:-$HOME/PX4-Autopilot}"
+PX4_RCS_PATH="$PX4_DIR/build/px4_sitl_default/etc/init.d-posix/rcS"
+PX4_RCS_CONFIGURER="$BASE_DIR/multiple_sitl/configure_px4_sitl_rcs.py"
+PX4_BUILD_PREP_LOG="$BASE_DIR/logs/px4_build_prepare.log"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
@@ -83,15 +93,33 @@ MAVLINK_ROUTER_SCRIPT="$BASE_DIR/tools/run_mavlink_router.sh"
 MAVLINK_ROUTER_LOG="$BASE_DIR/logs/mavlink_router.log"
 PX4_MAVLINK_PORT_DETECTOR="$BASE_DIR/multiple_sitl/detect_px4_mavlink_port.py"
 
-# Path to the external time synchronization script
-# SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
+# Supported Docker SITL standard:
+#   - PX4 Gazebo Harmonic target: gz_x500
+#   - Headless mode only
+#   - Unique Gazebo transport partition per drone by default
+DEFAULT_PX4_GZ_TARGET="gz_x500"
+DEFAULT_QT_QPA_PLATFORM="offscreen"
+DEFAULT_GZ_PARTITION_PREFIX="px4_sim"
+DEFAULT_SITL_LOG_TAIL_LINES=40
+DEFAULT_SITL_PARAM_OVERRIDES=(
+    "COM_RC_IN_MODE=4"
+    "NAV_DLL_ACT=0"
+    "CBRK_SUPPLY_CHK=894281"
+    "SDLOG_MODE=-1"
+)
 
-# Script Metadata
-SCRIPT_NAME=$(basename "$0")
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Runtime configuration (can be overridden with MDS_* environment variables)
+PX4_GZ_TARGET="${MDS_PX4_GZ_TARGET:-$DEFAULT_PX4_GZ_TARGET}"
+QT_QPA_PLATFORM_VALUE="${MDS_QT_QPA_PLATFORM:-$DEFAULT_QT_QPA_PLATFORM}"
+GZ_PARTITION_PREFIX="${MDS_GZ_PARTITION_PREFIX:-$DEFAULT_GZ_PARTITION_PREFIX}"
+GZ_PARTITION_OVERRIDE="${MDS_GZ_PARTITION:-}"
+SITL_LOG_TAIL_LINES="${MDS_SITL_LOG_TAIL_LINES:-$DEFAULT_SITL_LOG_TAIL_LINES}"
+KILL_STALE_SIM_PROCESSES="${MDS_SITL_KILL_STALE_PROCESSES:-true}"
+SHELL_TRACE_ENABLED="${MDS_SITL_TRACE:-0}"
 
-# Default Simulation Mode (h: headless, g: graphical, j: jmavsim)
-SIMULATION_MODE="h"
+# Backward-compatible legacy option parsing: the launcher now always forces
+# headless Gazebo Harmonic, but older invocations may still pass `-s`.
+REQUESTED_SIMULATION_MODE="h"
 
 # Initialize Git variables
 GIT_REMOTE="$DEFAULT_GIT_REMOTE"
@@ -99,6 +127,14 @@ GIT_BRANCH="$DEFAULT_GIT_BRANCH"
 
 # Verbose Mode Flag
 VERBOSE_MODE=false
+ACTIVE_SITL_PARAM_OVERRIDES=()
+CONFIGURE_PX4_RCS_ARGS=()
+SIMULATION_ENV_VARS=()
+SIMULATION_COMMAND=()
+
+if [ "$SHELL_TRACE_ENABLED" = "1" ]; then
+    set -x
+fi
 
 # =============================================================================
 # Function Definitions
@@ -112,14 +148,13 @@ Usage: $SCRIPT_NAME [options]
 Options:
   -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
   -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
-  -s <simulation_mode>  Specify simulation mode: 'g' for graphical, 'h' for headless, 'j' for jmavsim (default: $SIMULATION_MODE)
+  -s <simulation_mode>  Deprecated compatibility flag. Docker SITL now always runs headless PX4 Gazebo Harmonic (gz_x500)
   -v, --verbose         Run coordinator.py in verbose mode (foreground with output to screen)
   -h, --help            Display this help message
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME -r upstream -b develop
-  $SCRIPT_NAME -s g
   $SCRIPT_NAME --verbose
 EOF
     exit 1
@@ -171,7 +206,7 @@ cleanup() {
 # Function to install 'bc' if not present
 install_bc() {
     log_message "'bc' is not installed. Installing 'bc'..."
-    if ! sudo apt-get update && sudo apt-get install -y bc; then
+    if ! sudo apt-get update || ! sudo apt-get install -y bc; then
         log_message "ERROR: Failed to install 'bc'. Please install it manually."
         exit 1
     fi
@@ -202,7 +237,7 @@ parse_args() {
                 ;;
             -s)
                 if [[ -n "${2:-}" && ! $2 =~ ^- ]]; then
-                    SIMULATION_MODE="$2"
+                    REQUESTED_SIMULATION_MODE="$2"
                     shift 2
                 else
                     log_message "ERROR: -s requires a non-empty option argument."
@@ -233,7 +268,7 @@ check_dependencies() {
     fi
     if ! command -v git &> /dev/null; then
         log_message "'git' is not installed. Installing 'git'..."
-        if ! sudo apt-get update && sudo apt-get install -y git; then
+        if ! sudo apt-get update || ! sudo apt-get install -y git; then
             log_message "ERROR: Failed to install 'git'. Please install it manually."
             exit 1
         fi
@@ -241,13 +276,23 @@ check_dependencies() {
     else
         log_message "'git' is already installed."
     fi
+    if ! command -v jq &> /dev/null; then
+        log_message "'jq' is not installed. Installing 'jq'..."
+        if ! sudo apt-get update || ! sudo apt-get install -y jq; then
+            log_message "ERROR: Failed to install 'jq'. Please install it manually."
+            exit 1
+        fi
+        log_message "'jq' installed successfully."
+    else
+        log_message "'jq' is already installed."
+    fi
 }
 
 # Function to wait for the .hwID file
 wait_for_hwid() {
-    log_message "Waiting for .hwID file in $BASE_DIR..."
+    log_message "Waiting for .hwID file in $HWID_DIR..."
     while true; do
-        HWID_FILE=$(ls "$BASE_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
+        HWID_FILE=$(ls "$HWID_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
         if [[ -n "$HWID_FILE" ]]; then
             HWID=$(basename "$HWID_FILE" .hwID)
             log_message "Found .hwID file: $HWID.hwID"
@@ -262,6 +307,207 @@ wait_for_hwid() {
     if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
         log_message "ERROR: Extracted HWID '$HWID' is not a positive integer."
         exit 1
+    fi
+}
+
+ensure_runtime_paths() {
+    if [ ! -d "$BASE_DIR" ]; then
+        log_message "ERROR: Base directory not found: $BASE_DIR"
+        exit 1
+    fi
+
+    if [ ! -d "$PX4_DIR" ]; then
+        log_message "ERROR: PX4 directory not found: $PX4_DIR"
+        exit 1
+    fi
+
+    mkdir -p "$BASE_DIR/logs"
+}
+
+validate_runtime_configuration() {
+    if [[ ! "$PX4_GZ_TARGET" =~ ^gz_ ]]; then
+        log_message "ERROR: PX4 Gazebo target must start with 'gz_' (got '$PX4_GZ_TARGET')."
+        exit 1
+    fi
+
+    if [[ ! "$SITL_LOG_TAIL_LINES" =~ ^[1-9][0-9]*$ ]]; then
+        log_message "ERROR: MDS_SITL_LOG_TAIL_LINES must be a positive integer (got '$SITL_LOG_TAIL_LINES')."
+        exit 1
+    fi
+
+    case "$KILL_STALE_SIM_PROCESSES" in
+        true|false) ;;
+        *)
+            log_message "ERROR: MDS_SITL_KILL_STALE_PROCESSES must be 'true' or 'false' (got '$KILL_STALE_SIM_PROCESSES')."
+            exit 1
+            ;;
+    esac
+}
+
+log_px4_source_state() {
+    if git -C "$PX4_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local px4_branch
+        local px4_commit
+        px4_branch=$(git -C "$PX4_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        px4_commit=$(git -C "$PX4_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        log_message "PX4 Source: $PX4_DIR ($px4_branch @ $px4_commit)"
+    else
+        log_message "PX4 Source: $PX4_DIR"
+    fi
+}
+
+resolve_gz_partition() {
+    if [ -n "$GZ_PARTITION_OVERRIDE" ]; then
+        GZ_PARTITION_VALUE="$GZ_PARTITION_OVERRIDE"
+        log_message "Using Gazebo transport partition override: $GZ_PARTITION_VALUE"
+    else
+        GZ_PARTITION_VALUE="${GZ_PARTITION_PREFIX}_${HWID}"
+        log_message "Using per-drone Gazebo transport partition: $GZ_PARTITION_VALUE"
+    fi
+}
+
+trim_whitespace() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf "%s" "$value"
+}
+
+build_sitl_param_overrides() {
+    ACTIVE_SITL_PARAM_OVERRIDES=()
+    CONFIGURE_PX4_RCS_ARGS=()
+
+    if [ -n "${MDS_SITL_PARAM_OVERRIDES:-}" ]; then
+        case "${MDS_SITL_PARAM_OVERRIDES,,}" in
+            none|off|false)
+                return 0
+                ;;
+        esac
+
+        local normalized_overrides
+        normalized_overrides="${MDS_SITL_PARAM_OVERRIDES//$'\n'/,}"
+
+        local raw_items=()
+        IFS=',' read -r -a raw_items <<< "$normalized_overrides"
+
+        local item trimmed_item
+        for item in "${raw_items[@]}"; do
+            trimmed_item=$(trim_whitespace "$item")
+            if [ -n "$trimmed_item" ]; then
+                ACTIVE_SITL_PARAM_OVERRIDES+=("$trimmed_item")
+            fi
+        done
+    else
+        ACTIVE_SITL_PARAM_OVERRIDES=("${DEFAULT_SITL_PARAM_OVERRIDES[@]}")
+    fi
+
+    local override
+    for override in "${ACTIVE_SITL_PARAM_OVERRIDES[@]}"; do
+        CONFIGURE_PX4_RCS_ARGS+=(--param "$override")
+    done
+}
+
+format_sitl_param_overrides() {
+    if [ ${#ACTIVE_SITL_PARAM_OVERRIDES[@]} -eq 0 ]; then
+        printf "none"
+        return
+    fi
+
+    local formatted=""
+    local override
+    for override in "${ACTIVE_SITL_PARAM_OVERRIDES[@]}"; do
+        if [ -n "$formatted" ]; then
+            formatted+=", "
+        fi
+        formatted+="$override"
+    done
+    printf "%s" "$formatted"
+}
+
+log_startup_configuration() {
+    local requested_mode_note="$REQUESTED_SIMULATION_MODE"
+    if [ "$REQUESTED_SIMULATION_MODE" != "h" ]; then
+        requested_mode_note="$REQUESTED_SIMULATION_MODE (legacy request; forced to headless ${PX4_GZ_TARGET})"
+    fi
+
+    log_message "Configuration:"
+    log_message "  Git Remote: $GIT_REMOTE"
+    log_message "  Git Branch: $GIT_BRANCH"
+    log_message "  Base Directory: $BASE_DIR"
+    log_message "  HWID Directory: $HWID_DIR"
+    log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
+    log_message "  Requested Legacy Sim Mode: $requested_mode_note"
+    log_message "  PX4 Gazebo Target: $PX4_GZ_TARGET"
+    log_message "  Headless Mode: true"
+    log_message "  QT_QPA_PLATFORM: $QT_QPA_PLATFORM_VALUE"
+    log_message "  GZ Partition Prefix: $GZ_PARTITION_PREFIX"
+    log_message "  Kill Stale PX4/GZ Processes: $KILL_STALE_SIM_PROCESSES"
+    log_message "  Verbose Mode: $VERBOSE_MODE"
+    log_px4_source_state
+}
+
+log_runtime_identity() {
+    log_message "Runtime Identity:"
+    log_message "  HWID / MAV_SYS_ID: $HWID"
+    log_message "  Gazebo Transport Partition: $GZ_PARTITION_VALUE"
+    log_message "  SITL PX4 Parameter Overrides: $(format_sitl_param_overrides)"
+}
+
+kill_exact_processes() {
+    local label="$1"
+    local process_name="$2"
+
+    if ! pgrep -x "$process_name" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_message "Stopping stale $label processes ('$process_name')..."
+    pkill -TERM -x "$process_name" || true
+    sleep 2
+
+    if pgrep -x "$process_name" >/dev/null 2>&1; then
+        log_message "Escalating stale $label processes ('$process_name') to SIGKILL..."
+        pkill -KILL -x "$process_name" || true
+        sleep 1
+    fi
+}
+
+kill_command_processes() {
+    local label="$1"
+    local command_pattern="$2"
+
+    if ! pgrep -f "$command_pattern" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_message "Stopping stale $label commands matching '$command_pattern'..."
+    pkill -TERM -f "$command_pattern" || true
+    sleep 2
+
+    if pgrep -f "$command_pattern" >/dev/null 2>&1; then
+        log_message "Escalating stale $label commands matching '$command_pattern' to SIGKILL..."
+        pkill -KILL -f "$command_pattern" || true
+        sleep 1
+    fi
+}
+
+cleanup_stale_simulation_processes() {
+    if [ "$KILL_STALE_SIM_PROCESSES" != "true" ]; then
+        log_message "Skipping stale PX4/Gazebo cleanup (MDS_SITL_KILL_STALE_PROCESSES=false)."
+        return
+    fi
+
+    kill_exact_processes "PX4" "px4"
+    kill_exact_processes "Gazebo Transport" "gz"
+    kill_command_processes "Gazebo Sim" "gz sim"
+}
+
+tail_log_file() {
+    local file_path="$1"
+    if [ -f "$file_path" ]; then
+        while IFS= read -r line; do
+            log_message "  $line"
+        done < <(tail -n "$SITL_LOG_TAIL_LINES" "$file_path")
     fi
 }
 
@@ -298,8 +544,13 @@ update_repository() {
     log_message "Navigating to $BASE_DIR..."
     cd "$BASE_DIR"
 
-    if git status --porcelain | grep -q .; then
+    local dirty_status=""
+    dirty_status=$(git status --porcelain 2>/dev/null || true)
+    if [ -n "$dirty_status" ]; then
         log_message "Stashing local changes..."
+        while IFS= read -r line; do
+            [ -n "$line" ] && log_message "  $line"
+        done <<< "$dirty_status"
         git stash push --include-untracked || log_message "WARNING: stash failed, continuing"
     fi
 
@@ -375,11 +626,7 @@ run_mavlink_router() {
         sleep 2  # Wait for router to initialize before starting other services
         if ! kill -0 "$mavlink_router_pid" 2>/dev/null; then
             log_message "ERROR: MAVLink router exited during startup. Recent log lines:"
-            if [ -f "$MAVLINK_ROUTER_LOG" ]; then
-                while IFS= read -r line; do
-                    log_message "  $line"
-                done < <(tail -n 20 "$MAVLINK_ROUTER_LOG")
-            fi
+            tail_log_file "$MAVLINK_ROUTER_LOG"
             return 1
         fi
     else
@@ -472,13 +719,45 @@ setup_python_env() {
     fi
 }
 
-# Function to set MAV_SYS_ID
-set_mav_sys_id() {
-    log_message "Setting MAV_SYS_ID using set_sys_id.py..."
-    if python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
-        log_message "MAV_SYS_ID set successfully."
+# Prepare PX4 build artifacts if the generated rcS file is not available yet.
+prepare_px4_build_artifacts() {
+    if [ -f "$PX4_RCS_PATH" ]; then
+        log_message "PX4 rcS file found: $PX4_RCS_PATH"
+        return
+    fi
+
+    log_message "PX4 rcS file not found. Preparing px4_sitl_default build artifacts..."
+    cd "$PX4_DIR"
+    if make px4_sitl_default &> "$PX4_BUILD_PREP_LOG"; then
+        log_message "PX4 build artifacts prepared successfully. Logs: $PX4_BUILD_PREP_LOG"
     else
-        log_message "ERROR: Failed to set MAV_SYS_ID."
+        log_message "ERROR: Failed to prepare PX4 build artifacts. Recent log lines:"
+        tail_log_file "$PX4_BUILD_PREP_LOG"
+        exit 1
+    fi
+
+    if [ ! -f "$PX4_RCS_PATH" ]; then
+        log_message "ERROR: PX4 rcS file still missing after build preparation: $PX4_RCS_PATH"
+        exit 1
+    fi
+}
+
+# Apply MAV_SYS_ID and SITL-only PX4 parameter overrides through a single
+# managed rcS block so repeated launches remain idempotent and easy to audit.
+configure_px4_sitl_rcs() {
+    log_message "Configuring PX4 SITL rcS overrides..."
+
+    build_sitl_param_overrides
+
+    if [ ! -f "$PX4_RCS_CONFIGURER" ]; then
+        log_message "ERROR: PX4 SITL rcS configurator not found: $PX4_RCS_CONFIGURER"
+        exit 1
+    fi
+
+    if python3 "$PX4_RCS_CONFIGURER" --hwid "$HWID" --rcs "$PX4_RCS_PATH" "${CONFIGURE_PX4_RCS_ARGS[@]}"; then
+        log_message "PX4 SITL rcS overrides configured successfully."
+    else
+        log_message "ERROR: Failed to configure PX4 SITL rcS overrides."
         exit 1
     fi
 }
@@ -584,26 +863,21 @@ export_env_vars() {
 
 # Function to determine the simulation command
 determine_simulation_command() {
-    case $SIMULATION_MODE in
-        g)
-            SIMULATION_COMMAND="make px4_sitl gazebo"
-            log_message "Simulation Mode: Graphics Enabled (Gazebo)"
-            ;;
-        j)
-            SIMULATION_COMMAND="make px4_sitl jmavsim"
-            log_message "Simulation Mode: Using jmavsim"
-            ;;
-        h)
-            SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
-            log_message "Simulation Mode: Headless (Graphics Disabled)"
-            ;;
-        *)
-            log_message "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode."
-            SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
-            ;;
-    esac
+    if [ "$REQUESTED_SIMULATION_MODE" != "h" ]; then
+        log_message "WARNING: Legacy simulation mode '$REQUESTED_SIMULATION_MODE' requested."
+        log_message "WARNING: Docker SITL now always uses headless PX4 Gazebo Harmonic (${PX4_GZ_TARGET})."
+    fi
 
-    log_message "Simulation Command: $SIMULATION_COMMAND"
+    SIMULATION_ENV_VARS=(
+        "HEADLESS=1"
+        "QT_QPA_PLATFORM=$QT_QPA_PLATFORM_VALUE"
+        "GZ_PARTITION=$GZ_PARTITION_VALUE"
+    )
+    SIMULATION_COMMAND=(make px4_sitl "$PX4_GZ_TARGET")
+
+    log_message "Simulation Runtime: PX4 Gazebo Harmonic (${PX4_GZ_TARGET}) in headless mode"
+    log_message "Simulation Environment: ${SIMULATION_ENV_VARS[*]}"
+    log_message "Simulation Command: ${SIMULATION_COMMAND[*]}"
 }
 
 # Function to start SITL simulation
@@ -615,7 +889,7 @@ start_simulation() {
     export px4_instance="${HWID}-1"
 
     # Execute the simulation command in the background
-    eval "$SIMULATION_COMMAND" &> "$BASE_DIR/logs/sitl_simulation.log" &
+    env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}" &> "$BASE_DIR/logs/sitl_simulation.log" &
     simulation_pid=$!
     log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
 }
@@ -626,11 +900,7 @@ validate_simulation_startup() {
 
     if ! kill -0 "$simulation_pid" 2>/dev/null; then
         log_message "ERROR: SITL simulation exited during startup. Recent log lines:"
-        if [ -f "$BASE_DIR/logs/sitl_simulation.log" ]; then
-            while IFS= read -r line; do
-                log_message "  $line"
-            done < <(tail -n 20 "$BASE_DIR/logs/sitl_simulation.log")
-        fi
+        tail_log_file "$BASE_DIR/logs/sitl_simulation.log"
         exit 1
     fi
 
@@ -671,19 +941,10 @@ log_message "=============================================="
 log_message " Welcome to the SITL Startup Script!"
 log_message "=============================================="
 log_message ""
-log_message "Configuration:"
-log_message "  Git Remote: $GIT_REMOTE"
-log_message "  Git Branch: $GIT_BRANCH"
-log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
-log_message "  Base Directory: $BASE_DIR"
-case $SIMULATION_MODE in
-    g) sim_mode_desc="Graphics Enabled (Gazebo)" ;;
-    j) sim_mode_desc="jMAVSim" ;;
-    h) sim_mode_desc="Headless (Graphics Disabled)" ;;
-    *) sim_mode_desc="Unknown ($SIMULATION_MODE)" ;;
-esac
-log_message "  Simulation Mode: $sim_mode_desc"
-log_message "  Verbose Mode: $VERBOSE_MODE"
+
+ensure_runtime_paths
+validate_runtime_configuration
+log_startup_configuration
 log_message ""
 
 # Check for necessary dependencies
@@ -691,6 +952,11 @@ check_dependencies
 
 # Wait for the .hwID file
 wait_for_hwid
+
+# Resolve per-drone runtime values once HWID is known
+resolve_gz_partition
+build_sitl_param_overrides
+log_runtime_identity
 
 # Update the repository
 update_repository
@@ -701,8 +967,12 @@ update_repository
 # Set up Python environment
 setup_python_env
 
-# Set MAV_SYS_ID
-set_mav_sys_id
+# Clean up any stale simulator processes before launching a fresh instance.
+cleanup_stale_simulation_processes
+
+# Ensure PX4 build artifacts exist and then inject the managed rcS override block.
+prepare_px4_build_artifacts
+configure_px4_sitl_rcs
 
 # Read offsets from config.json
 read_offsets
@@ -753,13 +1023,13 @@ if [ "$VERBOSE_MODE" = false ]; then
 fi
 
 # Wait for mavlink2rest process to complete (if it was started)
-if [ -n "$mavlink2rest_pid" ]; then
+if [ -n "${mavlink2rest_pid:-}" ]; then
     log_message "Waiting for mavlink2rest process to complete..."
     wait "$mavlink2rest_pid" 2>/dev/null || true
 fi
 
 # Wait for mavlink router process to complete (if it was started)
-if [ -n "$mavlink_router_pid" ]; then
+if [ -n "${mavlink_router_pid:-}" ]; then
     log_message "Waiting for mavlink router process to complete..."
     wait "$mavlink_router_pid" 2>/dev/null || true
 fi

@@ -17,10 +17,11 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.4 (November 2024)"
+echo "Launcher: Docker SITL bootstrap"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
+echo "The active simulator path is headless PX4 Gazebo Harmonic via startup_sitl.sh."
 echo
 echo "Usage: bash create_dockers.sh <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]"
 echo
@@ -46,7 +47,8 @@ echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
 echo "    export MDS_BRANCH=\"your-branch\""
 echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
 echo "  Then run: bash create_dockers.sh <number>"
-echo "  See: docs/advanced_sitl.md for complete guide"
+echo "  All MDS_* environment variables are forwarded into the container runtime."
+echo "  See: docs/guides/advanced-sitl.md for complete guide"
 echo
 echo "==============================================================="
 echo
@@ -72,8 +74,9 @@ echo
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
 #   MDS_DOCKER_IMAGE  - Docker image name to use (default: drone-template:latest)
-#   MDS_REPO_URL      - Git repository URL (passed to containers)
-#   MDS_BRANCH        - Git branch name (passed to containers)
+#   Any MDS_* runtime variable exported on the host is forwarded into the
+#   container, except the internal MDS_BASE_DIR / MDS_HWID_DIR paths which are
+#   fixed by this launcher.
 #
 # EXAMPLES:
 #   # Normal usage (no environment variables):
@@ -87,10 +90,14 @@ echo
 # =============================================================================
 
 # Global variables (with environment variable override support)
-STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
+STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
+HWID_CONTAINER_DIR="/tmp/mds_hwid"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-drone-template:latest}"
 VERBOSE=false
+DOCKER_ENV_ARGS=()
 
 # Variables for custom network, starting drone ID, and starting IP
 CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
@@ -105,6 +112,47 @@ HOST_BITS=0
 usage() {
     printf "Usage: %s <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]\n" "$0"
     exit 1
+}
+
+collect_mds_env_args() {
+    DOCKER_ENV_ARGS=(
+        -e "MDS_BASE_DIR=/root/mavsdk_drone_show"
+        -e "MDS_HWID_DIR=${HWID_CONTAINER_DIR}"
+    )
+
+    local env_name
+    while IFS='=' read -r env_name _; do
+        case "$env_name" in
+            MDS_BASE_DIR|MDS_HWID_DIR)
+                continue
+                ;;
+        esac
+        DOCKER_ENV_ARGS+=(-e "$env_name")
+    done < <(env | sort | grep '^MDS_[A-Za-z0-9_]*=' || true)
+}
+
+print_launcher_configuration() {
+    echo "Launcher Configuration:"
+    echo "  Docker Image   : ${TEMPLATE_IMAGE}"
+    echo "  Repo Root      : ${REPO_ROOT}"
+    echo "  Startup Script : ${STARTUP_SCRIPT_HOST}"
+    echo "  Container Repo : /root/mavsdk_drone_show"
+    echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
+
+    local forwarded_names=()
+    local env_name
+    for ((i=0; i<${#DOCKER_ENV_ARGS[@]}; i++)); do
+        if [[ "${DOCKER_ENV_ARGS[$i]}" == "-e" && $((i + 1)) -lt ${#DOCKER_ENV_ARGS[@]} ]]; then
+            env_name="${DOCKER_ENV_ARGS[$((i + 1))]%%=*}"
+            forwarded_names+=("$env_name")
+        fi
+    done
+
+    if [ ${#forwarded_names[@]} -gt 0 ]; then
+        echo "  Forwarded Env  : ${forwarded_names[*]}"
+    fi
+
+    echo
 }
 
 # Validate the number of instances and inputs
@@ -215,7 +263,8 @@ create_instance() {
     local instance_num=$1
     local drone_id=$((START_ID + instance_num -1))
     local container_name="drone-$drone_id"
-    local hwid_file="${drone_id}.hwID"
+    local temp_hwid_dir
+    local hwid_file
 
     printf "\nCreating container '%s'...\n" "$container_name"
 
@@ -225,9 +274,13 @@ create_instance() {
         docker rm -f "$container_name" >/dev/null 2>&1
     fi
 
+    temp_hwid_dir=$(mktemp -d)
+    hwid_file="${temp_hwid_dir}/${drone_id}.hwID"
+
     # Create an empty .hwID file for the container
     if ! touch "$hwid_file"; then
         printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
+        rm -rf "$temp_hwid_dir"
         return 1
     fi
 
@@ -238,42 +291,41 @@ create_instance() {
     # Check for reserved IP addresses
     if [[ "$last_octet" -eq 0 || "$last_octet" -eq 255 ]]; then
         printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
-        rm -f "$hwid_file"
+        rm -rf "$temp_hwid_dir"
         return 1
     fi
 
     # Run the container with specified network and IP (pass environment variables for repository config)
     if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
-        -e MDS_REPO_URL="${MDS_REPO_URL:-}" \
-        -e MDS_BRANCH="${MDS_BRANCH:-}" \
+        "${DOCKER_ENV_ARGS[@]}" \
         -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-        rm -f "$hwid_file"  # Clean up local .hwID file
+        rm -rf "$temp_hwid_dir"
         return 1
     fi
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
 
-    # Ensure the directory exists inside the container
-    if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
-        printf "Error: Failed to create directory in '%s'\n" "$container_name" >&2
+    # Ensure runtime directories exist inside the container
+    if ! docker exec "$container_name" mkdir -p "$HWID_CONTAINER_DIR" "/tmp"; then
+        printf "Error: Failed to create runtime directories in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
-        rm -f "$hwid_file"
+        rm -rf "$temp_hwid_dir"
         return 1
     fi
 
     # Transfer the .hwID file to the container
-    if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
+    if ! docker cp "$hwid_file" "${container_name}:${HWID_CONTAINER_DIR}/"; then
         printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
-        rm -f "$hwid_file"
+        rm -rf "$temp_hwid_dir"
         return 1
     fi
-    rm -f "$hwid_file"  # Clean up local .hwID file
+    rm -rf "$temp_hwid_dir"
 
-    # Transfer the startup script to the container
+    # Transfer the startup script to a runtime-only location to avoid dirtying the repo checkout.
     if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
         printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -359,6 +411,9 @@ main() {
 
     # Validate inputs
     validate_input "$num_instances"
+
+    collect_mds_env_args
+    print_launcher_configuration
 
     # Setup Docker network
     setup_docker_network

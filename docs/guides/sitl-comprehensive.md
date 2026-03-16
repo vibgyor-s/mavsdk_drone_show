@@ -141,15 +141,21 @@ docker tag drone-template:v4.0 drone-template:latest
 
 This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes:
 
-- **PX4 1.16**
+- **PX4 SITL with Gazebo Harmonic support**
 - **mavsdk_drone_show**
 - **mavlink-router**
 - **mavlink2rest**
-- **Gazebo**
+- **Gazebo Sim (`gz`)**
 - **SITL workflow dependencies**
 - **All other necessary dependencies**
 
 Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.
+
+> **Current Docker SITL standard**
+> - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
+> - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
+> - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
+> - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path
 
 #### Need Custom Repository or Advanced Configuration?
 
@@ -266,7 +272,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. The number **"2"** specifies how many drones to create. Ensure your server has sufficient resources (CPU, memory, disk space) to handle the specified number of drones. The created instances will appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
+    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which starts headless PX4 `gz_x500`, applies the SITL PX4 parameter override block, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 

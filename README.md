@@ -114,7 +114,7 @@ MDS combines three core components into a single, cohesive package:
 - REST API endpoints via MAVLink2REST
 
 ### Automated Docker Environment
-- Prebuilt image includes: PX4 1.16, MAVSDK, MAVLink Router, MAVLink2REST, Gazebo
+- Prebuilt SITL image includes PX4, MAVSDK, MAVLink Router, MAVLink2REST, and Gazebo Sim support
 - Auto hardware-ID detection
 - Dynamic container creation scripts
 
@@ -142,6 +142,7 @@ The fastest way to try MDS is with our SITL (Software-In-The-Loop) demo:
 This guide covers:
 - Mega image download, `7z` extraction, and `docker load` commands
 - Container setup (`multiple_sitl/create_dockers.sh`, `multiple_sitl/startup_sitl.sh`)
+  - Docker SITL now standardizes on headless PX4 Gazebo Harmonic via `make px4_sitl gz_x500`
 - Network, MAVLink Router, Netbird VPN configuration
 - React dashboard startup (`linux_dashboard_start.sh --sitl`)
 - Uploading offline trajectories or launching live swarm missions
