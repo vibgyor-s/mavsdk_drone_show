@@ -94,7 +94,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
-HWID_CONTAINER_DIR="/tmp/mds_hwid"
+HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-drone-template:latest}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
@@ -153,6 +153,19 @@ print_launcher_configuration() {
     fi
 
     echo
+}
+
+ensure_container_git_excludes() {
+    local container_name=$1
+    local repo_dir="/root/mavsdk_drone_show"
+
+    docker exec "$container_name" bash -lc "
+        set -e
+        cd '$repo_dir'
+        mkdir -p .git/info
+        touch .git/info/exclude
+        grep -qxF '*.hwID' .git/info/exclude || echo '*.hwID' >> .git/info/exclude
+    " >/dev/null
 }
 
 # Validate the number of instances and inputs
@@ -305,6 +318,14 @@ create_instance() {
     fi
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
+
+    if ! ensure_container_git_excludes "$container_name"; then
+        printf "Error: Failed to configure local git excludes in '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        rm -rf "$temp_hwid_dir"
+        return 1
+    fi
 
     # Ensure runtime directories exist inside the container
     if ! docker exec "$container_name" mkdir -p "$HWID_CONTAINER_DIR" "/tmp"; then

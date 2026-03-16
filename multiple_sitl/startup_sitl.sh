@@ -858,7 +858,8 @@ export_env_vars() {
     export PX4_HOME_LON="$NEW_LON"
     export PX4_HOME_ALT="$DEFAULT_ALT"
     export MAV_SYS_ID="$HWID"
-    log_message "Environment variables set: PX4_HOME_LAT=$PX4_HOME_LAT, PX4_HOME_LON=$PX4_HOME_LON, PX4_HOME_ALT=$PX4_HOME_ALT, MAV_SYS_ID=$MAV_SYS_ID"
+    export MDS_HW_ID="$HWID"
+    log_message "Environment variables set: PX4_HOME_LAT=$PX4_HOME_LAT, PX4_HOME_LON=$PX4_HOME_LON, PX4_HOME_ALT=$PX4_HOME_ALT, MAV_SYS_ID=$MAV_SYS_ID, MDS_HW_ID=$MDS_HW_ID"
 }
 
 # Function to determine the simulation command

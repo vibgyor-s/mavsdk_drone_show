@@ -42,6 +42,21 @@ class TestConfigLoader:
             result = ConfigLoader.get_hw_id(None)
             assert result == 42
 
+    def test_get_hw_id_from_mds_hw_id_env(self):
+        """Test that MDS_HW_ID overrides filesystem lookup."""
+        with patch.dict(os.environ, {'MDS_HW_ID': '17'}, clear=False):
+            result = ConfigLoader.get_hw_id(None)
+            assert result == 17
+
+    def test_get_hw_id_from_mds_hwid_dir(self, tmp_path):
+        """Test that MDS_HWID_DIR is searched for .hwID files."""
+        hwid_file = tmp_path / "24.hwID"
+        hwid_file.write_text("")
+
+        with patch.dict(os.environ, {'MDS_HWID_DIR': str(tmp_path)}, clear=False):
+            result = ConfigLoader.get_hw_id(None)
+            assert result == 24
+
     def test_read_file_success(self, tmp_path):
         """Test reading a valid JSON config file"""
         import json
