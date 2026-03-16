@@ -289,6 +289,68 @@ class TestCommandTracker:
 
 
 # ============================================================================
+# GCS Command Distribution Tests
+# ============================================================================
+
+class TestGcsCommandDistribution:
+    """Test GCS command fan-out behavior with mixed ID types and ACK payloads."""
+
+    def test_send_command_to_drone_respects_rejected_ack_body(self):
+        """HTTP 200 with status=rejected must not be treated as accepted."""
+        from command import send_command_to_drone
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'status': 'rejected',
+            'message': 'Drone failed pre-arm checks',
+            'error_code': 'E202',
+        }
+
+        with patch('command.requests.post', return_value=mock_response):
+            success, error, category = send_command_to_drone(drone, command_data, retries=1)
+
+        assert success is False
+        assert category == 'rejected'
+        assert 'E202' in error
+
+    def test_send_commands_to_all_normalizes_rejected_drone_ids(self):
+        """Rejected/error logging should not crash when config uses integer hw_id values."""
+        from command import send_commands_to_all
+
+        drones = [{'hw_id': 1, 'ip': '172.18.0.2'}]
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        with patch('command.send_command_to_drone', return_value=(False, 'E202: Not ready to arm', 'rejected')):
+            results = send_commands_to_all(drones, command_data)
+
+        assert results['success'] == 0
+        assert results['rejected'] == 1
+        assert '1' in results['results']
+        assert results['results']['1']['category'] == 'rejected'
+
+    def test_send_commands_to_selected_matches_string_targets_to_integer_hwids(self):
+        """Selective command targeting should work with frontend string drone IDs."""
+        from command import send_commands_to_selected
+
+        drones = [
+            {'hw_id': 1, 'ip': '172.18.0.2'},
+            {'hw_id': 2, 'ip': '172.18.0.3'},
+        ]
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')):
+            results = send_commands_to_selected(drones, command_data, ['1'])
+
+        assert results['total'] == 1
+        assert results['success'] == 1
+        assert '1' in results['results']
+
+
+# ============================================================================
 # Command Validation Tests
 # ============================================================================
 

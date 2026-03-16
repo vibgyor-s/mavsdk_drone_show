@@ -12,7 +12,7 @@ import requests
 import time
 from requests.exceptions import Timeout, ConnectionError
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Iterable
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
@@ -22,6 +22,62 @@ from enums import CommandResultCategory
 from logging_config import (
     get_logger, log_drone_command, log_system_error, log_system_warning
 )
+
+def normalize_drone_id(drone_id: Any) -> str:
+    """Normalize hardware/position identifiers to strings for consistent routing."""
+    return str(drone_id)
+
+
+def normalize_drone_ids(drone_ids: Iterable[Any]) -> List[str]:
+    """Normalize a collection of drone identifiers to strings."""
+    return [normalize_drone_id(drone_id) for drone_id in drone_ids]
+
+
+def _summarize_ack_error(payload: Dict[str, Any]) -> str:
+    """Build a concise error summary from a drone ACK payload."""
+    message = str(payload.get('message') or 'Drone rejected command')
+    error_code = payload.get('error_code')
+    if error_code:
+        return f"{error_code}: {message}"
+    return message
+
+
+def parse_command_ack_response(response: requests.Response) -> Tuple[bool, str, str]:
+    """
+    Interpret drone command ACKs.
+
+    Drone API returns HTTP 200 for both accepted and rejected commands, with the
+    actual ACK status carried in the JSON payload.
+    """
+    if response.status_code != 200:
+        return (
+            False,
+            f"HTTP {response.status_code}: {response.text[:100]}",
+            CommandResultCategory.REJECTED.value,
+        )
+
+    try:
+        payload = response.json()
+    except ValueError:
+        # Older/legacy handlers may not return structured JSON. Preserve the
+        # historical 200 == accepted behavior for that case.
+        return True, "", CommandResultCategory.ACCEPTED.value
+
+    if not isinstance(payload, dict):
+        return True, "", CommandResultCategory.ACCEPTED.value
+
+    status = str(payload.get('status', '')).strip().lower()
+    if status in {"", "accepted", "success", "submitted"}:
+        return True, "", CommandResultCategory.ACCEPTED.value
+
+    if status == CommandResultCategory.REJECTED.value:
+        return False, _summarize_ack_error(payload), CommandResultCategory.REJECTED.value
+
+    if status == CommandResultCategory.OFFLINE.value:
+        return False, _summarize_ack_error(payload), CommandResultCategory.OFFLINE.value
+
+    return False, _summarize_ack_error(payload), CommandResultCategory.ERROR.value
+
 
 def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                          timeout: int = 5, retries: int = 3) -> Tuple[bool, str, str]:
@@ -37,7 +93,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
         - 'rejected': Drone returned non-200 status
         - 'error': Unexpected error occurred
     """
-    drone_id = drone['hw_id']
+    drone_id = normalize_drone_id(drone['hw_id'])
     drone_ip = drone['ip'] 
     command_type = command_data.get('missionType', 'UNKNOWN')
     
@@ -59,7 +115,8 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                 timeout=timeout
             )
             
-            if response.status_code == 200:
+            success, error_message, response_category = parse_command_ack_response(response)
+            if success:
                 # Success - log only for important commands or first success after failures
                 if attempt > 0:  # Recovery from previous failures
                     log_drone_command(
@@ -72,11 +129,10 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                 # Don't log routine successful commands to reduce noise
 
                 return True, "", CommandResultCategory.ACCEPTED.value
-
             else:
-                last_error = f"HTTP {response.status_code}: {response.text[:100]}"
-                last_category = CommandResultCategory.REJECTED.value  # Drone responded but rejected command
-                
+                last_error = error_message
+                last_category = response_category
+
         except (Timeout, ConnectionError) as e:
             attempt += 1
             last_error = f"{e.__class__.__name__}: Connection issue"
@@ -149,7 +205,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
         # Collect results as they complete
         for future in as_completed(future_to_drone):
             drone = future_to_drone[future]
-            drone_id = drone['hw_id']
+            drone_id = normalize_drone_id(drone['hw_id'])
 
             try:
                 success, error, category = future.result()
@@ -240,7 +296,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
         # Only log rejected/error drones (not offline - that's expected)
         problem_categories = (CommandResultCategory.REJECTED.value, CommandResultCategory.ERROR.value)
         problem_drones = [
-            drone_id for drone_id, result in results.items()
+            normalize_drone_id(drone_id) for drone_id, result in results.items()
             if result.get('category') in problem_categories
         ]
 
@@ -291,7 +347,7 @@ def send_commands_to_selected(drones: List[Dict[str, str]], command_data: Dict[s
         Dict with execution results
     """
     # Normalize drone IDs to strings (frontend may send integers)
-    target_drone_ids = [str(id) for id in target_drone_ids] if target_drone_ids else []
+    target_drone_ids = normalize_drone_ids(target_drone_ids) if target_drone_ids else []
 
     if not target_drone_ids:
         log_system_warning("No target drones specified for selective command", "command")
@@ -303,11 +359,11 @@ def send_commands_to_selected(drones: List[Dict[str, str]], command_data: Dict[s
     # Filter drones to only target ones
     target_drones = [
         drone for drone in drones 
-        if drone['hw_id'] in target_drone_ids
+        if normalize_drone_id(drone.get('hw_id')) in target_drone_ids
     ]
     
     if len(target_drones) != len(target_drone_ids):
-        found_ids = [drone['hw_id'] for drone in target_drones]
+        found_ids = normalize_drone_ids(drone.get('hw_id') for drone in target_drones)
         missing_ids = set(target_drone_ids) - set(found_ids)
         
         log_system_warning(

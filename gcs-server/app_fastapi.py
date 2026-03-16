@@ -695,6 +695,7 @@ async def submit_command(request: Request):
 
         # Extract target drones
         target_drones = command_data.pop('target_drones', None)
+        normalized_target_ids = {str(target_id) for target_id in target_drones} if target_drones else None
 
         # Handle auto_global_origin
         auto_global_origin = command_data.get('auto_global_origin', False)
@@ -718,8 +719,11 @@ async def submit_command(request: Request):
             raise HTTPException(status_code=500, detail="No drones found in configuration")
 
         # Determine actual target drone list
-        if target_drones:
-            actual_targets = [d for d in drones if d['hw_id'] in target_drones or d['pos_id'] in target_drones]
+        if normalized_target_ids:
+            actual_targets = [
+                d for d in drones
+                if str(d.get('hw_id')) in normalized_target_ids or str(d.get('pos_id')) in normalized_target_ids
+            ]
         else:
             actual_targets = drones
 
@@ -746,8 +750,8 @@ async def submit_command(request: Request):
 
         # Execute command synchronously - send_commands_to_all already uses ThreadPoolExecutor
         # This ensures ACKs are recorded before response is returned (no race condition)
-        if target_drones:
-            results = send_commands_to_selected(drones, command_data, target_drones)
+        if normalized_target_ids:
+            results = send_commands_to_selected(drones, command_data, target_hw_ids)
         else:
             results = send_commands_to_all(drones, command_data)
 
@@ -804,11 +808,22 @@ async def submit_command(request: Request):
 
         # Determine success based on results
         has_success = results.get('success', 0) > 0
+        rejected = results.get('rejected', 0)
+        errors = results.get('errors', 0)
+        offline = results.get('offline', 0)
+        if has_success and rejected == 0 and errors == 0 and offline == 0:
+            submission_status = "submitted"
+        elif has_success:
+            submission_status = "partial"
+        elif offline > 0 and rejected == 0 and errors == 0:
+            submission_status = "offline"
+        else:
+            submission_status = "failed"
 
         return SubmitCommandResponse(
             success=has_success,  # True if at least one drone accepted
             command_id=command_id,
-            status="submitted",
+            status=submission_status,
             mission_type=mission_type_int,
             mission_name=mission_name,
             target_drones=target_hw_ids,
