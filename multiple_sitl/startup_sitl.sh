@@ -391,7 +391,8 @@ run_mavlink_router() {
 # Detect PX4's live MAVLink GCS output port so the router matches the image's
 # actual runtime behavior instead of relying on a single hardcoded assumption.
 detect_px4_mavlink_port() {
-    local default_port="${MDS_PX4_GCS_PORT:-14550}"
+    local expected_port=14550
+    local default_port="${MDS_PX4_GCS_PORT:-$expected_port}"
     local detection_log="$BASE_DIR/logs/mavlink_port_detection.log"
 
     if [ -n "${MDS_PX4_GCS_PORT:-}" ]; then
@@ -423,7 +424,12 @@ detect_px4_mavlink_port() {
         log_message "WARNING: Invalid detected PX4 MAVLink port. Falling back to $PX4_GCS_MAVLINK_PORT"
     fi
 
-    log_message "Detected PX4 MAVLink GCS port: $PX4_GCS_MAVLINK_PORT"
+    if [ "$PX4_GCS_MAVLINK_PORT" -eq "$expected_port" ]; then
+        log_message "PX4 MAVLink GCS port confirmed at $PX4_GCS_MAVLINK_PORT."
+    else
+        log_message "WARNING: PX4 MAVLink GCS port detected at $PX4_GCS_MAVLINK_PORT instead of expected $expected_port."
+        log_message "WARNING: Using detected port to preserve telemetry. This suggests a legacy or modified SITL image/startup configuration."
+    fi
 }
 
 # Function to run mavlink2rest in the background
@@ -614,6 +620,24 @@ start_simulation() {
     log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
 }
 
+validate_simulation_startup() {
+    log_message "Validating PX4 SITL startup..."
+    sleep 2
+
+    if ! kill -0 "$simulation_pid" 2>/dev/null; then
+        log_message "ERROR: SITL simulation exited during startup. Recent log lines:"
+        if [ -f "$BASE_DIR/logs/sitl_simulation.log" ]; then
+            while IFS= read -r line; do
+                log_message "  $line"
+            done < <(tail -n 20 "$BASE_DIR/logs/sitl_simulation.log")
+        fi
+        exit 1
+    fi
+
+    log_message "PX4 SITL process is running (PID: $simulation_pid)."
+    log_message "Expected PX4 MAVLink UDP ports: offboard=14540, gcs=14550"
+}
+
 # Function to run coordinator.py
 run_coordinator() {
     log_message "Starting coordinator.py..."
@@ -694,6 +718,9 @@ determine_simulation_command
 
 # Start SITL simulation
 start_simulation
+
+# Validate PX4 process health and expected default port assumptions early.
+validate_simulation_startup
 
 # Detect PX4's actual MAVLink output port before routing.
 detect_px4_mavlink_port

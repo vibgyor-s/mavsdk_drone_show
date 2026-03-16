@@ -82,11 +82,12 @@ For SITL containers, MAVLink routing is handled automatically by `startup_sitl.s
 **Key points for SITL:**
 - PX4 SITL automatically streams to port 14540 for MAVSDK and to a GCS UDP port that is usually 14550
 - MAVSDK connects **directly** to PX4 on port 14540 (no routing needed)
-- `startup_sitl.sh` now auto-detects the live PX4 GCS UDP port before starting the router, which keeps mixed/legacy SITL images working even if their runtime port differs
-- Router takes the detected PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550
+- `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup
+- If runtime inspection shows a different live PX4 GCS port, startup logs a warning and falls back to the detected port so mixed/legacy SITL images still keep telemetry alive
+- Router takes the validated PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550
 - Remote GCS connects on port **24550** (not 14550)
 
-If detection fails, SITL falls back to `14550`. Advanced users can override detection explicitly:
+If runtime inspection fails entirely, SITL falls back to `14550`. Advanced users can override detection explicitly:
 
 ```bash
 export MDS_PX4_GCS_PORT=14550
