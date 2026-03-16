@@ -80,6 +80,15 @@ class TestCommandErrorCode:
         assert "unknown" in desc.lower()
 
 
+class TestGcsLoggingImports:
+    """Ensure GCS modules resolve the server-side logging implementation."""
+
+    def test_command_module_uses_gcs_logging_wrapper(self):
+        from command import get_logger
+
+        assert get_logger.__module__ == 'gcs_logging'
+
+
 # ============================================================================
 # CommandTracker Tests
 # ============================================================================

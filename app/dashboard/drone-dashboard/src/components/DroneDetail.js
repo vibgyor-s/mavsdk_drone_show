@@ -11,9 +11,9 @@ import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from 
 import { getDroneShowStateName } from '../constants/droneStates';
 import { getFriendlyMissionName } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 
 const POLLING_RATE_HZ = 2;
-const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 const droneIcon = new L.Icon({
   iconUrl: '/drone-marker.png',
@@ -26,7 +26,6 @@ const droneIcon = new L.Icon({
  */
 const DroneDetail = ({ drone, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
-  const [isStale, setIsStale] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
@@ -40,9 +39,6 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             hw_ID: drone[FIELD_NAMES.HW_ID],
             ...droneData,
           });
-          const currentTime = Math.floor(Date.now() / 1000);
-          const isDataStale = currentTime - droneData[FIELD_NAMES.UPDATE_TIME] > STALE_DATA_THRESHOLD_SECONDS;
-          setIsStale(isDataStale);
         }
       }).catch((error) => {
         console.error('Network Error:', error);
@@ -54,9 +50,6 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       clearInterval(pollingInterval);
     };
   }, [drone[FIELD_NAMES.HW_ID]]);
-
-  // Status assessment functions
-  const getStatusColor = (isStale) => isStale ? '#e53e3e' : '#38a169';
 
   const getBatteryStatus = (voltage) => {
     if (voltage >= 16.0) return { class: 'excellent', color: '#38a169', label: 'Excellent' };
@@ -74,14 +67,17 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     return { class: 'none', color: '#a0aec0', label: 'No Fix' };
   };
 
-  const getConnectionStatus = () => {
-    const now = Date.now();
-    const lastSeen = detailedDrone[FIELD_NAMES.HEARTBEAT_LAST_SEEN] || 0;
-    const timeDiff = (now - lastSeen) / 1000;
-
-    if (timeDiff < 5) return { class: 'excellent', color: '#38a169', label: 'Live' };
-    if (timeDiff < 15) return { class: 'good', color: '#f6ad55', label: 'Recent' };
-    return { class: 'poor', color: '#e53e3e', label: 'Stale' };
+  const getConnectionStatus = (runtimeStatus) => {
+    if (runtimeStatus.level === 'online') {
+      return { class: 'excellent', color: '#38a169', label: runtimeStatus.label };
+    }
+    if (runtimeStatus.level === 'degraded') {
+      return { class: 'good', color: '#f6ad55', label: runtimeStatus.label };
+    }
+    if (runtimeStatus.level === 'offline') {
+      return { class: 'poor', color: '#e53e3e', label: runtimeStatus.label };
+    }
+    return { class: 'none', color: '#a0aec0', label: runtimeStatus.label };
   };
 
   const formatTime = (timestamp) => {
@@ -114,7 +110,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     detailedDrone[FIELD_NAMES.HDOP] || 99.99,
     detailedDrone[FIELD_NAMES.SATELLITES_VISIBLE] || 0
   );
-  const connectionStatus = getConnectionStatus();
+  const runtimeStatus = getDroneRuntimeStatus(detailedDrone);
+  const connectionStatus = getConnectionStatus(runtimeStatus);
 
   // Calculate uptime
   const firstSeen = detailedDrone[FIELD_NAMES.HEARTBEAT_FIRST_SEEN] || 0;
@@ -391,10 +388,11 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             <div className="connection-indicator">
               <span
                 className="status-dot"
-                style={{ backgroundColor: getStatusColor(isStale) }}
+                style={{ backgroundColor: connectionStatus.color }}
+                title={runtimeStatus.tooltip}
               />
               <span className="status-text">
-                {isStale ? 'Connection Lost' : 'Live'}
+                {runtimeStatus.label}
               </span>
             </div>
           </h1>

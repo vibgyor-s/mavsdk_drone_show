@@ -1,9 +1,11 @@
 import {
+  areGitRevisionsEquivalent,
   buildSuggestedHwIds,
   formatDroneLabel,
   formatShowSlotLabel,
   getDuplicateAssignments,
   getOnlineDroneCount,
+  normalizeRuntimeIp,
   normalizeDroneConfigData,
   toBackendConfigDrone,
 } from './missionIdentityUtils';
@@ -34,6 +36,16 @@ describe('missionIdentityUtils', () => {
     expect(formatShowSlotLabel(3)).toBe('Show Slot 3');
     expect(formatDroneLabel(null)).toBe('Drone');
     expect(formatShowSlotLabel(undefined)).toBe('Show Slot');
+  });
+
+  test('normalizeRuntimeIp filters placeholder heartbeat IP values', () => {
+    expect(normalizeRuntimeIp('unknown')).toBe('');
+    expect(normalizeRuntimeIp(' 172.18.0.2 ')).toBe('172.18.0.2');
+  });
+
+  test('areGitRevisionsEquivalent accepts matching short and full SHAs', () => {
+    expect(areGitRevisionsEquivalent('540beb77', '540beb77b0d5f727a022e04f5c612c23a9a1a459')).toBe(true);
+    expect(areGitRevisionsEquivalent('abc1234', 'def1234')).toBe(false);
   });
 
   test('getDuplicateAssignments detects mixed-type duplicate hardware and position IDs', () => {

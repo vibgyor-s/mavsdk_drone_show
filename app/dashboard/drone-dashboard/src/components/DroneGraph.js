@@ -234,7 +234,6 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         style={{ width: '100%', height: '100%' }}
         minZoom={0.3}
         maxZoom={2.4}
-        wheelSensitivity={0.18}
       />
     </div>
   );

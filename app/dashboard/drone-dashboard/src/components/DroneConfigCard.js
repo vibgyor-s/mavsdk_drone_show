@@ -25,6 +25,7 @@ import {
   getHeartbeatTimestamp,
   isPositiveIntegerId,
   normalizeComparableId,
+  normalizeRuntimeIp,
 } from '../utilities/missionIdentityUtils';
 import '../styles/DroneConfigCard.css';
 
@@ -249,18 +250,18 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     // 2) config=assigned, but no auto detection => single line, with a yellow icon
     if (configAssignedMatchNoAuto) {
       return (
-        <div className="position-status partial">
-          <span>Configured Slot Matches Heartbeat: {configStr}</span>
+        <div className="position-status match">
+          <span>Configured Slot Confirmed: {configStr}</span>
           <FontAwesomeIcon
-            icon={faExclamationTriangle}
-            className="status-icon stale"
-            title="No auto-detection available. Configured and heartbeat-assigned show slots match."
+            icon={faCheckCircle}
+            className="status-icon all-good"
+            title="Configured and heartbeat-assigned show slots match."
           />
           <div className="position-values">
             <div className="position-value">Configured Slot: {configStr}</div>
             <div className="position-value">Heartbeat Slot: {assignedStr}</div>
           </div>
-          <small>Auto-detection not available</small>
+          <small>Auto-detection unavailable</small>
         </div>
       );
     }
@@ -1035,6 +1036,8 @@ export default function DroneConfigCard({
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};
+  const heartbeatIp = normalizeRuntimeIp(safeHb.ip);
+  const configuredIp = normalizeRuntimeIp(drone.ip);
   const timestampVal = getHeartbeatTimestamp(safeHb);
   const now = Date.now();
   const heartbeatAgeSec =
@@ -1051,7 +1054,7 @@ export default function DroneConfigCard({
   }
 
   // Mismatch checks for IP
-  const ipMismatch = typeof safeHb.ip === 'string' && safeHb.ip !== drone.ip;
+  const ipMismatch = Boolean(heartbeatIp && configuredIp && heartbeatIp !== configuredIp);
 
   // Position IDs from config & heartbeat
   const configPosId = normalizeComparableId(drone.pos_id, drone.hw_id); // from config
@@ -1123,7 +1126,7 @@ export default function DroneConfigCard({
           droneData={droneData}
           errors={errors}
           ipMismatch={ipMismatch}
-          heartbeatIP={safeHb.ip}
+          heartbeatIP={heartbeatIp}
           assignedPosId={assignedPosId}
           autoPosId={autoPosId}
           onFieldChange={(e) => {
@@ -1131,8 +1134,8 @@ export default function DroneConfigCard({
             setDroneData({ ...droneData, [name]: value });
           }}
           onAcceptIp={() => {
-            if (safeHb.ip) {
-              setDroneData({ ...droneData, ip: safeHb.ip });
+            if (heartbeatIp) {
+              setDroneData({ ...droneData, ip: heartbeatIp });
             }
           }}
           onAcceptPos={() => {
@@ -1169,7 +1172,7 @@ export default function DroneConfigCard({
           ipMismatch={ipMismatch}
           heartbeatStatus={heartbeatStatus}
           heartbeatAgeSec={heartbeatAgeSec}
-          heartbeatIP={safeHb.ip}
+          heartbeatIP={heartbeatIp}
           networkInfo={networkInfo}
           configPosId={configPosId}
           assignedPosId={assignedPosId}

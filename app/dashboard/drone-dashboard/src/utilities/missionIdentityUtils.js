@@ -32,6 +32,37 @@ export function formatShowSlotLabel(value, fallback = 'Show Slot') {
   return normalized ? `Show Slot ${normalized}` : fallback;
 }
 
+export function normalizeRuntimeIp(value) {
+  const normalized = toTrimmedString(value);
+  if (!normalized) {
+    return '';
+  }
+
+  const lowered = normalized.toLowerCase();
+  if (['unknown', 'n/a', 'none', 'null'].includes(lowered)) {
+    return '';
+  }
+
+  return normalized;
+}
+
+export function areGitRevisionsEquivalent(leftValue, rightValue) {
+  const left = toTrimmedString(leftValue).toLowerCase();
+  const right = toTrimmedString(rightValue).toLowerCase();
+
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left === right) {
+    return true;
+  }
+
+  const shorter = left.length <= right.length ? left : right;
+  const longer = left.length <= right.length ? right : left;
+  return shorter.length >= 7 && longer.startsWith(shorter);
+}
+
 export function isPositiveIntegerId(value) {
   return POSITIVE_INTEGER_PATTERN.test(normalizeComparableId(value));
 }

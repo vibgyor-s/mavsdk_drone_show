@@ -9,6 +9,7 @@ import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFligh
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -52,8 +53,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   if (!isOpen || !drone) return null;
 
   // Calculate status information
-  const currentTimeInMs = Date.now();
-  const isStale = currentTimeInMs - (drone[FIELD_NAMES.TIMESTAMP] || 0) > 5000;
+  const runtimeStatus = getDroneRuntimeStatus(drone, Date.now());
 
   const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
   const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
@@ -114,7 +114,11 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
         {/* Header */}
         <header className="expanded-drone-header">
           <div className="drone-header">
-            <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
+            <span
+              className={`status-indicator ${runtimeStatus.indicatorClass}`}
+              title={runtimeStatus.tooltip}
+              aria-label={runtimeStatus.label}
+            />
             <span>Drone {drone[FIELD_NAMES.HW_ID] || 'Unknown'}</span>
           </div>
         </header>

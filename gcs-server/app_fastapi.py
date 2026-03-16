@@ -77,7 +77,7 @@ from functions import swarm_trajectory_service
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 
 # Import logging system
-from logging_config import (
+from gcs_logging import (
     get_logger, log_system_error, log_system_warning, log_system_event
 )
 
@@ -400,13 +400,21 @@ async def websocket_telemetry(websocket: WebSocket):
 
 @app.post("/heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
 @app.post("/drone-heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-async def post_heartbeat(heartbeat: HeartbeatRequest):
+async def post_heartbeat(heartbeat: HeartbeatRequest, request: Request):
     """Receive heartbeat from drone (fire-and-forget)"""
     try:
+        client_ip = request.client.host if request.client else None
+        heartbeat_ip = heartbeat.ip.strip() if heartbeat.ip else None
+        if heartbeat_ip in {"", "unknown", "n/a", "none"}:
+            heartbeat_ip = None
+
         handle_heartbeat_post(
             pos_id=heartbeat.pos_id,
             hw_id=heartbeat.hw_id,
-            timestamp=heartbeat.timestamp
+            detected_pos_id=heartbeat.detected_pos_id,
+            ip=heartbeat_ip or client_ip,
+            timestamp=heartbeat.timestamp,
+            network_info=heartbeat.network_info,
         )
         return HeartbeatPostResponse(
             success=True,
@@ -424,7 +432,7 @@ async def get_heartbeats():
 
     # Load drone config to get IP addresses
     drones_config = load_config()
-    config_lookup = {d['hw_id']: d for d in drones_config}
+    config_lookup = {str(d['hw_id']): d for d in drones_config}
 
     current_time = time.time()
     heartbeat_timeout = Params.TELEMETRY_POLLING_TIMEOUT  # Default 10 seconds
@@ -447,7 +455,9 @@ async def get_heartbeats():
 
         # Get IP from heartbeat data, fallback to config, then 'unknown'
         ip_value = hb_data.get('ip')
-        if not ip_value or ip_value is None:
+        if ip_value is not None:
+            ip_value = str(ip_value).strip()
+        if ip_value in {"", "unknown", "n/a", "none", None}:
             # Try to get from config
             ip_value = config_lookup.get(hw_id, {}).get('ip', 'unknown')
 
@@ -459,6 +469,7 @@ async def get_heartbeats():
             hw_id=str(hw_id),
             pos_id=int(hb_data.get('pos_id', 0)),
             ip=ip_str,
+            detected_pos_id=hb_data.get('detected_pos_id'),
             last_heartbeat=last_timestamp,
             online=is_online,
             latency_ms=latency_ms
@@ -1049,16 +1060,14 @@ async def get_git_status():
                 except ValueError:
                     mapped_status = GitStatus.UNKNOWN
 
-            # Extract commit hash (first 8 chars)
             commit_hash = raw_data.get('commit', 'unknown')
-            short_commit = commit_hash[:8] if commit_hash and commit_hash != 'unknown' else 'unknown'
 
             transformed_git_status[str(hw_id)] = DroneGitStatus(
                 pos_id=int(drone_info.get('pos_id', hw_id)),
                 hw_id=str(hw_id),
                 ip=drone_info.get('ip', 'unknown'),
                 branch=raw_data.get('branch', 'unknown'),
-                commit=short_commit,
+                commit=commit_hash,
                 commit_message=raw_data.get('commit_message'),
                 commit_date=raw_data.get('commit_date'),
                 author_name=raw_data.get('author_name'),

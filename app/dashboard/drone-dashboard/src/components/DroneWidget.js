@@ -6,6 +6,7 @@ import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFligh
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import '../styles/DroneWidget.css';
 
 /**
@@ -19,7 +20,7 @@ const DroneWidget = ({
   setSelectedDrone,
 }) => {
   const currentTimeInMs = Date.now();
-  const isStale = currentTimeInMs - (drone[FIELD_NAMES.TIMESTAMP] || 0) > 5000;
+  const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
 
   // Force re-render every second for live time updates
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -150,7 +151,11 @@ const DroneWidget = ({
         toggleDroneDetails(drone);
       }}>
         <div className="drone-header">
-          <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
+          <span
+            className={`status-indicator ${runtimeStatus.indicatorClass}`}
+            title={runtimeStatus.tooltip}
+            aria-label={runtimeStatus.label}
+          />
           <span>Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
         </div>
       </h3>

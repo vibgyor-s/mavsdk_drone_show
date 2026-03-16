@@ -57,7 +57,12 @@ const App = () => {
   return (
     <ThemeProvider>
       <MapProvider>
-      <Router>
+      <Router
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
       <div className="app-container">
         <SidebarMenu
           collapsed={sidebarCollapsed}

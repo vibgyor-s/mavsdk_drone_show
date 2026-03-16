@@ -246,6 +246,9 @@ class TestHeartbeatEndpoints:
         heartbeat_data = {
             'pos_id': 0,
             'hw_id': '1',
+            'detected_pos_id': 1,
+            'ip': '172.18.0.2',
+            'network_info': {'wifi': {'ssid': 'test'}},
             'timestamp': 1700000000000
         }
 
@@ -253,14 +256,19 @@ class TestHeartbeatEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data['success'] == True
+        mock_handle.assert_called_once()
+        kwargs = mock_handle.call_args.kwargs
+        assert kwargs['hw_id'] == '1'
+        assert kwargs['detected_pos_id'] == 1
+        assert kwargs['ip'] == '172.18.0.2'
 
     @patch('app_fastapi.get_all_heartbeats')
     def test_get_heartbeats(self, mock_get_heartbeats, test_client):
         """Test GET /get-heartbeats"""
         # get_all_heartbeats returns a dict keyed by hw_id
         mock_get_heartbeats.return_value = {
-            '1': {'pos_id': 0, 'hw_id': '1', 'timestamp': 1700000000000},
-            '2': {'pos_id': 1, 'hw_id': '2', 'timestamp': 1700000000000}
+            '1': {'pos_id': 0, 'hw_id': '1', 'detected_pos_id': 1, 'ip': 'unknown', 'timestamp': 1700000000000},
+            '2': {'pos_id': 1, 'hw_id': '2', 'detected_pos_id': 2, 'ip': '172.18.0.22', 'timestamp': 1700000000000}
         }
 
         response = test_client.get("/get-heartbeats")
@@ -268,6 +276,10 @@ class TestHeartbeatEndpoints:
         data = response.json()
         assert 'heartbeats' in data
         assert data['total_drones'] == 2
+        heartbeats = {item['hw_id']: item for item in data['heartbeats']}
+        assert heartbeats['1']['detected_pos_id'] == 1
+        assert heartbeats['1']['ip'] == '192.168.1.101'
+        assert heartbeats['2']['ip'] == '172.18.0.22'
 
 
 # ============================================================================
@@ -393,6 +405,7 @@ class TestGitStatusEndpoints:
         data = response.json()
         assert 'git_status' in data
         assert 'synced_count' in data
+        assert data['git_status']['1']['commit'] == 'abc12345'
 
     @patch('app_fastapi.get_gcs_git_report')
     def test_get_gcs_git_status(self, mock_report, test_client):

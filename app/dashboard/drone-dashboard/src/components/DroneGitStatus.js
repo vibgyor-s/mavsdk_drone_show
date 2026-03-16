@@ -9,6 +9,7 @@ import {
   faChevronUp,
   faCopy,
 } from '@fortawesome/free-solid-svg-icons';
+import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
 
 const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -32,7 +33,7 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   }
 
   const isInSync = gcsGitStatus && gitStatus.commit && gcsGitStatus.commit
-    ? String(gitStatus.commit).trim() === String(gcsGitStatus.commit).trim()
+    ? areGitRevisionsEquivalent(gitStatus.commit, gcsGitStatus.commit)
     : false;
 
   const handleCopyCommit = async () => {

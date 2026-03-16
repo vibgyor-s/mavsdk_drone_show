@@ -20,6 +20,18 @@ git_status_data_all_drones: Dict[str, Dict[str, Any]] = {}
 data_lock_git_status = threading.Lock()
 
 
+def commits_match(left_commit: str, right_commit: str) -> bool:
+    """Treat matching short/full SHAs as equivalent when one is a prefix."""
+    left = str(left_commit or "").strip().lower()
+    right = str(right_commit or "").strip().lower()
+    if not left or not right or left == "unknown" or right == "unknown":
+        return False
+    if left == right:
+        return True
+    shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
+    return len(shorter) >= 7 and longer.startswith(shorter)
+
+
 def check_git_sync_status():
     """
     Check if all drones are on the same git commit and branch,
@@ -56,7 +68,7 @@ def check_git_sync_status():
                 commits[commit].append(drone_id)
 
                 # Compare against GCS commit
-                if gcs_commit and commit != 'unknown' and commit != gcs_commit:
+                if gcs_commit and commit != 'unknown' and not commits_match(commit, gcs_commit):
                     drones_out_of_sync_with_gcs.append(drone_id)
 
     # Determine sync status
@@ -85,7 +97,7 @@ def check_git_sync_status():
 # Standalone test mode
 if __name__ == "__main__":
     from config import load_config
-    from logging_config import initialize_logging, LogLevel, DisplayMode
+    from gcs_logging import initialize_logging, LogLevel, DisplayMode
 
     initialize_logging(LogLevel.VERBOSE, DisplayMode.STREAM)
 

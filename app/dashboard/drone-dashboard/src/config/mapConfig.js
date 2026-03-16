@@ -57,7 +57,10 @@ export const LEAFLET_DEFAULTS = {
 
 export const PROVIDER_STORAGE_KEY = 'mds_map_provider';
 export const TILE_STORAGE_KEY = 'mds_tile_layer';
-export const DEFAULT_TILE_KEY = 'googleSatellite';
+// Use an official provider as the default Leaflet fallback layer.
+// Google tiles remain available as an opt-in layer, but should not be the
+// automatic default for operational views.
+export const DEFAULT_TILE_KEY = 'esriSatellite';
 
 /**
  * Return a Leaflet-safe tile layer configuration.

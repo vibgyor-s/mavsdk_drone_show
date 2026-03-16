@@ -164,10 +164,20 @@
     animation: pulse-success 2s infinite;
 }
 
-.status-indicator.stale {
+.status-indicator.degraded {
+    background: var(--color-warning);
+    box-shadow: 0 0 0 2px var(--color-warning-light), 0 0 8px var(--color-warning-light);
+    animation: pulse-warning 1.5s infinite;
+}
+
+.status-indicator.offline {
     background: var(--color-danger);
     box-shadow: 0 0 0 2px var(--color-danger-light);
-    animation: pulse-warning 1.5s infinite;
+}
+
+.status-indicator.unknown {
+    background: var(--color-text-tertiary);
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
 }
 
 @keyframes pulse-success {

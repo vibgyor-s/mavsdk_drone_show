@@ -383,11 +383,11 @@
 
 /* === Map View Container === */
 .globe-map-container {
-    flex: 1;
     position: relative;
     border-radius: var(--border-radius-lg);
     overflow: hidden;
-    min-height: 500px;
+    height: clamp(420px, 68vh, 780px);
+    min-height: 420px;
 }
 
 .globe-map-container .mds-map-container {

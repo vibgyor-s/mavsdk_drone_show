@@ -19,7 +19,7 @@ from params import Params
 from enums import CommandResultCategory
 
 # Import the new logging system
-from logging_config import (
+from gcs_logging import (
     get_logger, log_drone_command, log_system_error, log_system_warning
 )
 
@@ -477,7 +477,7 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
 # Standalone test mode
 if __name__ == "__main__":
     import argparse
-    from logging_config import initialize_logging, LogLevel, DisplayMode
+    from gcs_logging import initialize_logging, LogLevel, DisplayMode
     from config import load_config
     
     parser = argparse.ArgumentParser(description='Test drone command system')

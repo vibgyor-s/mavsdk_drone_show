@@ -226,11 +226,16 @@ class TestHeartbeatValidation:
 
         heartbeat = HeartbeatRequest(
             pos_id=1,
-            hw_id="drone1"
+            hw_id="drone1",
+            detected_pos_id=2,
+            ip="172.18.0.2",
+            network_info={"wifi": {"ssid": "test"}}
         )
 
         assert heartbeat.pos_id == 1
         assert heartbeat.hw_id == "drone1"
+        assert heartbeat.detected_pos_id == 2
+        assert heartbeat.ip == "172.18.0.2"
 
     def test_integer_hw_id_is_normalized(self):
         """Test legacy integer hw_id values are accepted and normalized."""
@@ -242,6 +247,18 @@ class TestHeartbeatValidation:
         )
 
         assert heartbeat.hw_id == "1"
+
+    def test_placeholder_heartbeat_ip_is_normalized_to_none(self):
+        """Test placeholder heartbeat IP values do not propagate as mismatches."""
+        from gcs_server_schemas import HeartbeatRequest
+
+        heartbeat = HeartbeatRequest(
+            pos_id=1,
+            hw_id="1",
+            ip="unknown"
+        )
+
+        assert heartbeat.ip is None
 
     def test_negative_pos_id_heartbeat(self):
         """Test rejection of negative pos_id in heartbeat"""

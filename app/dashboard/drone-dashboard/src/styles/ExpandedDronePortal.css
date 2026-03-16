@@ -111,9 +111,19 @@
     box-shadow: 0 0 8px var(--color-success-light);
 }
 
-.expanded-drone-header .status-indicator.stale {
+.expanded-drone-header .status-indicator.degraded {
     background: var(--color-warning);
     box-shadow: 0 0 8px var(--color-warning-light);
+}
+
+.expanded-drone-header .status-indicator.offline {
+    background: var(--color-danger);
+    box-shadow: 0 0 8px var(--color-danger-light);
+}
+
+.expanded-drone-header .status-indicator.unknown {
+    background: var(--color-text-tertiary);
+    box-shadow: 0 0 8px rgba(107, 114, 128, 0.2);
 }
 
 /* Critical Status */

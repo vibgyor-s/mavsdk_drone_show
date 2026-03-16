@@ -1,7 +1,7 @@
 // src/components/GlobeMapView.js
 // 2D map view for drone visualization — dual-provider (Mapbox + Leaflet fallback)
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from './map/LeafletMapBase';
@@ -9,7 +9,7 @@ import MapFallbackBanner from './map/MapFallbackBanner';
 import MapProviderToggle from './map/MapProviderToggle';
 import { MAP_PROVIDERS } from '../config/mapConfig';
 import { FIELD_NAMES } from '../constants/fieldMappings';
-import { Marker as LeafletMarker, Popup } from 'react-leaflet';
+import { Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import '../styles/GlobeView.css';
 
@@ -38,9 +38,27 @@ const createDroneIcon = (hwId) =>
     iconAnchor: [12, 12],
   });
 
+const LeafletInvalidateSize = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    const resize = () => map.invalidateSize(false);
+    const animationFrame = requestAnimationFrame(resize);
+    const timeoutId = window.setTimeout(resize, 150);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [map]);
+
+  return null;
+};
+
 const GlobeMapView = ({ drones }) => {
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === MAP_PROVIDERS.LEAFLET || !ctxMapboxAvailable || !mapboxAvailable;
+  const mapboxRef = useRef(null);
 
   // Compute center and valid drones from average drone position
   const { center, validDrones } = useMemo(() => {
@@ -51,6 +69,24 @@ const GlobeMapView = ({ drones }) => {
     return { center: { lat: avgLat, lng: avgLng }, validDrones: valid };
   }, [drones]);
 
+  useEffect(() => {
+    if (useLeaflet || !mapboxRef.current) {
+      return undefined;
+    }
+
+    const resize = () => {
+      mapboxRef.current?.resize?.();
+    };
+
+    const animationFrame = requestAnimationFrame(resize);
+    const timeoutId = window.setTimeout(resize, 150);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [useLeaflet, center.lat, center.lng, validDrones.length]);
+
   return (
     <div className="globe-map-container">
       {useLeaflet && <MapFallbackBanner />}
@@ -58,6 +94,7 @@ const GlobeMapView = ({ drones }) => {
 
       {!useLeaflet && mapboxAvailable ? (
         <MapboxMap
+          ref={mapboxRef}
           initialViewState={{
             latitude: center.lat,
             longitude: center.lng,
@@ -86,6 +123,7 @@ const GlobeMapView = ({ drones }) => {
           zoom={validDrones.length > 0 ? 15 : 3}
           style={{ width: '100%', height: '100%' }}
         >
+          <LeafletInvalidateSize />
           {validDrones.map(drone => (
             <LeafletMarker
               key={drone[FIELD_NAMES.HW_ID]}

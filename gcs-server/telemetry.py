@@ -22,7 +22,7 @@ from config import load_config
 from heartbeat import last_heartbeats, last_heartbeats_lock
 
 # Import the new logging system
-from logging_config import (
+from gcs_logging import (
     get_logger, log_drone_telemetry, log_system_error, log_system_warning
 )
 
@@ -470,7 +470,7 @@ def get_telemetry_summary():
 # Standalone test mode
 if __name__ == "__main__":
     import argparse
-    from logging_config import initialize_logging, LogLevel, DisplayMode
+    from gcs_logging import initialize_logging, LogLevel, DisplayMode
     
     parser = argparse.ArgumentParser(description='Test telemetry polling system')
     parser.add_argument('--log-level', choices=['QUIET', 'NORMAL', 'VERBOSE', 'DEBUG'], 

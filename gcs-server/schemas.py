@@ -216,6 +216,7 @@ class HeartbeatData(BaseModel):
     pos_id: int = Field(..., ge=0, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
     ip: str = Field(..., description="Drone IP address")
+    detected_pos_id: Optional[int] = Field(None, ge=0, description="Auto-detected position ID")
     last_heartbeat: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
     online: bool = Field(..., description="Online status")
     latency_ms: Optional[float] = Field(None, ge=0, description="Network latency (ms)")
@@ -233,7 +234,10 @@ class HeartbeatRequest(BaseModel):
     """Request for POST /heartbeat"""
     pos_id: int = Field(..., ge=0, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
+    detected_pos_id: Optional[int] = Field(None, ge=0, description="Auto-detected position ID")
+    ip: Optional[str] = Field(None, description="Drone IP address")
     timestamp: Optional[int] = Field(None, description="Client timestamp (Unix ms)")
+    network_info: Optional[Dict[str, Any]] = Field(None, description="Optional network details")
 
     @field_validator("hw_id", mode="before")
     @classmethod
@@ -249,6 +253,19 @@ class HeartbeatRequest(BaseModel):
         if isinstance(value, int):
             return str(value)
         raise ValueError("hw_id must be a string or integer")
+
+    @field_validator("ip", mode="before")
+    @classmethod
+    def normalize_ip(cls, value):
+        """Normalize empty heartbeat IP values to None."""
+        if value is None:
+            return None
+        value = str(value).strip()
+        if not value:
+            return None
+        if value.lower() in {"unknown", "n/a", "none", "null"}:
+            return None
+        return value
 
 
 class HeartbeatPostResponse(BaseModel):
@@ -274,7 +291,7 @@ class DroneGitStatus(BaseModel):
 
     # Git information (field names match drone API + frontend expectations)
     branch: str = Field(..., description="Current git branch")
-    commit: str = Field(..., description="Latest commit hash (short)")
+    commit: str = Field(..., description="Latest commit hash")
     commit_message: Optional[str] = Field(None, description="Latest commit message")
     commit_date: Optional[str] = Field(None, description="Commit date (ISO format)")
     author_name: Optional[str] = Field(None, description="Commit author name")

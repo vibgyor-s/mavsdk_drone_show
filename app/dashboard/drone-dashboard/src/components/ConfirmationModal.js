@@ -19,11 +19,11 @@ import '../styles/ConfirmationModal.css'; // Optional external CSS file
  */
 const ConfirmationModal = ({
   isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  isDanger,
+  title = '',
+  message = '',
+  confirmLabel = 'Yes',
+  cancelLabel = 'No',
+  isDanger = false,
   onConfirm,
   onCancel,
 }) => {
@@ -48,10 +48,10 @@ const ConfirmationModal = ({
             className={`confirm-button ${isDanger ? 'danger' : ''}`}
             onClick={onConfirm}
           >
-            {confirmLabel || 'Yes'}
+            {confirmLabel}
           </button>
           <button className="cancel-button" onClick={onCancel}>
-            {cancelLabel || 'No'}
+            {cancelLabel}
           </button>
         </div>
       </div>
@@ -68,14 +68,6 @@ ConfirmationModal.propTypes = {
   isDanger: PropTypes.bool,
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-};
-
-ConfirmationModal.defaultProps = {
-  title: '',
-  message: '',
-  confirmLabel: 'Yes',
-  cancelLabel: 'No',
-  isDanger: false,
 };
 
 export default ConfirmationModal;
