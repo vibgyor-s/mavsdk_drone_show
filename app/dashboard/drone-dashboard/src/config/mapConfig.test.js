@@ -19,6 +19,13 @@ describe('getLeafletTileLayerConfig', () => {
     expect(layer.subdomains).toBe(DEFAULT_LEAFLET_SUBDOMAINS);
   });
 
+  test('provides safe subdomains for providers without {s} placeholders', () => {
+    const layer = getLeafletTileLayerConfig('esriSatellite');
+
+    expect(layer.url).toContain('arcgisonline');
+    expect(layer.subdomains).toBe(DEFAULT_LEAFLET_SUBDOMAINS);
+  });
+
   test('preserves explicit provider subdomains', () => {
     const layer = getLeafletTileLayerConfig('googleSatellite');
 

@@ -69,21 +69,19 @@ export const resolveTileLayerKey = (key) => (
 /**
  * Return a Leaflet-safe tile layer configuration.
  *
- * Leaflet requires `subdomains` whenever a tile URL contains `{s}`.
- * Some providers work with the default `abc`, while custom providers can
- * override that in TILE_LAYERS.
+ * Leaflet calls `_getSubdomain()` for every TileLayer, not only `{s}` URLs.
+ * Because React passes `undefined` props through to Leaflet, every shared
+ * config must provide a concrete subdomain value or it can override Leaflet's
+ * internal default and crash tile creation.
  */
 export const getLeafletTileLayerConfig = (key) => {
   const resolvedKey = resolveTileLayerKey(key);
   const layer = TILE_LAYERS[resolvedKey];
-  const usesSubdomains = layer.url.includes('{s}');
 
   return {
     key: resolvedKey,
     ...layer,
-    subdomains: usesSubdomains
-      ? (layer.subdomains || DEFAULT_LEAFLET_SUBDOMAINS)
-      : layer.subdomains,
+    subdomains: layer.subdomains || DEFAULT_LEAFLET_SUBDOMAINS,
   };
 };
 
