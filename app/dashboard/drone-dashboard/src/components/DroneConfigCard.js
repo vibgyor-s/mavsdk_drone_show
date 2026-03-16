@@ -19,6 +19,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import {
   buildKnownPositionIds,
+  formatDroneLabel,
+  formatShowSlotLabel,
   findDuplicatePositionAssignment,
   getHeartbeatTimestamp,
   isPositiveIntegerId,
@@ -338,20 +340,16 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <div className="drone-id-section">
           <div className="identity-kicker">Mission Assignment</div>
           <div className="drone-title-row">
-            <h3 className="drone-title">Airframe {normalizedHwId}</h3>
+            <h3 className="drone-title">{formatDroneLabel(normalizedHwId)}</h3>
             <span className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}>
-              {isRoleSwap ? 'Role swap' : 'Default slot'}
+              {isRoleSwap ? 'Slot swap' : 'Own slot'}
             </span>
           </div>
           <p className="assignment-summary">
             {isRoleSwap
-              ? `Assigned to Show Slot ${normalizedPosId}`
-              : `Assigned to its own Show Slot ${normalizedPosId}`}
+              ? `Swapped to ${formatShowSlotLabel(normalizedPosId)}`
+              : `${formatShowSlotLabel(normalizedPosId)} (own slot)`}
           </p>
-          <div className="drone-subtitle">
-            <span className="drone-hardware-id">Hardware ID = physical aircraft identity</span>
-            <span className="drone-position-id">Position ID = show slot / trajectory slot</span>
-          </div>
         </div>
         <div className="card-actions">
           <div className={`status-badge ${heartbeatStatus.toLowerCase().replace(/[^a-z]/g, '')}`}>
@@ -367,12 +365,12 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <div className="identity-strip">
           <div className="identity-tile">
             <span className="identity-label">Hardware ID</span>
-            <span className="identity-value">Airframe {normalizedHwId}</span>
-            <small>Physical aircraft and MAVLink identity</small>
+            <span className="identity-value">{formatDroneLabel(normalizedHwId)}</span>
+            <small>Physical drone and runtime identity</small>
           </div>
           <div className="identity-tile">
             <span className="identity-label">Position ID</span>
-            <span className="identity-value">Show Slot {normalizedPosId}</span>
+            <span className="identity-value">{formatShowSlotLabel(normalizedPosId)}</span>
             <small>{`Trajectory source: Drone ${normalizedPosId}.csv`}</small>
           </div>
         </div>
@@ -655,7 +653,7 @@ const DroneEditForm = memo(function DroneEditForm({
               <strong>{currentPosId}</strong>.
             </p>
             <p>
-              This changes which trajectory file the airframe will fly. Show slots are loaded from trajectory CSV files.
+              This changes which trajectory file the drone will fly. Show slots are loaded from trajectory CSV files.
             </p>
             <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
             <div className="dialog-buttons">
@@ -673,9 +671,9 @@ const DroneEditForm = memo(function DroneEditForm({
       <div className="drone-edit-form">
         <div className="form-header">
           <div className="form-header-kicker">Edit Mission Assignment</div>
-          <h3>{`Airframe ${currentHwId || 'New'} · Show Slot ${currentPosId || 'Unassigned'}`}</h3>
+          <h3>{`${formatDroneLabel(currentHwId, 'New Drone')} · ${formatShowSlotLabel(currentPosId, 'Show Slot Unassigned')}`}</h3>
           <p className="form-header-copy">
-            Hardware ID selects the physical aircraft. Position ID selects the show slot and trajectory file. Smart Swarm follow-links still reference Hardware ID.
+            Hardware ID stays with the physical drone. Position ID selects the show slot and trajectory file. Smart Swarm follow-links still use Hardware ID.
           </p>
         </div>
 
@@ -684,7 +682,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <div className="form-section-block">
             <div className="form-section-title">Identity Assignment</div>
             <div className="form-section-description">
-              Keep Hardware ID tied to the physical aircraft. Change Position ID when you need this airframe to fly a different slot.
+              Keep Hardware ID tied to the physical drone. Change Position ID only when this drone must fly a different slot.
             </div>
             <div className="form-grid">
               <div className="form-field">
@@ -700,16 +698,16 @@ const DroneEditForm = memo(function DroneEditForm({
                   className="form-input"
                   list={hwIdSuggestionListId}
                   inputMode="numeric"
-                  placeholder="Enter physical airframe ID"
+                  placeholder="Enter physical drone ID"
                   aria-label="Hardware ID"
                 />
                 <datalist id={hwIdSuggestionListId}>
                   {hwIdSuggestions.map((id) => (
-                    <option key={id} value={id}>{`Airframe ${id}`}</option>
+                    <option key={id} value={id}>{formatDroneLabel(id)}</option>
                   ))}
                 </datalist>
                 <div className="field-help">
-                  The persistent identity printed on the aircraft and used by the runtime.
+                  The persistent identity printed on the drone and used by the runtime.
                 </div>
                 {hwIdSuggestions.length > 0 && (
                   <div className="suggestion-chip-group">
@@ -720,7 +718,7 @@ const DroneEditForm = memo(function DroneEditForm({
                         className={`suggestion-chip ${currentHwId === id ? 'active' : ''}`}
                         onClick={() => handleIdentityQuickPick('hw_id', id)}
                       >
-                        {`Airframe ${id}`}
+                        {formatDroneLabel(id)}
                       </button>
                     ))}
                   </div>
@@ -750,7 +748,7 @@ const DroneEditForm = memo(function DroneEditForm({
                   ))}
                 </datalist>
                 <div className="field-help">
-                  The show slot this airframe will fly. This selects the matching <code>Drone {'{pos_id}'}.csv</code> file.
+                  The show slot this drone will fly. This selects the matching <code>Drone {'{pos_id}'}.csv</code> file.
                 </div>
                 {knownPositionIds.length > 0 && (
                   <div className="suggestion-chip-group">
@@ -769,7 +767,7 @@ const DroneEditForm = memo(function DroneEditForm({
                 {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
                 {duplicatePositionDrone && (
                   <div className="field-warning">
-                    {`Show Slot ${currentPosId} is already assigned to Airframe ${duplicatePositionDrone.hw_id}.`}
+                    {`${formatShowSlotLabel(currentPosId)} is already assigned to ${formatDroneLabel(duplicatePositionDrone.hw_id)}.`}
                   </div>
                 )}
               </div>
@@ -777,10 +775,10 @@ const DroneEditForm = memo(function DroneEditForm({
 
             <div className={`assignment-status-callout ${!currentPosId ? 'attention' : isRoleSwap ? 'role-swap' : 'default'}`}>
               {!currentPosId
-                ? 'Assign a show slot before saving this airframe.'
+                ? 'Assign a show slot before saving this drone.'
                 : isRoleSwap
-                ? `Role swap active: Airframe ${currentHwId} will fly Show Slot ${currentPosId}.`
-                : `Default assignment: Airframe ${currentHwId || '...'} flies its own Show Slot ${currentPosId || '...'}.`}
+                ? `Slot swap active: ${formatDroneLabel(currentHwId, 'Drone')} will fly ${formatShowSlotLabel(currentPosId, 'Show Slot')}.`
+                : `${formatDroneLabel(currentHwId, 'Drone')} keeps ${formatShowSlotLabel(currentPosId, 'Show Slot')}.`}
             </div>
           </div>
 

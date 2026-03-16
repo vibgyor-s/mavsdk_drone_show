@@ -8,6 +8,7 @@ import {
   FaSatelliteDish,
 } from 'react-icons/fa';
 import '../styles/DroneCard.css';
+import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
 
 const DroneCard = forwardRef(function DroneCard(
   {
@@ -64,11 +65,11 @@ const DroneCard = forwardRef(function DroneCard(
   const followTargetText = drone.follow === '0'
     ? 'Independent leader'
     : drone.followTargetExists
-      ? `Airframe ${drone.follow} · Position ${drone.followTargetPosId}`
-      : `Airframe ${drone.follow} unavailable`;
+      ? `${formatDroneLabel(drone.follow)} · ${formatShowSlotLabel(drone.followTargetPosId)}`
+      : `${formatDroneLabel(drone.follow)} unavailable`;
 
   const followerSummary = drone.directFollowers.length > 0
-    ? drone.directFollowers.map((followerId) => `A${followerId}`).join(', ')
+    ? drone.directFollowers.map((followerId) => formatDroneLabel(followerId)).join(', ')
     : 'None';
 
   return (
@@ -126,32 +127,29 @@ const DroneCard = forwardRef(function DroneCard(
         </div>
       </button>
 
-      <div className="swarm-drone-card__meta-grid">
-        <div className="swarm-drone-card__meta-item">
-          <span className="swarm-drone-card__meta-label">Follow target</span>
-          <span className="swarm-drone-card__meta-value">{followTargetText}</span>
-        </div>
+      {!isExpanded && (
+        <div className="swarm-drone-card__meta-grid">
+          <div className="swarm-drone-card__meta-item">
+            <span className="swarm-drone-card__meta-label">Follow target</span>
+            <span className="swarm-drone-card__meta-value">{followTargetText}</span>
+          </div>
 
-        <div className="swarm-drone-card__meta-item">
-          <span className="swarm-drone-card__meta-label">Offset frame</span>
-          <span className="swarm-drone-card__meta-value">{drone.frameLabel}</span>
-        </div>
+          <div className="swarm-drone-card__meta-item">
+            <span className="swarm-drone-card__meta-label">Offset frame</span>
+            <span className="swarm-drone-card__meta-value">{drone.frameLabel}</span>
+          </div>
 
-        <div className="swarm-drone-card__meta-item">
-          <span className="swarm-drone-card__meta-label">Direct followers</span>
-          <span className="swarm-drone-card__meta-value">{followerSummary}</span>
-        </div>
+          <div className="swarm-drone-card__meta-item">
+            <span className="swarm-drone-card__meta-label">Direct followers</span>
+            <span className="swarm-drone-card__meta-value">{followerSummary}</span>
+          </div>
 
-        <div className="swarm-drone-card__meta-item">
-          <span className="swarm-drone-card__meta-label">Telemetry path</span>
-          <span className="swarm-drone-card__meta-value">{drone.ip || 'Not assigned'}</span>
+          <div className="swarm-drone-card__meta-item span-two">
+            <span className="swarm-drone-card__meta-label">Relative offset</span>
+            <span className="swarm-drone-card__meta-value">{drone.offsetSummary}</span>
+          </div>
         </div>
-
-        <div className="swarm-drone-card__meta-item span-two">
-          <span className="swarm-drone-card__meta-label">Relative offset</span>
-          <span className="swarm-drone-card__meta-value">{drone.offsetSummary}</span>
-        </div>
-      </div>
+      )}
 
       {drone.warnings.length > 0 && (
         <div className="swarm-drone-card__warning-list" role="status">
@@ -188,7 +186,7 @@ const DroneCard = forwardRef(function DroneCard(
                     </option>
                   ))}
               </select>
-              <small>Follow chains always reference airframe IDs, not position slots.</small>
+              <small>Follow chains always reference drone hardware IDs, not show slots.</small>
             </label>
 
             <label className="swarm-drone-card__field">

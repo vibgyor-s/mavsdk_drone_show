@@ -76,8 +76,11 @@ source ~/.mds_config
 # Deploy drones with your custom configuration
 bash multiple_sitl/create_dockers.sh 5
 
-# Start dashboard
+# Start dashboard (development mode by default)
 bash app/linux_dashboard_start.sh --sitl
+
+# Production-style launch if needed
+# bash app/linux_dashboard_start.sh --prod --sitl
 ```
 
 ---

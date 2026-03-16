@@ -22,6 +22,16 @@ export function normalizeComparableId(value, fallback = '') {
   return String(Number.parseInt(trimmed, 10));
 }
 
+export function formatDroneLabel(value, fallback = 'Drone') {
+  const normalized = normalizeComparableId(value);
+  return normalized ? `Drone ${normalized}` : fallback;
+}
+
+export function formatShowSlotLabel(value, fallback = 'Show Slot') {
+  const normalized = normalizeComparableId(value);
+  return normalized ? `Show Slot ${normalized}` : fallback;
+}
+
 export function isPositiveIntegerId(value) {
   return POSITIVE_INTEGER_PATTERN.test(normalizeComparableId(value));
 }

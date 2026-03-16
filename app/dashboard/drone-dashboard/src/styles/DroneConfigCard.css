@@ -121,12 +121,6 @@
   border-radius: 1px;
 }
 
-.drone-subtitle {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
 .identity-kicker {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
@@ -140,22 +134,6 @@
   align-items: center;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
-}
-
-.drone-hardware-id,
-.drone-position-id {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  font-family: var(--font-family-mono);
-  font-weight: var(--font-weight-medium);
-}
-
-.drone-hardware-id {
-  color: var(--color-text-primary);
-}
-
-.drone-position-id {
-  color: var(--color-text-tertiary);
 }
 
 .assignment-badge {
@@ -182,9 +160,9 @@
 
 .assignment-summary {
   margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }
 
 /* Role Swap Badge - inline badge for role swaps */

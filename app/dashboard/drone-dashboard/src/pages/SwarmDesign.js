@@ -27,6 +27,7 @@ import {
   normalizeSwarmAssignment,
   toSwarmApiPayload,
 } from '../utilities/swarmDesignUtils';
+import { formatDroneLabel } from '../utilities/missionIdentityUtils';
 
 const CSV_HEADERS = ['hw_id', 'follow', 'offset_x', 'offset_y', 'offset_z', 'frame'];
 
@@ -387,11 +388,11 @@ function SwarmDesign() {
     }
 
     const summaryLines = [
-      `${viewModel.summary.totalDrones} airframes across ${viewModel.summary.clusterCount} cluster${viewModel.summary.clusterCount === 1 ? '' : 's'}`,
+      `${viewModel.summary.totalDrones} drones across ${viewModel.summary.clusterCount} cluster${viewModel.summary.clusterCount === 1 ? '' : 's'}`,
       `${viewModel.summary.topLeaderCount} top leaders, ${viewModel.summary.relayLeaderCount} relay leaders, ${viewModel.summary.followerCount} followers`,
       `${dirtyIds.length} staged assignment change${dirtyIds.length === 1 ? '' : 's'}`,
       `${syncChanges.addedIds.length + syncChanges.removedIds.length} fleet sync update${syncChanges.addedIds.length + syncChanges.removedIds.length === 1 ? '' : 's'}`,
-      `${viewModel.summary.attentionCount} airframe${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
+      `${viewModel.summary.attentionCount} drone${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
     ];
 
     if (!window.confirm(
@@ -406,7 +407,7 @@ function SwarmDesign() {
   const summaryCards = [
     {
       icon: <FaLayerGroup />,
-      label: 'Airframes',
+      label: 'Drones',
       value: viewModel.summary.totalDrones,
       tone: 'neutral',
     },
@@ -443,8 +444,8 @@ function SwarmDesign() {
           <span className="swarm-design-hero__eyebrow">Smart Swarm Control Surface</span>
           <h1>Operational Swarm Design</h1>
           <p>
-            Airframe IDs represent physical aircraft. Position IDs represent show slots.
-            Follow chains always target airframe IDs, while position IDs stay mapped to trajectory roles.
+            Hardware ID tracks the physical drone. Position ID tracks the assigned show slot.
+            Follow chains always target the drone hardware ID, even when a slot swap is active.
           </p>
         </div>
 
@@ -500,15 +501,15 @@ function SwarmDesign() {
       <section className="swarm-status-strip">
         <div className="swarm-status-card identity">
           <strong>Identity model</strong>
-          <span>Hot-swaps change position slots, not follow-chain targeting. Validate role swaps before flight.</span>
+          <span>Slot swaps change show-slot assignment, not follow-chain targeting. Validate role swaps before flight.</span>
         </div>
 
         {hasPendingSync && (
           <div className="swarm-status-card sync">
             <strong>Fleet sync pending</strong>
             <span>
-              {syncChanges.addedIds.length > 0 && `Add default assignments for airframes ${syncChanges.addedIds.join(', ')}. `}
-              {syncChanges.removedIds.length > 0 && `Prune legacy assignments for airframes ${syncChanges.removedIds.join(', ')}.`}
+              {syncChanges.addedIds.length > 0 && `Add default assignments for drones ${syncChanges.addedIds.join(', ')}. `}
+              {syncChanges.removedIds.length > 0 && `Prune legacy assignments for drones ${syncChanges.removedIds.join(', ')}.`}
             </span>
           </div>
         )}
@@ -516,7 +517,7 @@ function SwarmDesign() {
         {viewModel.summary.roleSwapCount > 0 && (
           <div className="swarm-status-card note">
             <strong>Role swaps active</strong>
-            <span>{viewModel.summary.roleSwapCount} airframe{viewModel.summary.roleSwapCount === 1 ? '' : 's'} are flying a different position slot than their hardware ID.</span>
+            <span>{viewModel.summary.roleSwapCount} drone{viewModel.summary.roleSwapCount === 1 ? '' : 's'} are flying a different show slot than their hardware ID.</span>
           </div>
         )}
 
@@ -544,7 +545,7 @@ function SwarmDesign() {
               <FaSearch />
               <input
                 type="search"
-                placeholder="Search airframe, position, leader, or IP"
+                placeholder="Search drone, show slot, leader, or IP"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
@@ -552,14 +553,14 @@ function SwarmDesign() {
           </div>
 
           <div className="swarm-panel__subheader">
-            <span>{visibleDroneCount} of {viewModel.summary.totalDrones} airframes visible</span>
+            <span>{visibleDroneCount} of {viewModel.summary.totalDrones} drones visible</span>
             <span>{dirtyIds.length} staged</span>
           </div>
 
           <div className="swarm-cluster-stack">
             {filteredClusters.length === 0 && (
               <div className="swarm-empty-state">
-                <strong>No matching airframes</strong>
+                <strong>No matching drones</strong>
                 <span>Try a different search term or clear the filter.</span>
               </div>
             )}
@@ -576,7 +577,7 @@ function SwarmDesign() {
                   </div>
 
                   <div className="swarm-cluster-section__stats">
-                    <span>{cluster.counts.total} airframes</span>
+                    <span>{cluster.counts.total} drones</span>
                     <span>{cluster.counts.relayLeaders} relay</span>
                     <span>{cluster.counts.followers} followers</span>
                     {cluster.warningCount > 0 && <span>{cluster.warningCount} attention</span>}
@@ -645,7 +646,7 @@ function SwarmDesign() {
                 <>
                   <div className="swarm-selection-panel__header">
                     <div>
-                      <span className="swarm-selection-panel__eyebrow">Selected Airframe</span>
+                      <span className="swarm-selection-panel__eyebrow">Selected Drone</span>
                       <h3>{selectedDrone.title}</h3>
                     </div>
                     <span className={`swarm-role-badge ${selectedDrone.role}`}>{selectedDrone.roleLabel}</span>
@@ -653,12 +654,12 @@ function SwarmDesign() {
 
                   <dl className="swarm-selection-panel__details">
                     <div>
-                      <dt>Position Slot</dt>
+                      <dt>Show Slot</dt>
                       <dd>{selectedDrone.pos_id}</dd>
                     </div>
                     <div>
                       <dt>Follow Target</dt>
-                      <dd>{selectedDrone.follow === '0' ? 'Independent leader' : `Airframe ${selectedDrone.follow}`}</dd>
+                      <dd>{selectedDrone.follow === '0' ? 'Independent leader' : formatDroneLabel(selectedDrone.follow)}</dd>
                     </div>
                     <div>
                       <dt>Offset Frame</dt>
@@ -671,10 +672,6 @@ function SwarmDesign() {
                     <div>
                       <dt>Direct Followers</dt>
                       <dd>{selectedDrone.directFollowerCount}</dd>
-                    </div>
-                    <div>
-                      <dt>Network Path</dt>
-                      <dd>{selectedDrone.ip || 'Not assigned'}</dd>
                     </div>
                   </dl>
 
@@ -691,7 +688,7 @@ function SwarmDesign() {
                 </>
               ) : (
                 <div className="swarm-empty-state compact">
-                  <strong>No airframe selected</strong>
+                  <strong>No drone selected</strong>
                   <span>Select a graph node or assignment card to inspect its details.</span>
                 </div>
               )}

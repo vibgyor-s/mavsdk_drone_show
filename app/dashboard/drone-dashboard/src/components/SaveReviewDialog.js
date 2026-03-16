@@ -11,6 +11,7 @@ import {
   faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import '../styles/SaveReviewDialog.css';
+import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
 
 /**
  * SaveReviewDialog Component
@@ -73,12 +74,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faTimesCircle} /> Duplicate Hardware IDs
             </h4>
             <p className="error-text">
-              Cannot save: each physical airframe must have one unique Hardware ID.
+              Cannot save: each physical drone must have one unique Hardware ID.
             </p>
             <ul className="error-list">
               {warnings.duplicate_hw_ids.map((item, idx) => (
                 <li key={idx}>
-                  <strong>Airframe {item.hw_id}</strong> is defined more than once
+                  <strong>{formatDroneLabel(item.hw_id)}</strong> is defined more than once
                 </li>
               ))}
             </ul>
@@ -92,12 +93,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faTimesCircle} /> Missing Trajectory Files
             </h4>
             <p className="error-text">
-              Cannot save: the following airframes have show slots without corresponding trajectory files:
+              Cannot save: the following drones have show slots without corresponding trajectory files:
             </p>
             <ul className="error-list">
               {warnings.missing_trajectories.map((item, idx) => (
                 <li key={idx}>
-                  <strong>Airframe {item.hw_id}</strong> → Show Slot {item.pos_id}: {item.message}
+                  <strong>{formatDroneLabel(item.hw_id)}</strong> → {formatShowSlotLabel(item.pos_id)}: {item.message}
                 </li>
               ))}
             </ul>
@@ -114,12 +115,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <FontAwesomeIcon icon={faExclamationTriangle} /> Collision Risk: Duplicate Show Slots
             </h4>
             <p className="warning-text">
-              Multiple airframes are assigned the same show slot. They will fly identical trajectories and collide.
+              Multiple drones are assigned the same show slot. They will fly identical trajectories and collide.
             </p>
             <ul className="warning-list">
               {warnings.duplicates.map((dup, idx) => (
                 <li key={idx}>
-                  <strong>Show Slot {dup.pos_id}</strong> assigned to Airframes: {dup.hw_ids.join(', ')}
+                  <strong>{formatShowSlotLabel(dup.pos_id)}</strong> assigned to Drones: {dup.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}
                 </li>
               ))}
             </ul>
@@ -143,11 +144,11 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             <h4>
               <FontAwesomeIcon icon={faExchangeAlt} /> Active Role Swaps
             </h4>
-            <p>The following airframes will fly a different show slot than their own:</p>
+            <p>The following drones will fly a different show slot than their own:</p>
             <ul className="info-list">
               {warnings.role_swaps.map((swap, idx) => (
                 <li key={idx}>
-                  Airframe <strong>{swap.hw_id}</strong> → Show Slot <strong>{swap.pos_id}</strong>
+                  {formatDroneLabel(swap.hw_id)} → <strong>{formatShowSlotLabel(swap.pos_id)}</strong>
                 </li>
               ))}
             </ul>
@@ -165,7 +166,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             <table className="changes-table">
               <thead>
                 <tr>
-                  <th>Airframe</th>
+                  <th>Drone</th>
                   <th>Old Slot</th>
                   <th></th>
                   <th>New Slot</th>
@@ -174,10 +175,10 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               <tbody>
                 {changes.pos_id_changes.map((change, idx) => (
                   <tr key={idx}>
-                    <td><strong>{change.hw_id}</strong></td>
-                    <td>{change.old_pos_id}</td>
+                    <td><strong>{formatDroneLabel(change.hw_id)}</strong></td>
+                    <td>{formatShowSlotLabel(change.old_pos_id)}</td>
                     <td>→</td>
-                    <td><strong>{change.new_pos_id}</strong></td>
+                    <td><strong>{formatShowSlotLabel(change.new_pos_id)}</strong></td>
                   </tr>
                 ))}
               </tbody>
@@ -196,7 +197,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
 
         {/* Summary */}
         <div className="review-summary">
-          <strong>Summary:</strong> {summary.total_drones} airframes,
+          <strong>Summary:</strong> {summary.total_drones} drones,
           {' '}{summary.pos_id_changes_count} show slot changes
           {summary.duplicate_hw_ids_count > 0 && (
             <span className="summary-warning">

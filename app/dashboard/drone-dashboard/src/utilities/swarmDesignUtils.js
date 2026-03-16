@@ -1,3 +1,5 @@
+import { formatDroneLabel, formatShowSlotLabel } from './missionIdentityUtils';
+
 export const TOP_LEADER_FOLLOW_VALUE = '0';
 
 const VALID_FRAMES = new Set(['ned', 'body']);
@@ -233,14 +235,14 @@ function getRoleSummary(roleKey, drone, directFollowers) {
       return 'Independent leader';
     }
 
-    return `Independent leader for ${directFollowers.length} airframe${directFollowers.length === 1 ? '' : 's'}`;
+    return `Independent leader for ${directFollowers.length} drone${directFollowers.length === 1 ? '' : 's'}`;
   }
 
   if (roleKey === 'relayLeader') {
-    return `Following Airframe ${drone.follow} and relaying to ${directFollowers.length} airframe${directFollowers.length === 1 ? '' : 's'}`;
+    return `Following ${formatDroneLabel(drone.follow)} and relaying to ${directFollowers.length} drone${directFollowers.length === 1 ? '' : 's'}`;
   }
 
-  return `Maintaining formation from Airframe ${drone.follow}`;
+  return `Maintaining formation from ${formatDroneLabel(drone.follow)}`;
 }
 
 function getOffsetAxisLabels(frame) {
@@ -334,7 +336,7 @@ function buildFollowOptions(drones) {
     .sort(compareDrones)
     .map((drone) => ({
       value: drone.hw_id,
-      label: `Airframe ${drone.hw_id} · Position ${drone.pos_id} · ${drone.roleLabel}`,
+      label: `${formatDroneLabel(drone.hw_id)} · ${formatShowSlotLabel(drone.pos_id)} · ${drone.roleLabel}`,
     }));
 }
 
@@ -416,7 +418,7 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       warnings.push({
         code: 'self-follow',
         severity: 'error',
-        message: `Airframe ${drone.hw_id} is configured to follow itself.`,
+        message: `${formatDroneLabel(drone.hw_id)} is configured to follow itself.`,
       });
     }
 
@@ -424,7 +426,7 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       warnings.push({
         code: 'missing-leader',
         severity: 'error',
-        message: `Assigned leader Airframe ${drone.follow} is not present in the active fleet configuration.`,
+        message: `Assigned leader ${formatDroneLabel(drone.follow)} is not present in the active fleet configuration.`,
       });
     }
 
@@ -443,7 +445,7 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       warnings.push({
         code: 'leader-offset-ignored',
         severity: 'note',
-        message: 'Leader offsets are ignored while the airframe is acting as an independent leader.',
+        message: 'Leader offsets are ignored while the drone is acting as an independent leader.',
       });
     }
 
@@ -477,8 +479,8 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       clusterRootId: clusterResolution.clusterRootId,
       clusterType: clusterResolution.clusterType,
       depth,
-      title: `Airframe ${drone.hw_id}`,
-      subtitle: `Position ${posId}`,
+      title: formatDroneLabel(drone.hw_id),
+      subtitle: formatShowSlotLabel(posId),
     };
   });
 
@@ -517,10 +519,10 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
         ...cluster,
         drones: sortedDrones,
         title: cluster.type === 'cluster'
-          ? `Leader Airframe ${leaderDrone?.hw_id || cluster.leaderId}`
+          ? `Leader ${formatDroneLabel(leaderDrone?.hw_id || cluster.leaderId, 'Drone')}`
           : 'Attention Required',
         subtitle: cluster.type === 'cluster'
-          ? `Position ${leaderDrone?.pos_id || cluster.leaderId} cluster`
+          ? `${formatShowSlotLabel(leaderDrone?.pos_id || cluster.leaderId, 'Show Slot')} cluster`
           : 'Assignments that cannot be executed safely until corrected',
         counts,
       };

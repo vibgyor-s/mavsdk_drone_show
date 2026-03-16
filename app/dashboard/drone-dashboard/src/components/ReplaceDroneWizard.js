@@ -1,7 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ReplaceDroneWizard.css';
-import { getHeartbeatTimestamp, normalizeComparableId } from '../utilities/missionIdentityUtils';
+import {
+  formatDroneLabel,
+  formatShowSlotLabel,
+  getHeartbeatTimestamp,
+  normalizeComparableId,
+} from '../utilities/missionIdentityUtils';
 
 /**
  * ReplaceDroneWizard — 3-step modal wizard for replacing a failed drone.
@@ -98,7 +103,7 @@ export default function ReplaceDroneWizard({
         normalizeComparableId(drone.hw_id) !== normalizedSelectedHwId
     );
     if (existingDrone) {
-      alert(`Hardware ID ${normalizedNewHwId} is already assigned to Show Slot ${existingDrone.pos_id}. Choose a different ID.`);
+      alert(`Hardware ID ${normalizedNewHwId} is already assigned to ${formatShowSlotLabel(existingDrone.pos_id)}. Choose a different ID.`);
       return;
     }
 
@@ -151,7 +156,7 @@ export default function ReplaceDroneWizard({
           <div className="wizard-body">
             <h3>Step 1: Select the Failed Drone</h3>
             <p className="wizard-description">
-              Choose which airframe is being replaced. Offline aircraft are highlighted.
+              Choose which drone is being replaced. Offline drones are highlighted.
             </p>
             <div className="drone-select-list">
               {configData.map((drone) => {
@@ -165,7 +170,7 @@ export default function ReplaceDroneWizard({
                     onClick={() => setSelectedHwId(normalizeComparableId(drone.hw_id))}
                   >
                     <div className="drone-select-info">
-                      <strong>Show Slot {drone.pos_id}</strong> · Airframe {drone.hw_id}
+                      <strong>{formatShowSlotLabel(drone.pos_id)}</strong> · {formatDroneLabel(drone.hw_id)}
                     </div>
                     <div className={`drone-select-status ${offline ? 'offline' : 'online'}`}>
                       {status}
@@ -182,7 +187,7 @@ export default function ReplaceDroneWizard({
           <div className="wizard-body">
             <h3>Step 2: Select Replacement Drone</h3>
             <p className="wizard-description">
-              Keep the failed airframe&apos;s show slot and assign it to another hardware ID.
+              Keep the failed drone&apos;s show slot and assign it to another hardware ID.
             </p>
 
             {/* Option A: Manual Entry */}
@@ -250,7 +255,7 @@ export default function ReplaceDroneWizard({
                         className={`spare-drone-item ${normalizeComparableId(newHwId) === normalizeComparableId(spare.hw_id) ? 'selected' : ''}`}
                         onClick={() => handleSelectSpare(spare)}
                       >
-                        <strong>Airframe {spare.hw_id}</strong>
+                        <strong>{formatDroneLabel(spare.hw_id)}</strong>
                         {spare.ip && <span className="spare-detail">IP: {spare.ip}</span>}
                         {spare.port && <span className="spare-detail">Port: {spare.port}</span>}
                       </div>
@@ -297,16 +302,16 @@ export default function ReplaceDroneWizard({
             <div className="summary-card">
               <div className="summary-row">
                 <span className="summary-label">Show slot transferred:</span>
-                <span className="summary-value">{failedDrone.pos_id}</span>
+                <span className="summary-value">{formatShowSlotLabel(failedDrone.pos_id)}</span>
               </div>
               <div className="summary-divider" />
               <div className="summary-row">
                 <span className="summary-label">From (being replaced):</span>
-                <span className="summary-value summary-old">Airframe {selectedHwId}</span>
+                <span className="summary-value summary-old">{formatDroneLabel(selectedHwId)}</span>
               </div>
               <div className="summary-row">
                 <span className="summary-label">To (replacement):</span>
-                <span className="summary-value summary-new">Airframe {newHwId}</span>
+                <span className="summary-value summary-new">{formatDroneLabel(newHwId)}</span>
               </div>
               <div className="summary-divider" />
               <div className="summary-row">

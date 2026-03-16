@@ -1,5 +1,7 @@
 import {
   buildSuggestedHwIds,
+  formatDroneLabel,
+  formatShowSlotLabel,
   getDuplicateAssignments,
   getOnlineDroneCount,
   normalizeDroneConfigData,
@@ -25,6 +27,13 @@ describe('missionIdentityUtils', () => {
       { hw_id: 3 },
       { hw_id: '4' },
     ])).toEqual(['2', '5']);
+  });
+
+  test('formatDroneLabel and formatShowSlotLabel normalize ids for operator-facing copy', () => {
+    expect(formatDroneLabel('07')).toBe('Drone 7');
+    expect(formatShowSlotLabel(3)).toBe('Show Slot 3');
+    expect(formatDroneLabel(null)).toBe('Drone');
+    expect(formatShowSlotLabel(undefined)).toBe('Show Slot');
   });
 
   test('getDuplicateAssignments detects mixed-type duplicate hardware and position IDs', () => {

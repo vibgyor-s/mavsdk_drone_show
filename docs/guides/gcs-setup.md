@@ -377,7 +377,7 @@ After successful installation, start the dashboard:
 ```bash
 cd ~/mavsdk_drone_show/app
 
-# SITL mode (simulation) - runs in tmux by default
+# SITL mode (simulation) - development mode, runs in tmux by default
 ./linux_dashboard_start.sh --sitl
 
 # Real mode (hardware drones)
@@ -402,6 +402,9 @@ cd ~/mavsdk_drone_show/app
 ```bash
 # Development with simulation
 ./linux_dashboard_start.sh --sitl
+
+# Production with simulation
+./linux_dashboard_start.sh --prod --sitl
 
 # Production with real drones
 ./linux_dashboard_start.sh --prod --real

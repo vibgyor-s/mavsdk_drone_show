@@ -100,7 +100,9 @@ The current SITL image is **not** published in GitHub Releases yet. For now, dow
 
 ```bash
 cd ~
+# Public Mega download; large archives may take several minutes to complete.
 megadl 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE'
+# Extraction also takes time on large images.
 7z x drone-template-v4.7z
 ```
 
@@ -110,7 +112,11 @@ After extraction you should have:
 
 > **Notes**
 > - `megadl` comes from the `megatools` package and works with this public link without logging in.
-> - If you need authenticated transfers or account-based resume/management for large files, use the official MEGAcmd tools (`mega-login`, `mega-get`) instead.
+> - If Mega free-tier throttling or temporary limits block the public download, retry with the official MEGAcmd client after signing in:
+>   ```bash
+>   mega-login 'you@example.com' 'your-password'
+>   mega-get 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE' .
+>   ```
 > - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
 
 ### Docker Installation
@@ -118,12 +124,13 @@ After extraction you should have:
 Install Docker:
 
 ```bash
-sudo apt install docker.io
+sudo apt install -y docker.io
 ```
 
 Load the extracted image into Docker:
 
 ```bash
+# Large image imports may take several minutes.
 docker load < drone-template-v4.tar
 ```
 
@@ -183,17 +190,13 @@ Access Portainer via the browser using your domain, IP address, or the reverse D
 
 #### Option A: Automated Setup (Recommended)
 
-The GCS initialization script handles everything — Python, Node.js, venv, npm, firewall, and configuration:
+The bootstrap installer handles Python, Node.js, venv, npm, firewall, repository setup, and configuration:
 
 ```bash
-cd ~
-git clone https://github.com/alireza787b/mavsdk_drone_show
-cd mavsdk_drone_show
-git checkout main-candidate
-sudo bash tools/mds_gcs_init.sh
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
 ```
 
-See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (e.g., `--dry-run`, `-y` for non-interactive).
+See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (for example `--dry-run`, `-y`, or `--fork`).
 
 #### Option B: Manual Setup
 
@@ -222,6 +225,8 @@ npm install
 bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ```
 
+- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
+- Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 

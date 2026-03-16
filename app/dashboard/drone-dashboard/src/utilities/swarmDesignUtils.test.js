@@ -59,7 +59,11 @@ describe('swarmDesignUtils', () => {
     expect(viewModel.dronesById['2'].role).toBe('relayLeader');
     expect(viewModel.dronesById['3'].role).toBe('follower');
     expect(viewModel.dronesById['2'].isRoleSwap).toBe(true);
+    expect(viewModel.dronesById['2'].title).toBe('Drone 2');
+    expect(viewModel.dronesById['2'].subtitle).toBe('Show Slot 9');
+    expect(viewModel.followOptions[0].label).toContain('Drone 1');
     expect(viewModel.dronesById['4'].warnings.map((warning) => warning.code)).toContain('missing-leader');
+    expect(viewModel.dronesById['4'].warnings[0].message).toContain('Drone 99');
     expect(viewModel.dronesById['5'].warnings.map((warning) => warning.code)).toEqual(
       expect.arrayContaining(['self-follow', 'cycle'])
     );

@@ -31,6 +31,8 @@ import {
 import {
   buildSuggestedHwIds,
   compareMissionIds,
+  formatDroneLabel,
+  formatShowSlotLabel,
   getDuplicateAssignments,
   getOnlineDroneCount,
   getRoleSwaps,
@@ -260,7 +262,7 @@ const MissionConfig = () => {
       )
     );
     setEditingDroneId(null);
-    toast.success(`Airframe ${normalizedOriginalHwId} updated successfully.`);
+    toast.success(`${formatDroneLabel(normalizedOriginalHwId)} updated successfully.`);
   };
 
   const addNewDrone = () => {
@@ -288,16 +290,16 @@ const MissionConfig = () => {
     }
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
-    toast.success(`New airframe ${newHwId} added.`);
+    toast.success(`New ${formatDroneLabel(newHwId)} added.`);
   };
 
   const removeDrone = (hw_id) => {
     const normalizedHwId = normalizeComparableId(hw_id);
-    if (window.confirm(`Are you sure you want to remove Airframe ${normalizedHwId}?`)) {
+    if (window.confirm(`Are you sure you want to remove ${formatDroneLabel(normalizedHwId)}?`)) {
       setConfigData((prevConfig) =>
         prevConfig.filter((drone) => normalizeComparableId(drone.hw_id) !== normalizedHwId)
       );
-      toast.success(`Airframe ${normalizedHwId} removed.`);
+      toast.success(`${formatDroneLabel(normalizedHwId)} removed.`);
     }
   };
 
@@ -447,12 +449,12 @@ const MissionConfig = () => {
     );
 
     if (dronesNeedingReset.length === 0) {
-      toast.info('All airframes already fly their own assigned show slot.');
+      toast.info('All drones already fly their own assigned show slot.');
       return;
     }
 
     // Show confirmation dialog with preview
-    const message = `Reset ${dronesNeedingReset.length} airframe(s) so each airframe flies its own show slot?\n\nThis will set Show Slot = Hardware ID for:\n${dronesNeedingReset.map((drone) => `Airframe ${drone.hw_id}: Slot ${drone.pos_id} → ${drone.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git".`;
+    const message = `Reset ${dronesNeedingReset.length} drone(s) so each drone flies its own show slot?\n\nThis will set Show Slot = Hardware ID for:\n${dronesNeedingReset.map((drone) => `${formatDroneLabel(drone.hw_id)}: ${formatShowSlotLabel(drone.pos_id)} → ${formatShowSlotLabel(drone.hw_id)}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git".`;
 
     if (window.confirm(message)) {
       // Reset pos_id to hw_id for all drones
@@ -462,7 +464,7 @@ const MissionConfig = () => {
       }));
 
       setConfigData(updatedConfig);
-      toast.success(`Reset ${dronesNeedingReset.length} airframe assignment(s). Remember to save your changes.`);
+      toast.success(`Reset ${dronesNeedingReset.length} drone assignment(s). Remember to save your changes.`);
     }
   };
 
@@ -480,7 +482,7 @@ const MissionConfig = () => {
         <div>
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign physical airframes to show slots, verify live identity telemetry, and prepare the fleet for drone-show or cooperative mission execution.
+            Assign physical drones to show slots, verify live identity telemetry, and prepare the fleet for drone-show or cooperative mission execution.
           </p>
         </div>
       </header>
@@ -488,18 +490,18 @@ const MissionConfig = () => {
       <section className="mission-identity-brief" aria-label="Hardware and position ID guidance">
         <div className="identity-brief-card">
           <span className="identity-brief-label">Hardware ID</span>
-          <strong>Physical aircraft identity</strong>
-          <p>Matches the labeled airframe and the companion computer identity used by the vehicle at runtime.</p>
+          <strong>Physical drone identity</strong>
+          <p>Matches the labeled drone and the companion-computer identity used at runtime.</p>
         </div>
         <div className="identity-brief-card">
           <span className="identity-brief-label">Position ID</span>
           <strong>Show slot / trajectory slot</strong>
-          <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that airframe will fly.</p>
+          <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that drone will fly.</p>
         </div>
         <div className="identity-brief-card identity-brief-card-wide">
           <span className="identity-brief-label">Operational rule</span>
           <strong>Role swaps are valid. Swarm follow-links still use Hardware ID.</strong>
-          <p>Use a role swap when a spare aircraft must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
+          <p>Use a role swap when a spare drone must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
         </div>
       </section>
 
@@ -527,7 +529,7 @@ const MissionConfig = () => {
               <strong> Invalid Hardware IDs:</strong>
               {duplicateHwIds.map((duplicate) => (
                 <span key={duplicate.hw_id} className="duplicate-detail">
-                  {' '}Airframe {duplicate.hw_id} appears multiple times
+                  {' '}{formatDroneLabel(duplicate.hw_id)} appears multiple times
                 </span>
               ))}
             </div>
@@ -538,7 +540,7 @@ const MissionConfig = () => {
               <strong> Collision Risk:</strong>
               {duplicatePosIds.map((duplicate) => (
                 <span key={duplicate.pos_id} className="duplicate-detail">
-                  {' '}Show Slot {duplicate.pos_id} → Airframes {duplicate.hw_ids.join(', ')}
+                  {' '}{formatShowSlotLabel(duplicate.pos_id)} → Drones {duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}
                 </span>
               ))}
             </div>
@@ -549,7 +551,7 @@ const MissionConfig = () => {
               <strong> {roleSwaps.length} Active Role Swap(s):</strong>
               {roleSwaps.slice(0, 3).map((drone) => (
                 <span key={drone.hw_id} className="role-swap-detail">
-                  {' '}Airframe {drone.hw_id} → Show Slot {drone.pos_id}
+                  {' '}{formatDroneLabel(drone.hw_id)} → {formatShowSlotLabel(drone.pos_id)}
                 </span>
               ))}
               {roleSwaps.length > 3 && (
@@ -615,12 +617,12 @@ const MissionConfig = () => {
               All Active Role Swaps ({roleSwapData.length})
             </h3>
             <p style={{ marginBottom: '16px' }}>
-              These airframes are assigned to a different show slot than their own:
+              These drones are assigned to a different show slot than their own:
             </p>
             <table>
               <thead>
                 <tr>
-                  <th>Airframe</th>
+                  <th>Drone</th>
                   <th style={{ textAlign: 'center' }}>→</th>
                   <th>Show Slot</th>
                 </tr>
@@ -629,11 +631,11 @@ const MissionConfig = () => {
                 {roleSwapData.map((drone) => (
                   <tr key={drone.hw_id}>
                     <td>
-                      <strong>Airframe {drone.hw_id}</strong>
+                      <strong>{formatDroneLabel(drone.hw_id)}</strong>
                     </td>
                     <td style={{ textAlign: 'center' }}>→</td>
                     <td>
-                      <strong>Show Slot {drone.pos_id}</strong>
+                      <strong>{formatShowSlotLabel(drone.pos_id)}</strong>
                     </td>
                   </tr>
                 ))}
@@ -659,7 +661,7 @@ const MissionConfig = () => {
         <div className="drone-stats-summary">
           <div className="stat-item">
             <span className="stat-number">{configData.length}</span>
-            <span className="stat-label">Airframes</span>
+            <span className="stat-label">Drones</span>
           </div>
           <div className="stat-item">
             <span className="stat-number">{onlineDroneCount}</span>
@@ -675,7 +677,7 @@ const MissionConfig = () => {
           </div>
           <div className="stat-item">
             <span className="stat-number">{configData.filter((drone) => drone.isNew).length}</span>
-            <span className="stat-label">New Airframes</span>
+            <span className="stat-label">New Drones</span>
           </div>
           <div className="stat-item">
             <span className="stat-number">
@@ -773,7 +775,7 @@ const MissionConfig = () => {
         preselectedHwId={replaceDroneTarget}
         onSave={(updatedConfig) => {
           applyNormalizedConfigData(updatedConfig);
-          toast.success('Airframe replacement applied. Remember to save your changes.');
+          toast.success('Drone replacement applied. Remember to save your changes.');
         }}
       />
 
