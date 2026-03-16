@@ -119,7 +119,12 @@ const DronePositionMap = ({
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map (Heading = {forwardHeading}°)</h3>
-      <LeafletMapBase center={[avgLat, avgLon]} zoom={16}>
+      <LeafletMapBase
+        center={[avgLat, avgLon]}
+        zoom={16}
+        defaultLayer="esriSatellite"
+        showLayerControl={false}
+      >
         {dronePositions.map((drone) => (
           <Marker
             key={drone.hw_id}

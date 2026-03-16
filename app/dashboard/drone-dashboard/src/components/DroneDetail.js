@@ -368,6 +368,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <LeafletMapBase
           center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
           zoom={13}
+          defaultLayer="esriSatellite"
+          showLayerControl={false}
           style={{ height: '100%', width: '100%' }}
         >
           <Marker
