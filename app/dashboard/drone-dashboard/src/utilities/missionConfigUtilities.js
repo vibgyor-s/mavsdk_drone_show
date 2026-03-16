@@ -26,6 +26,7 @@ const cleanDroneForBackend = (drone) => {
     delete cleanedDrone.x;
     delete cleanedDrone.y;
     delete cleanedDrone.isNew;
+    delete cleanedDrone.custom_fields;
 
     return toBackendConfigDrone(cleanedDrone) || cleanedDrone;
 };
@@ -252,7 +253,7 @@ export const exportConfigJSON = (configData) => {
 };
 
 /**
- * Export config as CSV (backward-compatible).
+ * Export config as CSV (backward-compatible, core fields only).
  */
 export const exportConfigCSV = (configData) => {
     const header = ["hw_id", "pos_id", "ip", "mavlink_port", "serial_port", "baudrate"];

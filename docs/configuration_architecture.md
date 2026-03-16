@@ -54,7 +54,10 @@ shapes/swarm/processed/Drone 1.csv (first row: px, py)
 - `mavlink_port`: MAVLink communication port
 - `serial_port`: Serial connection (e.g., /dev/ttyS0) (optional)
 - `baudrate`: Serial baud rate (e.g., 57600) (optional)
-- Additional custom fields are preserved (e.g., `color`, `notes`)
+- Additional custom fields are preserved (e.g., `callsign`, `notes`, `maintenance_tag`)
+
+**Operator rule:** Additional fields are secondary metadata only. They must never replace
+`hw_id` (physical drone identity) or `pos_id` (show slot / trajectory identity).
 
 **Trajectory Files** (`shapes/swarm/processed/Drone {pos_id}.csv`):
 - First row contains: `px` (North), `py` (East), `pz` (Down)
@@ -76,7 +79,7 @@ Returns: [{"hw_id": 1, "pos_id": 1, "x": -5.0, "y": 2.5}, ...]
 
 **Helper Functions**:
 - `get_all_drone_positions()` in `gcs-server/config.py`
-- `_get_expected_position_from_trajectory()` in `gcs-server/origin.py`
+- `get_expected_position_from_trajectory()` in `src/coordinate_utils.py`
 
 ### 3. Role Swaps
 
@@ -176,6 +179,8 @@ Gets position for single pos_id (used for individual updates).
 - DroneConfigCard shows hw_id, pos_id, ip, etc.
 - NO x,y input fields (removed)
 - Positions displayed as read-only info (if needed)
+- Additional JSON fields are shown in a dedicated **Additional Fields** section
+- `callsign` is promoted as a secondary alias when present
 
 **Saving Changes**:
 1. User clicks "Save & Commit to Git"
@@ -210,13 +215,13 @@ Gets position for single pos_id (used for individual updates).
   - `get_all_drone_positions()`
   - `validate_and_process_config()`
 
-- `gcs-server/routes.py`:
+- `gcs-server/app_fastapi.py`:
   - `/get-drone-positions` endpoint
   - `/save-config-data` endpoint
   - `/validate-config` endpoint
 
-- `gcs-server/origin.py`:
-  - `_get_expected_position_from_trajectory()`
+- `src/coordinate_utils.py`:
+  - `get_expected_position_from_trajectory()`
 
 - `drone_show.py`:
   - Uses trajectory CSV first row (calls `read_trajectory_file()`)

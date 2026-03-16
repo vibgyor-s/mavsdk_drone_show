@@ -565,7 +565,7 @@ const MissionConfig = () => {
         <div>
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign physical drones to show slots, verify live identity telemetry, and prepare the fleet for drone-show or cooperative mission execution.
+            Assign physical drones to show slots, verify live identity telemetry, and maintain clean per-drone mission metadata for drone-show or cooperative mission execution.
           </p>
         </div>
       </header>
@@ -585,6 +585,11 @@ const MissionConfig = () => {
           <span className="identity-brief-label">Operational rule</span>
           <strong>Role swaps are valid. Swarm follow-links still use Hardware ID.</strong>
           <p>Use a role swap when a spare drone must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
+        </div>
+        <div className="identity-brief-card">
+          <span className="identity-brief-label">Additional fields</span>
+          <strong>Optional metadata stays secondary</strong>
+          <p>Add clean JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
         </div>
       </section>
 

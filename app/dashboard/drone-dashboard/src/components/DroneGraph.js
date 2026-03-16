@@ -6,7 +6,7 @@ function buildGraphElements(drones) {
   const nodes = drones.map((drone) => ({
     data: {
       id: drone.hw_id,
-      label: `A${drone.hw_id}\nP${drone.pos_id}`,
+      label: `D${drone.hw_id}\nS${drone.pos_id}`,
       role: drone.role,
       warningState: drone.hasWarnings ? 'attention' : 'clear',
       roleSwapState: drone.isRoleSwap ? 'swap' : 'native',

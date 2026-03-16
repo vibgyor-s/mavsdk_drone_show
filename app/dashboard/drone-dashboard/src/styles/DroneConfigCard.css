@@ -165,6 +165,34 @@
   font-weight: var(--font-weight-medium);
 }
 
+.promoted-field-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--border-radius-full);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.12);
+  color: #dcfce7;
+  font-size: var(--font-size-xs);
+}
+
+.promoted-field-label {
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.promoted-field-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Role Swap Badge - inline badge for role swaps */
 .role-swap-badge {
   display: inline-block;
@@ -283,6 +311,85 @@
   margin-top: 4px;
   color: var(--color-text-secondary);
   line-height: var(--line-height-relaxed);
+}
+
+.custom-field-section {
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.06), var(--color-bg-secondary));
+  padding: var(--spacing-sm);
+}
+
+.custom-field-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.custom-field-section-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.custom-field-section-count {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.custom-field-list {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.custom-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.custom-field-value {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  text-align: right;
+  word-break: break-word;
+}
+
+.custom-field-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-full);
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.custom-field-overflow {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  padding: 2px 4px 0;
 }
 
 /* Info Sections - Clean, Scannable */
@@ -542,6 +649,13 @@
   line-height: var(--line-height-relaxed);
 }
 
+.form-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-base);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -564,7 +678,8 @@
 }
 
 .form-input,
-.form-select {
+.form-select,
+.form-textarea {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
@@ -577,7 +692,8 @@
 }
 
 .form-input:focus,
-.form-select:focus {
+.form-select:focus,
+.form-textarea:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary-border);
@@ -593,10 +709,24 @@
   font-family: var(--font-family-mono);
 }
 
+.form-textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: var(--line-height-relaxed);
+}
+
+.form-textarea-json {
+  white-space: pre-wrap;
+}
+
 .field-help {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-relaxed);
+}
+
+.field-help-preview {
+  color: var(--color-text-tertiary);
 }
 
 .field-warning {
@@ -634,6 +764,58 @@
   background: rgba(59, 130, 246, 0.16);
   color: #bfdbfe;
   border-color: rgba(59, 130, 246, 0.45);
+}
+
+.custom-field-editor-list {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.custom-field-editor-card {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: var(--border-radius-sm);
+  background: rgba(15, 23, 42, 0.28);
+  padding: var(--spacing-sm);
+}
+
+.custom-field-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 160px) minmax(240px, 1.2fr) auto;
+  gap: var(--spacing-sm);
+  align-items: start;
+}
+
+.custom-field-value-field {
+  min-width: 0;
+}
+
+.custom-field-remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: end;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--border-radius-sm);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.custom-field-remove-button:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fee2e2;
+}
+
+.custom-field-empty-state {
+  border: 1px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-base);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  background: rgba(15, 23, 42, 0.22);
 }
 
 .assignment-status-callout {
@@ -704,6 +886,12 @@
   padding: var(--spacing-sm);
   background: transparent;
   border-top: 1px solid var(--color-border-primary);
+}
+
+.action-button.compact {
+  padding: 8px 12px;
+  min-height: 36px;
+  align-self: center;
 }
 
 /* Network Info - Clean Professional Design */
@@ -997,6 +1185,17 @@ input:checked + .slider:before {
     grid-template-columns: 1fr;
   }
 
+  .form-section-header,
+  .custom-field-section-header,
+  .custom-field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .custom-field-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
   .info-label {
     min-width: auto;
   }
@@ -1018,6 +1217,16 @@ input:checked + .slider:before {
   .action-button {
     width: 100%;
     justify-content: center;
+  }
+
+  .action-button.compact,
+  .custom-field-remove-button {
+    width: 100%;
+  }
+
+  .promoted-field-chip {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

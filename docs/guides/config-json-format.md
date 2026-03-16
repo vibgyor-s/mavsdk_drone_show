@@ -17,7 +17,7 @@ MDS uses JSON files for fleet and swarm configuration. The format supports optio
       "mavlink_port": 14551,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600,
-      "color": "#FF6B00",
+      "callsign": "VIPER-01",
       "notes": "Replaced motor 2 on 2026-02-15"
     }
   ]
@@ -39,12 +39,17 @@ MDS uses JSON files for fleet and swarm configuration. The format supports optio
 |-------|------|---------|-------------|
 | `serial_port` | string | `""` | Serial port device (empty for SITL) |
 | `baudrate` | int | `0` | Serial baudrate (0 for SITL) |
-| `color` | string | `null` | Hex color for UI (`#RRGGBB`) |
+| `callsign` | string | `null` | Optional operator alias shown as secondary metadata in Mission Config |
 | `notes` | string | `null` | Operator notes |
 
 ### Custom Fields
 
-Any additional fields are preserved. Example: `"drone_type": "quad"`, `"label": "Alpha-1"`.
+Any additional fields are preserved. Recommended pattern:
+- keep core mission identity in `hw_id` and `pos_id`
+- use custom fields only for secondary metadata such as `callsign`, `notes`, `maintenance_tag`, or `payload_type`
+- prefer lowercase `snake_case` keys for long-term compatibility
+
+Examples: `"maintenance_tag": "A2"`, `"payload_type": "smoke"`, `"ready_for_show": true`.
 
 ## swarm.json / swarm_sitl.json
 
@@ -95,8 +100,15 @@ Selected automatically by `src/params.py` based on the presence of `real.mode` f
 
 The dashboard supports both JSON (primary) and CSV (legacy) import/export:
 - **Export JSON**: Downloads `config.json` with version wrapper
-- **Export CSV**: Downloads `config_export.csv` (core 6 fields only)
+- **Export CSV**: Downloads `config_export.csv` (core 6 fields only; custom fields remain JSON-only)
 - **Import**: Accepts `.json` or `.csv`, auto-detects format
+
+### Mission Config UI Behavior
+
+- Mission Config treats `hw_id` and `pos_id` as the only primary identity fields
+- Additional JSON fields appear under **Additional Fields**
+- `callsign` is promoted as a secondary alias when present
+- Editing a drone preserves unknown JSON fields; they are not dropped when saving
 
 ## Validation
 
@@ -109,4 +121,4 @@ Configuration is validated with Pydantic schemas (`gcs-server/schemas.py`):
 
 ---
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-03-16

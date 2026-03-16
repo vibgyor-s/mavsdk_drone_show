@@ -27,6 +27,20 @@ import {
   normalizeComparableId,
   normalizeRuntimeIp,
 } from '../utilities/missionIdentityUtils';
+import {
+  buildMissionConfigFormState,
+  coerceMissionCustomFieldValueForEditor,
+  createMissionCustomFieldDraft,
+  CUSTOM_FIELD_TYPES,
+  CUSTOM_FIELD_TYPE_OPTIONS,
+  formatMissionCustomFieldValue,
+  getMissionConfigCustomFields,
+  getPromotedMissionConfigField,
+  humanizeMissionConfigFieldKey,
+  normalizeMissionCustomFieldKey,
+  serializeMissionConfigFormState,
+  validateMissionCustomFields,
+} from '../utilities/missionConfigFields';
 import '../styles/DroneConfigCard.css';
 
 const SERIAL_PORT_OPTIONS = [
@@ -87,6 +101,14 @@ function determinePositionIdStatus(configPosId, assignedPosId, autoPosId) {
     configAssignedMatchNoAuto,
     anyMismatch,
   };
+}
+
+function getCustomFieldValuePreview(field) {
+  if (!field) {
+    return 'Not set';
+  }
+
+  return formatMissionCustomFieldValue(field.value, field.type);
 }
 
 /**
@@ -327,6 +349,13 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const isRoleSwap = normalizedHwId !== normalizedPosId;
   const serialPortLabel = drone.serial_port ? drone.serial_port : 'SITL / none';
   const baudrateLabel = drone.baudrate === '0' || drone.baudrate === 0 ? '0 (SITL / no serial)' : (drone.baudrate || '57600');
+  const promotedField = getPromotedMissionConfigField(drone);
+  const customFieldEntries = getMissionConfigCustomFields(drone);
+  const secondaryCustomFieldEntries = promotedField
+    ? customFieldEntries.filter((field) => field.key !== promotedField.key)
+    : customFieldEntries;
+  const visibleCustomFieldEntries = secondaryCustomFieldEntries.slice(0, 3);
+  const hiddenCustomFieldCount = Math.max(secondaryCustomFieldEntries.length - visibleCustomFieldEntries.length, 0);
 
   return (
     <>
@@ -351,6 +380,12 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
               ? `Swapped to ${formatShowSlotLabel(normalizedPosId)}`
               : `${formatShowSlotLabel(normalizedPosId)} (own slot)`}
           </p>
+          {promotedField && (
+            <div className="promoted-field-chip">
+              <span className="promoted-field-label">{promotedField.label}</span>
+              <span className="promoted-field-value">{getCustomFieldValuePreview(promotedField)}</span>
+            </div>
+          )}
         </div>
         <div className="card-actions">
           <div className={`status-badge ${heartbeatStatus.toLowerCase().replace(/[^a-z]/g, '')}`}>
@@ -375,6 +410,33 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             <small>{`Trajectory source: Drone ${normalizedPosId}.csv`}</small>
           </div>
         </div>
+
+        {secondaryCustomFieldEntries.length > 0 && (
+          <div className="custom-field-section">
+            <div className="custom-field-section-header">
+              <span className="custom-field-section-title">Additional Fields</span>
+              <span className="custom-field-section-count">
+                {secondaryCustomFieldEntries.length} saved
+              </span>
+            </div>
+            <div className="custom-field-list">
+              {visibleCustomFieldEntries.map((field) => (
+                <div key={field.key} className="custom-field-row">
+                  <span className="custom-field-label">
+                    {field.label}
+                    {field.isPromoted && <span className="custom-field-badge">Promoted</span>}
+                  </span>
+                  <span className="custom-field-value">{getCustomFieldValuePreview(field)}</span>
+                </div>
+              ))}
+              {hiddenCustomFieldCount > 0 && (
+                <div className="custom-field-overflow">
+                  +{hiddenCustomFieldCount} more field{hiddenCustomFieldCount === 1 ? '' : 's'} available in edit mode
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Basic Information */}
         <div className="info-section">
@@ -511,9 +573,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 const DroneEditForm = memo(function DroneEditForm({
   droneData,
   errors,
+  customFieldErrors,
   ipMismatch,
   heartbeatIP,
   onFieldChange,
+  onCustomFieldChange,
+  onCustomFieldKeyCommit,
+  onAddCustomField,
+  onRemoveCustomField,
   onAcceptIp,
   onSave,
   onCancel,
@@ -553,6 +620,7 @@ const DroneEditForm = memo(function DroneEditForm({
   const baudrateValue = useCustomBaudrate
     ? 'CUSTOM'
     : String(droneData.baudrate || '');
+  const customFields = Array.isArray(droneData.custom_fields) ? droneData.custom_fields : [];
 
   /** Generic onChange for other fields. */
   const handleGenericChange = (e) => {
@@ -623,6 +691,63 @@ const DroneEditForm = memo(function DroneEditForm({
         value,
       },
     });
+  };
+
+  const handleCustomFieldTypeChange = (fieldId, nextType) => {
+    const field = customFields.find((entry) => entry.id === fieldId);
+    const nextValue = coerceMissionCustomFieldValueForEditor(
+      nextType,
+      field ? field.value : ''
+    );
+
+    onCustomFieldChange(fieldId, {
+      type: nextType,
+      value: nextValue,
+    });
+  };
+
+  const renderCustomFieldValueControl = (field) => {
+    if (field.type === CUSTOM_FIELD_TYPES.BOOLEAN) {
+      return (
+        <select
+          value={field.value === true ? 'true' : 'false'}
+          onChange={(event) =>
+            onCustomFieldChange(field.id, { value: event.target.value === 'true' })
+          }
+          className="form-select"
+          aria-label={`${field.key || 'Custom field'} value`}
+        >
+          <option value="false">False</option>
+          <option value="true">True</option>
+        </select>
+      );
+    }
+
+    if (field.type === CUSTOM_FIELD_TYPES.JSON) {
+      return (
+        <textarea
+          value={field.value}
+          onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
+          className="form-textarea form-textarea-json"
+          rows={4}
+          spellCheck={false}
+          placeholder='{"value": "example"}'
+          aria-label={`${field.key || 'Custom field'} JSON value`}
+        />
+      );
+    }
+
+    return (
+      <input
+        type={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'number' : 'text'}
+        value={field.value}
+        onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
+        className="form-input"
+        inputMode={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'decimal' : undefined}
+        placeholder={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'Enter numeric value' : 'Enter value'}
+        aria-label={`${field.key || 'Custom field'} value`}
+      />
+    );
   };
 
   const handleSaveRequest = () => {
@@ -887,6 +1012,110 @@ const DroneEditForm = memo(function DroneEditForm({
             </div>
           </div>
 
+          <div className="form-section-block">
+            <div className="form-section-header">
+              <div>
+                <div className="form-section-title">Additional Mission Fields</div>
+                <div className="form-section-description">
+                  Optional per-drone metadata such as callsign, notes, or maintenance tags. Saved in JSON and preserved across dashboard edits.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="action-button secondary compact"
+                onClick={onAddCustomField}
+                title="Add additional field"
+                aria-label="Add additional field"
+              >
+                <FontAwesomeIcon icon={faPlusCircle} /> Add field
+              </button>
+            </div>
+
+            {customFields.length > 0 ? (
+              <div className="custom-field-editor-list">
+                {customFields.map((field) => {
+                  const fieldError = customFieldErrors?.[field.id] || {};
+                  const normalizedPreviewKey = normalizeMissionCustomFieldKey(field.key);
+                  return (
+                    <div key={field.id} className="custom-field-editor-card">
+                      <div className="custom-field-editor-grid">
+                        <div className="form-field">
+                          <label className="form-label">Field Name</label>
+                          <input
+                            type="text"
+                            value={field.key}
+                            onChange={(event) =>
+                              onCustomFieldChange(field.id, { key: event.target.value })
+                            }
+                            onBlur={() => onCustomFieldKeyCommit(field.id)}
+                            className={`form-input ${fieldError.key ? 'input-invalid' : ''}`}
+                            placeholder="e.g., callsign"
+                            spellCheck={false}
+                            aria-label="Additional field name"
+                          />
+                          <div className="field-help">
+                            Saved as lowercase snake_case.
+                            {normalizedPreviewKey && normalizedPreviewKey !== field.key.trim() && (
+                              <span className="field-help-preview">
+                                {` Saved key: ${normalizedPreviewKey}`}
+                              </span>
+                            )}
+                          </div>
+                          {fieldError.key && <span className="error-message">{fieldError.key}</span>}
+                        </div>
+
+                        <div className="form-field custom-field-type">
+                          <label className="form-label">Type</label>
+                          <select
+                            value={field.type}
+                            onChange={(event) =>
+                              handleCustomFieldTypeChange(field.id, event.target.value)
+                            }
+                            className="form-select"
+                            aria-label="Additional field type"
+                          >
+                            {CUSTOM_FIELD_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-field custom-field-value-field">
+                          <label className="form-label">
+                            {humanizeMissionConfigFieldKey(field.key || 'value')}
+                          </label>
+                          {renderCustomFieldValueControl(field)}
+                          {field.type === CUSTOM_FIELD_TYPES.JSON && (
+                            <div className="field-help">
+                              Use valid JSON for structured metadata. Keep operator-facing values as text when possible.
+                            </div>
+                          )}
+                          {fieldError.value && <span className="error-message">{fieldError.value}</span>}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="custom-field-remove-button"
+                          onClick={() => onRemoveCustomField(field.id)}
+                          title="Remove additional field"
+                          aria-label={`Remove ${field.key || 'additional field'}`}
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="custom-field-empty-state">
+                No additional mission fields set for this drone.
+              </div>
+            )}
+          </div>
+
           {ipMismatch && heartbeatIP && (
             <div className="mismatch-message">
               {`Heartbeat is reporting IP ${heartbeatIP}, which differs from the saved IP.`}
@@ -980,33 +1209,8 @@ export default function DroneConfigCard({
 }) {
   const isEditing = normalizeComparableId(editingDroneId) === normalizeComparableId(drone.hw_id);
 
-  // Helper function to ensure all required fields exist with defaults
-  // Note: x,y removed - positions come from trajectory CSV files only
   const getCompleteFormData = (droneObj) => {
-    if (!droneObj) {
-      return {
-        hw_id: '',
-        pos_id: '',
-        ip: '',
-        mavlink_port: '',
-        serial_port: '',
-        baudrate: '0',
-        isNew: false
-      };
-    }
-    return {
-      hw_id: normalizeComparableId(droneObj.hw_id),
-      pos_id: normalizeComparableId(droneObj.pos_id, droneObj.hw_id),
-      ip: droneObj.ip || '',
-      mavlink_port: droneObj.mavlink_port !== undefined && droneObj.mavlink_port !== null
-        ? String(droneObj.mavlink_port)
-        : '',
-      serial_port: droneObj.serial_port ?? '',
-      baudrate: droneObj.baudrate !== undefined && droneObj.baudrate !== null
-        ? String(droneObj.baudrate)
-        : '0',
-      isNew: droneObj.isNew || false
-    };
+    return buildMissionConfigFormState(droneObj);
   };
 
   // Local state for the edit form
@@ -1082,6 +1286,7 @@ export default function DroneConfigCard({
     const validationErrors = {};
     const normalizedHwId = normalizeComparableId(droneData.hw_id);
     const normalizedPosId = normalizeComparableId(droneData.pos_id);
+    const customFieldValidation = validateMissionCustomFields(droneData.custom_fields);
 
     if (!normalizedHwId) {
       validationErrors.hw_id = 'Hardware ID is required.';
@@ -1105,17 +1310,24 @@ export default function DroneConfigCard({
     if (droneData.baudrate !== '' && droneData.baudrate !== null && !/^\d+$/.test(String(droneData.baudrate))) {
       validationErrors.baudrate = 'Baudrate must be 0 or a positive integer.';
     }
+    if (!customFieldValidation.isValid) {
+      validationErrors.custom_fields = customFieldValidation.errorsById;
+    }
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    // If no validation errors, call parent to handle final saving
-    saveChanges(drone.hw_id, {
+    const serializedDroneData = serializeMissionConfigFormState({
       ...droneData,
       hw_id: normalizedHwId,
       pos_id: normalizedPosId,
+    });
+
+    saveChanges(drone.hw_id, {
+      ...serializedDroneData,
+      isNew: false,
     });
   };
 
@@ -1125,33 +1337,81 @@ export default function DroneConfigCard({
         <DroneEditForm
           droneData={droneData}
           errors={errors}
+          customFieldErrors={errors.custom_fields}
           ipMismatch={ipMismatch}
           heartbeatIP={heartbeatIp}
           assignedPosId={assignedPosId}
           autoPosId={autoPosId}
           onFieldChange={(e) => {
             const { name, value } = e.target;
-            setDroneData({ ...droneData, [name]: value });
+            setDroneData((current) => ({ ...current, [name]: value }));
+            setErrors((current) => ({ ...current, [name]: undefined }));
+          }}
+          onCustomFieldChange={(fieldId, patch) => {
+            setDroneData((current) => ({
+              ...current,
+              custom_fields: (current.custom_fields || []).map((field) =>
+                field.id === fieldId ? { ...field, ...patch } : field
+              ),
+            }));
+            setErrors((current) => {
+              if (!current.custom_fields?.[fieldId]) {
+                return current;
+              }
+              const nextCustomFieldErrors = { ...current.custom_fields };
+              delete nextCustomFieldErrors[fieldId];
+              return { ...current, custom_fields: nextCustomFieldErrors };
+            });
+          }}
+          onCustomFieldKeyCommit={(fieldId) => {
+            setDroneData((current) => ({
+              ...current,
+              custom_fields: (current.custom_fields || []).map((field) =>
+                field.id === fieldId
+                  ? { ...field, key: normalizeMissionCustomFieldKey(field.key) }
+                  : field
+              ),
+            }));
+          }}
+          onAddCustomField={() => {
+            setDroneData((current) => ({
+              ...current,
+              custom_fields: [...(current.custom_fields || []), createMissionCustomFieldDraft()],
+            }));
+          }}
+          onRemoveCustomField={(fieldId) => {
+            setDroneData((current) => ({
+              ...current,
+              custom_fields: (current.custom_fields || []).filter((field) => field.id !== fieldId),
+            }));
+            setErrors((current) => {
+              if (!current.custom_fields?.[fieldId]) {
+                return current;
+              }
+              const nextCustomFieldErrors = { ...current.custom_fields };
+              delete nextCustomFieldErrors[fieldId];
+              return { ...current, custom_fields: nextCustomFieldErrors };
+            });
           }}
           onAcceptIp={() => {
             if (heartbeatIp) {
-              setDroneData({ ...droneData, ip: heartbeatIp });
+              setDroneData((current) => ({ ...current, ip: heartbeatIp }));
             }
           }}
           onAcceptPos={() => {
             if (assignedPosId && assignedPosId !== '0') {
-              setDroneData({
-                ...droneData,
+              setDroneData((current) => ({
+                ...current,
                 pos_id: assignedPosId,
-              });
+              }));
             }
           }}
           onAcceptPosAuto={() => {
             if (autoPosId && autoPosId !== '0') {
-              setDroneData({
-                ...droneData,
+              setDroneData((current) => ({
+                ...current,
                 pos_id: autoPosId,
-              });
+              }));
             }
           }}
           onSave={handleLocalSave}
