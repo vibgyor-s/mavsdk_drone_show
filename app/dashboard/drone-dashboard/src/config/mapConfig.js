@@ -81,7 +81,7 @@ export const getLeafletTileLayerConfig = (key) => {
   };
 };
 
-/** Get the user's saved tile preference (falls back to Google Satellite) */
+/** Get the user's saved tile preference (falls back to the default operational layer) */
 export const getUserTilePreference = () => {
   try {
     const saved = localStorage.getItem(TILE_STORAGE_KEY);

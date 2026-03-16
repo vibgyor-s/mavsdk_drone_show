@@ -1,5 +1,5 @@
 // src/components/map/LeafletMapBase.js
-// Reusable Leaflet map wrapper — Google Satellite default, layer preference persisted
+// Reusable Leaflet map wrapper with normalized provider config and persisted layer preference
 
 import React from 'react';
 import { MapContainer, TileLayer, LayersControl, useMapEvents } from 'react-leaflet';

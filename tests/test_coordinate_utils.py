@@ -163,6 +163,26 @@ class TestGetExpectedPositionFromTrajectory:
         assert north == 5.0
         assert east == 6.0
 
+    def test_env_base_dir_fallback_is_used_when_cwd_differs(self, tmp_path, monkeypatch):
+        """Test that MDS_BASE_DIR is honored when the process cwd is elsewhere."""
+        from src.coordinate_utils import get_expected_position_from_trajectory
+
+        trajectory_dir = tmp_path / "shapes_sitl" / "swarm" / "processed"
+        trajectory_dir.mkdir(parents=True)
+        csv_file = trajectory_dir / "Drone 7.csv"
+        csv_file.write_text("t,px,py,pz,vx,vy,vz\n0.0,12.0,-3.5,0.0,0,0,0\n")
+
+        other_dir = tmp_path / "unrelated"
+        other_dir.mkdir()
+
+        monkeypatch.chdir(other_dir)
+        monkeypatch.setenv("MDS_BASE_DIR", str(tmp_path))
+
+        north, east = get_expected_position_from_trajectory(7, sim_mode=True, base_dir=None)
+
+        assert north == 12.0
+        assert east == -3.5
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

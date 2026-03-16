@@ -20,6 +20,7 @@ import '../styles/PositionTabs.css';
 const PositionTabs = ({
   drones,
   deviationData,
+  trajectoryPositionsByPosId,
   origin,
   forwardHeading,
   onDroneClick,
@@ -30,6 +31,7 @@ const PositionTabs = ({
       <DeviationView
         drones={drones}
         deviationData={deviationData}
+        trajectoryPositionsByPosId={trajectoryPositionsByPosId}
         origin={origin}
         onDroneClick={onDroneClick}
         onRefresh={onRefresh}

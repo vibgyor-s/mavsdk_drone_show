@@ -27,7 +27,7 @@ describe('getLeafletTileLayerConfig', () => {
   test('falls back to default layer for unknown keys', () => {
     const layer = getLeafletTileLayerConfig('missing-layer');
 
-    expect(layer.name).toBe('Google Satellite');
-    expect(layer.subdomains).toEqual(['mt0', 'mt1', 'mt2', 'mt3']);
+    expect(layer.name).toBe('Satellite (Esri)');
+    expect(layer.url).toContain('arcgisonline');
   });
 });

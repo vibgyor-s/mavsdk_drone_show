@@ -93,6 +93,7 @@ const MissionConfig = () => {
   // Replace Drone Wizard
   const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
   const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
+  const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
 
   const applyNormalizedConfigData = (nextConfig) => {
     setConfigData(normalizeDroneConfigData(nextConfig));
@@ -109,6 +110,7 @@ const MissionConfig = () => {
   const { data: gitStatusDataFetched } = useNormalizedTelemetry('/git-status', 20000);
   const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
   const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
+  const { data: savedDronePositionsFetched } = useFetch('/get-drone-positions', 10000);
 
   // -----------------------------------------------------
   // Derived Data & Helpers
@@ -188,6 +190,87 @@ const MissionConfig = () => {
       setGcsConfig(gcsConfigFetched.data);
     }
   }, [gcsConfigFetched]);
+
+  useEffect(() => {
+    if (!Array.isArray(savedDronePositionsFetched)) {
+      return;
+    }
+
+    setTrajectoryPositionsByPosId((prev) => {
+      const next = { ...prev };
+      savedDronePositionsFetched.forEach((position) => {
+        const posId = normalizeComparableId(position?.pos_id);
+        const north = Number(position?.x);
+        const east = Number(position?.y);
+
+        if (!posId || !Number.isFinite(north) || !Number.isFinite(east)) {
+          return;
+        }
+
+        next[posId] = {
+          pos_id: posId,
+          x: north,
+          y: east,
+        };
+      });
+      return next;
+    });
+  }, [savedDronePositionsFetched]);
+
+  useEffect(() => {
+    const missingPosIds = Array.from(
+      new Set(
+        configData
+          .map((drone) => normalizeComparableId(drone.pos_id, drone.hw_id))
+          .filter(Boolean)
+      )
+    ).filter((posId) => trajectoryPositionsByPosId[posId] === undefined);
+
+    if (missingPosIds.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const backendURL = getBackendURL();
+
+    Promise.all(
+      missingPosIds.map(async (posId) => {
+        try {
+          const response = await axios.get(`${backendURL}/get-trajectory-first-row`, {
+            params: { pos_id: posId },
+          });
+
+          const north = Number(response.data?.north);
+          const east = Number(response.data?.east);
+          if (!Number.isFinite(north) || !Number.isFinite(east)) {
+            return [posId, null];
+          }
+
+          return [posId, { pos_id: posId, x: north, y: east }];
+        } catch (error) {
+          return [posId, null];
+        }
+      })
+    ).then((results) => {
+      if (cancelled) {
+        return;
+      }
+
+      setTrajectoryPositionsByPosId((prev) => {
+        const next = { ...prev };
+        results.forEach(([posId, position]) => {
+          if (position) {
+            next[posId] = position;
+          }
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [configData, trajectoryPositionsByPosId]);
 
   // -----------------------------------------------------
   // Detect & add "new" drones by heartbeat
@@ -748,6 +831,7 @@ const MissionConfig = () => {
           <PositionTabs
             drones={configData}
             deviationData={deviationData}
+            trajectoryPositionsByPosId={trajectoryPositionsByPosId}
             origin={origin}
             forwardHeading={forwardHeading}
             onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
@@ -758,6 +842,7 @@ const MissionConfig = () => {
             originLat={origin.lat}
             originLon={origin.lon}
             drones={configData}
+            trajectoryPositionsByPosId={trajectoryPositionsByPosId}
             forwardHeading={forwardHeading}
           />
         </div>

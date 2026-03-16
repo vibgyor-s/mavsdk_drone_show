@@ -11,11 +11,38 @@ that were previously scattered across multiple files.
 import csv
 import logging
 import os
+from pathlib import Path
 from typing import Optional, Tuple
 
 from pyproj import Proj, Transformer
 
 logger = logging.getLogger(__name__)
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _candidate_base_dirs(base_dir: Optional[str] = None) -> list[Path]:
+    """Return ordered candidate roots for trajectory lookups."""
+    candidates = []
+    seen = set()
+
+    raw_candidates = [
+        base_dir,
+        os.environ.get("MDS_BASE_DIR"),
+        os.getcwd(),
+        str(REPO_ROOT),
+    ]
+
+    for raw_candidate in raw_candidates:
+        if not raw_candidate:
+            continue
+        candidate = Path(raw_candidate).expanduser().resolve()
+        candidate_key = str(candidate)
+        if candidate_key in seen:
+            continue
+        seen.add(candidate_key)
+        candidates.append(candidate)
+
+    return candidates
 
 
 def latlon_to_ne(
@@ -93,32 +120,28 @@ def get_expected_position_from_trajectory(
         "Drone 1.csv" first row to get the expected starting position.
     """
     try:
-        # Construct trajectory file path based on pos_id
         shapes_dir = 'shapes_sitl' if sim_mode else 'shapes'
+        relative_path = Path(shapes_dir) / 'swarm' / 'processed' / f"Drone {pos_id}.csv"
 
-        if base_dir:
-            trajectory_file = os.path.join(
-                base_dir,
-                shapes_dir,
-                'swarm',
-                'processed',
-                f"Drone {pos_id}.csv"
-            )
-        else:
-            trajectory_file = os.path.join(
-                shapes_dir,
-                'swarm',
-                'processed',
-                f"Drone {pos_id}.csv"
-            )
+        trajectory_file = None
+        searched_paths = []
+        for candidate_base_dir in _candidate_base_dirs(base_dir):
+            candidate_file = candidate_base_dir / relative_path
+            searched_paths.append(str(candidate_file))
+            if candidate_file.exists():
+                trajectory_file = candidate_file
+                break
 
-        # Check if file exists
-        if not os.path.exists(trajectory_file):
-            logger.error(f"Trajectory file not found: {trajectory_file}")
+        if trajectory_file is None:
+            logger.error(
+                "Trajectory file not found for pos_id=%s. Searched: %s",
+                pos_id,
+                ", ".join(searched_paths),
+            )
             return None, None
 
         # Read first waypoint from CSV
-        with open(trajectory_file, 'r') as f:
+        with trajectory_file.open('r') as f:
             reader = csv.DictReader(f)
             first_waypoint = next(reader, None)
 

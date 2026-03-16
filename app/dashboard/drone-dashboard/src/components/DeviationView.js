@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { useTheme } from '../hooks/useTheme';
+import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import '../styles/DeviationView.css';
 
 /**
@@ -25,6 +26,7 @@ import '../styles/DeviationView.css';
 const DeviationView = ({
   drones,
   deviationData,
+  trajectoryPositionsByPosId,
   origin,
   onDroneClick,
   onRefresh
@@ -167,65 +169,72 @@ const DeviationView = ({
     }
   };
 
-  // Build traces from deviation data
-  if (deviationData?.deviations) {
-    drones.forEach(drone => {
-      const hw_id = drone.hw_id;
-      const deviation = deviationData.deviations[hw_id];
+  const deviationLookup = deviationData?.deviations || {};
 
-      if (!deviation || !deviation.expected) return;
+  drones.forEach((drone) => {
+    const hwId = normalizeComparableId(drone.hw_id);
+    const posId = normalizeComparableId(drone.pos_id, hwId) || hwId;
+    const deviation = deviationLookup[hwId];
+    const trajectoryPosition = trajectoryPositionsByPosId?.[posId];
 
-      // Expected position (always show)
-      const expectedNorth = deviation.expected.north || 0;
-      const expectedEast = deviation.expected.east || 0;
+    let expectedNorth = Number(trajectoryPosition?.x);
+    let expectedEast = Number(trajectoryPosition?.y);
 
-      expectedTrace.x.push(expectedEast);
-      expectedTrace.y.push(expectedNorth);
-      expectedTrace.text.push(hw_id);
-      expectedTrace.customdata.push({
-        hw_id,
-        pos_id: drone.pos_id || hw_id,
-        north: expectedNorth,
-        east: expectedEast
-      });
+    if (!Number.isFinite(expectedNorth) || !Number.isFinite(expectedEast)) {
+      expectedNorth = Number(deviation?.expected?.north);
+      expectedEast = Number(deviation?.expected?.east);
+    }
 
-      // Current position (if available)
-      if (deviation.current && deviation.status !== 'no_telemetry') {
-        const currentNorth = deviation.current.north;
-        const currentEast = deviation.current.east;
+    if (!Number.isFinite(expectedNorth) || !Number.isFinite(expectedEast)) {
+      return;
+    }
 
-        currentTrace.x.push(currentEast);
-        currentTrace.y.push(currentNorth);
-        currentTrace.text.push('');
-
-        // Get deviation value for color calculation
-        const deviationValue = deviation.deviation?.horizontal;
-        
-        // Border color based on ACTUAL deviation, not backend status
-        // (Backend status may be 'warning' due to GPS quality, but we want
-        // border color to reflect position accuracy)
-        const borderColor = getBorderColorByDeviation(deviationValue);
-        currentTrace.marker.color.push(borderColor);
-        currentTrace.marker.line.color.push(borderColor);
-
-        currentTrace.customdata.push({
-          hw_id,
-          pos_id: drone.pos_id || hw_id,
-          current_north: currentNorth,
-          current_east: currentEast,
-          deviation: deviation.deviation?.horizontal || 0,
-          gps_quality: deviation.current.gps_quality || 'unknown',
-          satellites: deviation.current.satellites || 0,
-          hdop: deviation.current.hdop || 99,
-          status: deviation.status
-        });
-
-        // Deviation vector (arrow from expected to current)
-        deviationVectors.x.push(expectedEast, currentEast, null);
-        deviationVectors.y.push(expectedNorth, currentNorth, null);
-      }
+    expectedTrace.x.push(expectedEast);
+    expectedTrace.y.push(expectedNorth);
+    expectedTrace.text.push(hwId);
+    expectedTrace.customdata.push({
+      hw_id: hwId,
+      pos_id: posId,
+      north: expectedNorth,
+      east: expectedEast,
     });
-  }
+
+    if (!deviation?.current || deviation.status === 'no_telemetry') {
+      return;
+    }
+
+    const currentNorth = Number(deviation.current.north);
+    const currentEast = Number(deviation.current.east);
+    if (!Number.isFinite(currentNorth) || !Number.isFinite(currentEast)) {
+      return;
+    }
+
+    currentTrace.x.push(currentEast);
+    currentTrace.y.push(currentNorth);
+    currentTrace.text.push('');
+
+    const deviationValue = deviation.deviation?.horizontal;
+    const borderColor = getBorderColorByDeviation(deviationValue);
+    currentTrace.marker.color.push(borderColor);
+    currentTrace.marker.line.color.push(borderColor);
+
+    currentTrace.customdata.push({
+      hw_id: hwId,
+      pos_id: posId,
+      current_north: currentNorth,
+      current_east: currentEast,
+      deviation: deviation.deviation?.horizontal || 0,
+      gps_quality: deviation.current.gps_quality || 'unknown',
+      satellites: deviation.current.satellites || 0,
+      hdop: deviation.current.hdop || 99,
+      status: deviation.status,
+    });
+
+    deviationVectors.x.push(expectedEast, currentEast, null);
+    deviationVectors.y.push(expectedNorth, currentNorth, null);
+  });
+
+  const hasExpectedPositions = expectedTrace.x.length > 0;
 
   // Only add actual positions and deviations if enabled
   plotTraces.push(expectedTrace);
@@ -316,47 +325,53 @@ const DeviationView = ({
       {/* Main Plot */}
       <div className="deviation-plot-container">
         {origin?.lat && origin?.lon ? (
-          <Plot
-            data={plotTraces}
-            layout={{
-              title: {
-                text: showActualPositions ? 'Position Monitoring - Expected vs Current' : 'Expected Launch Positions',
-                font: { color: themeColors.text, size: 16 }
-              },
-              xaxis: {
-                title: '← West | East →',
-                showgrid: true,
-                zeroline: true,
-                gridcolor: themeColors.grid,
-                tickfont: { color: themeColors.text }
-              },
-              yaxis: {
-                title: '← South | North →',
-                showgrid: true,
-                zeroline: true,
-                gridcolor: themeColors.grid,
-                tickfont: { color: themeColors.text }
-              },
-              hovermode: 'closest',
-              showlegend: true,
-              legend: {
-                x: 1.02,
-                y: 1,
-                font: { color: themeColors.text }
-              },
-              plot_bgcolor: themeColors.background,
-              paper_bgcolor: themeColors.paper,
-              margin: { l: 60, r: 120, t: 60, b: 60 }
-            }}
-            style={{ width: '100%', height: '600px' }}
-            config={{ responsive: true }}
-            onClick={(data) => {
-              const hw_id = data.points[0]?.customdata?.hw_id;
-              if (hw_id && onDroneClick) {
-                onDroneClick(hw_id);
-              }
-            }}
-          />
+          hasExpectedPositions ? (
+            <Plot
+              data={plotTraces}
+              layout={{
+                title: {
+                  text: showActualPositions ? 'Position Monitoring - Expected vs Current' : 'Expected Launch Positions',
+                  font: { color: themeColors.text, size: 16 }
+                },
+                xaxis: {
+                  title: '← West | East →',
+                  showgrid: true,
+                  zeroline: true,
+                  gridcolor: themeColors.grid,
+                  tickfont: { color: themeColors.text }
+                },
+                yaxis: {
+                  title: '← South | North →',
+                  showgrid: true,
+                  zeroline: true,
+                  gridcolor: themeColors.grid,
+                  tickfont: { color: themeColors.text }
+                },
+                hovermode: 'closest',
+                showlegend: true,
+                legend: {
+                  x: 1.02,
+                  y: 1,
+                  font: { color: themeColors.text }
+                },
+                plot_bgcolor: themeColors.background,
+                paper_bgcolor: themeColors.paper,
+                margin: { l: 60, r: 120, t: 60, b: 60 }
+              }}
+              style={{ width: '100%', height: '600px' }}
+              config={{ responsive: true }}
+              onClick={(data) => {
+                const hw_id = data.points[0]?.customdata?.hw_id;
+                if (hw_id && onDroneClick) {
+                  onDroneClick(hw_id);
+                }
+              }}
+            />
+          ) : (
+            <div className="no-origin-message">
+              <p>Trajectory-based launch positions are not available yet.</p>
+            </div>
+          )
         ) : (
           <div className="no-origin-message">
             <p>Please set origin coordinates to view position monitoring.</p>

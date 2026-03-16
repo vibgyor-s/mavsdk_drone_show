@@ -182,7 +182,7 @@ class BackgroundServices:
 
                         if response.status_code == 200:
                             data = response.json()
-                            with threading.Lock():
+                            with telemetry_lock:
                                 telemetry_data_all_drones[hw_id] = data
 
                     except Exception as e:
@@ -222,7 +222,7 @@ class BackgroundServices:
 
                         if response.status_code == 200:
                             data = response.json()
-                            with threading.Lock():
+                            with data_lock_git_status:
                                 git_status_data_all_drones[hw_id] = data
 
                     except Exception as e:
@@ -1984,7 +1984,7 @@ async def get_position_deviations():
             raise HTTPException(status_code=500, detail="No drones configuration found")
 
         # Get telemetry data (thread-safe)
-        with threading.Lock():
+        with telemetry_lock:
             telemetry_data_copy = telemetry_data_all_drones.copy()
 
         deviations = {}
