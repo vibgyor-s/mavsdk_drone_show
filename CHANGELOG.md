@@ -7,6 +7,33 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Unified Logging System (`mds_logging`)**: Shared logging contract for all components
+  - JSONL format for machine-parseable log files with ISO 8601 UTC timestamps
+  - Session-based retention with configurable limits (count + size)
+  - Colored console output with component-tagged messages
+  - Component self-registration registry for auto-discovery
+  - In-memory pub/sub watcher for future SSE streaming
+  - Shared CLI flags: `--verbose`, `--debug`, `--quiet`, `--log-json`, `--log-dir`
+  - Environment variable config with `MDS_LOG_*` prefix and deprecation shims
+
+### Changed
+- All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
+- All drone-side components migrated from `configure_logging()`/inline setup to `mds_logging`
+- CLI flags unified: `--debug` replaced with `--verbose`/`--debug`/`--quiet`
+
+### Removed
+- `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)
+- `gcs-server/gcs_logging.py` (PYTHONPATH workaround wrapper)
+- `src/logging_config.py` (drone-side logging config)
+- `configure_logging()` function from `drone_show_src/utils.py`
+- `setup_logging()` function from `functions/file_management.py`
+- All `logging.basicConfig()` calls across the codebase
+
+---
+
 ## [5.0] - 2026-02-24
 
 ### Added
