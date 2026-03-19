@@ -1,8 +1,9 @@
-import logging
 import time
 from threading import Lock
 
-logger = logging.getLogger(__name__)
+from mds_logging import get_logger
+
+logger = get_logger("heartbeat")
 
 # Thread-safe structure to store the last heartbeat for each drone
 last_heartbeats = {}  # { hw_id: { "pos_id": ...,"detected_pos_id",..., "ip": ..., "timestamp": ..., "network_info": ... } }

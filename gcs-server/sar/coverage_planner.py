@@ -12,7 +12,6 @@ Dependencies: shapely (GCS server only), numpy, pymap3d
 import os
 import sys
 import uuid
-import logging
 import math
 from typing import List, Tuple, Optional, Dict
 
@@ -33,8 +32,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from sar.schemas import (
     SearchAreaPoint, SurveyConfig, CoverageWaypoint, DroneCoveragePlan
 )
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("coverage_planner")
 
 
 def _require_shapely():

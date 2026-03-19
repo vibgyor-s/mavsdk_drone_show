@@ -44,7 +44,6 @@ Usage:
 """
 
 import asyncio
-import logging
 import os
 import sys
 import time
@@ -57,8 +56,9 @@ from typing import Any, Dict, List, Optional
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from enums import CommandStatus
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("command_tracker")
 
 
 @dataclass

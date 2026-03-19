@@ -1,6 +1,5 @@
 # gcs-server/origin.py
 
-import logging
 import math
 import os
 import json
@@ -9,10 +8,9 @@ from datetime import datetime
 from params import Params
 from scipy.optimize import minimize
 from coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from mds_logging import get_logger
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger("origin")
 
 # Define the path for storing origin data
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

@@ -1,8 +1,11 @@
 # gcs-server/utils.py
 import os
 import shutil
-import logging
 import subprocess
+
+from mds_logging import get_logger
+
+logger = get_logger("utils")
 
 from git import Repo, GitCommandError
 
@@ -47,9 +50,9 @@ def clear_show_directories(base_dir):
                     os.unlink(file_path)
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
-                logging.info(f"Deleted {file_path}")
+                logger.info(f"Deleted {file_path}")
             except Exception as e:
-                logging.error(f"Failed to delete {file_path}. Reason: {e}")
+                logger.error(f"Failed to delete {file_path}. Reason: {e}")
 
 
 def zip_directory(folder_path, zip_path):
@@ -102,22 +105,22 @@ def git_operations(base_dir, commit_message, timeout=30):
         git = repo.git
 
         # Fetch latest changes (with timeout)
-        logging.info("Fetching latest changes from remote...")
+        logger.info("Fetching latest changes from remote...")
         try:
             git.fetch('origin', kill_after_timeout=timeout)
         except (TimeoutError, GitCommandError) as e:
             if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
-                logging.warning(f"Git fetch timed out after {timeout}s, continuing with commit/push...")
+                logger.warning(f"Git fetch timed out after {timeout}s, continuing with commit/push...")
             else:
-                logging.warning(f"Git fetch failed: {e}, continuing with commit/push...")
+                logger.warning(f"Git fetch failed: {e}, continuing with commit/push...")
 
         # Stage + commit if dirty
         commit_hash = None
         if repo.is_dirty(untracked_files=True):
-            logging.info("Staging changes...")
+            logger.info("Staging changes...")
             repo.git.add('--all')
 
-            logging.info("Committing changes...")
+            logger.info("Committing changes...")
             commit_obj = repo.index.commit(commit_message)
             commit_hash = commit_obj.hexsha[:8]
 
@@ -128,28 +131,28 @@ def git_operations(base_dir, commit_message, timeout=30):
                 committed_files = list(commit_obj.stats.files.keys())
                 file_count = len(committed_files)
 
-                logging.info(f"Git commit successful: {file_count} file(s) committed [{commit_hash}]")
+                logger.info(f"Git commit successful: {file_count} file(s) committed [{commit_hash}]")
 
                 # Log first 10 files for verification
                 for filepath in committed_files[:10]:
-                    logging.info(f"  + {filepath}")
+                    logger.info(f"  + {filepath}")
                 if file_count > 10:
-                    logging.info(f"  ... and {file_count - 10} more file(s)")
+                    logger.info(f"  ... and {file_count - 10} more file(s)")
 
                 # Check for critical drone show files
                 processed_committed = [f for f in committed_files if 'swarm/processed/' in f and f.endswith('.csv')]
                 skybrush_committed = [f for f in committed_files if 'swarm/skybrush/' in f and f.endswith('.csv')]
 
                 if processed_committed:
-                    logging.info(f"Committed {len(processed_committed)} processed drone file(s)")
+                    logger.info(f"Committed {len(processed_committed)} processed drone file(s)")
                 if skybrush_committed:
-                    logging.info(f"Committed {len(skybrush_committed)} raw drone file(s)")
+                    logger.info(f"Committed {len(skybrush_committed)} raw drone file(s)")
 
             except Exception as verify_error:
-                logging.warning(f"Could not verify committed files: {verify_error}")
+                logger.warning(f"Could not verify committed files: {verify_error}")
 
         # Pull latest changes with rebase (with timeout)
-        logging.info("Rebasing local changes on top of remote changes...")
+        logger.info("Rebasing local changes on top of remote changes...")
         try:
             git.pull('--rebase', 'origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
         except (TimeoutError, GitCommandError) as e:
@@ -157,7 +160,7 @@ def git_operations(base_dir, commit_message, timeout=30):
                 return {'success': False, 'message': f'Git pull timed out after {timeout}s',
                         'commit_hash': commit_hash}
             elif 'merge conflict' in str(e).lower() or 'rebase' in str(e).lower():
-                logging.error("Merge conflict detected. Attempting to resolve automatically...")
+                logger.error("Merge conflict detected. Attempting to resolve automatically...")
                 try:
                     git.rebase('--abort')
                 except Exception:
@@ -168,7 +171,7 @@ def git_operations(base_dir, commit_message, timeout=30):
                 raise
 
         # Push changes (with timeout)
-        logging.info("Pushing changes to remote repository...")
+        logger.info("Pushing changes to remote repository...")
         try:
             git.push('origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
         except (TimeoutError, GitCommandError) as e:
@@ -178,7 +181,7 @@ def git_operations(base_dir, commit_message, timeout=30):
             raise
 
         success_message = "Changes pushed to repository successfully."
-        logging.info(success_message)
+        logger.info(success_message)
         return {'success': True, 'message': success_message, 'commit_hash': commit_hash}
 
     except GitCommandError as e:
@@ -201,9 +204,9 @@ def git_operations(base_dir, commit_message, timeout=30):
         except Exception:
             pass
 
-        logging.error(error_message)
+        logger.error(error_message)
         return {'success': False, 'message': error_message}
     except Exception as e:
         error_message = f"Exception during git operations: {str(e)}"
-        logging.error(error_message, exc_info=True)
+        logger.error(error_message, exc_info=True)
         return {'success': False, 'message': error_message}

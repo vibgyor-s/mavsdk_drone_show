@@ -9,7 +9,6 @@ Reuses the existing get_elevation() from gcs-server/get_elevation.py.
 import os
 import sys
 import asyncio
-import logging
 from typing import List, Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -17,8 +16,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from get_elevation import get_elevation
 from sar.schemas import CoverageWaypoint
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("terrain")
 
 
 async def batch_get_elevations(points: List[dict], chunk_size: int = 100) -> List[Optional[float]]:

@@ -9,7 +9,6 @@ import os
 import sys
 import uuid
 import time
-import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Query
@@ -30,8 +29,9 @@ from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
 from config import load_config
 from command import send_commands_to_selected
 from enums import Mission
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sar_routes")
 
 router = APIRouter(prefix="/api/sar", tags=["QuickScout SAR"])
 

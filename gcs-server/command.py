@@ -18,9 +18,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 from params import Params
 from enums import CommandResultCategory
 
-# Import the new logging system
-from gcs_logging import (
-    get_logger, log_drone_command, log_system_error, log_system_warning
+# Unified logging system
+from mds_logging.server import (
+    get_logger, log_drone_command, log_system_error, log_system_warning,
 )
 
 def normalize_drone_id(drone_id: Any) -> str:
@@ -477,18 +477,19 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
 # Standalone test mode
 if __name__ == "__main__":
     import argparse
-    from gcs_logging import initialize_logging, LogLevel, DisplayMode
+    from mds_logging.server import init_server_logging
+    from mds_logging.cli import add_log_arguments, apply_log_args
     from config import load_config
-    
+
     parser = argparse.ArgumentParser(description='Test drone command system')
-    parser.add_argument('--log-level', choices=['QUIET', 'NORMAL', 'VERBOSE', 'DEBUG'],
-                       default='VERBOSE', help='Log level')
+    add_log_arguments(parser)
     parser.add_argument('--command', required=True, help='Command to send (e.g., ARM, TAKEOFF, LAND)')
     parser.add_argument('--drones', nargs='*', help='Specific drone IDs to target')
     args = parser.parse_args()
-    
+
     # Initialize logging
-    initialize_logging(LogLevel[args.log_level], DisplayMode.STREAM)
+    apply_log_args(args)
+    init_server_logging()
     
     # Load drones
     drones = load_config()

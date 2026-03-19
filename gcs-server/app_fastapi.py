@@ -76,10 +76,12 @@ from sar.routes import router as sar_router
 from functions import swarm_trajectory_service
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 
-# Import logging system
-from gcs_logging import (
-    get_logger, log_system_error, log_system_warning, log_system_event
+# Unified logging system
+from mds_logging.server import (
+    get_logger, log_system_error, log_system_warning, log_system_event,
+    init_server_logging, log_system_startup,
 )
+from mds_logging import register_component
 
 # Configure simulation/production specific directories
 if Params.sim_mode:

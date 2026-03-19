@@ -97,9 +97,9 @@ def check_git_sync_status():
 # Standalone test mode
 if __name__ == "__main__":
     from config import load_config
-    from gcs_logging import initialize_logging, LogLevel, DisplayMode
+    from mds_logging.server import init_server_logging
 
-    initialize_logging(LogLevel.VERBOSE, DisplayMode.STREAM)
+    init_server_logging()
 
     drones = load_config()
     if not drones:

@@ -7,13 +7,13 @@ Simple in-memory CRUD for Points of Interest, keyed by mission_id.
 
 import uuid
 import time
-import logging
 import threading
 from typing import List, Optional, Dict
 
 from sar.schemas import POI
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("poi_manager")
 
 _poi_instance = None
 _poi_lock = threading.Lock()

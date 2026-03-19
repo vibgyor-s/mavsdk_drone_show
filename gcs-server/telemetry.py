@@ -21,9 +21,9 @@ from enums import Mission, State
 from config import load_config
 from heartbeat import last_heartbeats, last_heartbeats_lock
 
-# Import the new logging system
-from gcs_logging import (
-    get_logger, log_drone_telemetry, log_system_error, log_system_warning
+# Unified logging system
+from mds_logging.server import (
+    get_logger, log_drone_telemetry, log_system_error, log_system_warning,
 )
 
 # Thread-safe data structures
@@ -470,20 +470,16 @@ def get_telemetry_summary():
 # Standalone test mode
 if __name__ == "__main__":
     import argparse
-    from gcs_logging import initialize_logging, LogLevel, DisplayMode
-    
+    from mds_logging.server import init_server_logging
+    from mds_logging.cli import add_log_arguments, apply_log_args
+
     parser = argparse.ArgumentParser(description='Test telemetry polling system')
-    parser.add_argument('--log-level', choices=['QUIET', 'NORMAL', 'VERBOSE', 'DEBUG'], 
-                       default='VERBOSE', help='Log level')
-    parser.add_argument('--display-mode', choices=['DASHBOARD', 'STREAM', 'HYBRID'],
-                       default='HYBRID', help='Display mode')
+    add_log_arguments(parser)
     args = parser.parse_args()
-    
+
     # Initialize logging
-    initialize_logging(
-        LogLevel[args.log_level],
-        DisplayMode[args.display_mode]
-    )
+    apply_log_args(args)
+    init_server_logging()
     
     # Load drones and start polling
     drones = load_config()

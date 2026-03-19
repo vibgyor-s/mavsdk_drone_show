@@ -9,19 +9,19 @@ Shared utilities:
 - Git operations: functions/git_manager.py
 """
 import os
-import logging
 from params import Params
 from collections import defaultdict
 
 # Import shared utilities (single source of truth)
 from functions.file_utils import load_json, save_json
 from functions.git_manager import get_local_git_report, get_remote_git_status
+from mds_logging import get_logger
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_file_name)
 SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_file_name)
 
-logger = logging.getLogger(__name__)
+logger = get_logger("config")
 
 # Required fields for validation
 CONFIG_REQUIRED_FIELDS = {'hw_id', 'pos_id', 'ip', 'mavlink_port'}

@@ -6,15 +6,15 @@ In-memory mission lifecycle management with singleton pattern.
 """
 
 import time
-import logging
 import threading
 from typing import Dict, Optional, List
 
 from sar.schemas import (
     MissionStatus, DroneSurveyState, SurveyState, DroneCoveragePlan, SurveyConfig
 )
+from mds_logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("mission_manager")
 
 _manager_instance = None
 _manager_lock = threading.Lock()
