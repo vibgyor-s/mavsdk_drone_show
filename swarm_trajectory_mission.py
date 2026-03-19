@@ -112,10 +112,14 @@ from src.led_controller import LEDController
 from src.params import Params
 
 from drone_show_src.utils import (
-    configure_logging,
     read_hw_id,
     clamp_led_value,
 )
+
+# Unified logging system
+from mds_logging.drone import init_drone_logging
+from mds_logging import get_logger, register_component
+from mds_logging.cli import add_log_arguments, apply_log_args
 
 
 # ----------------------------- #
@@ -1549,10 +1553,6 @@ def main():
     """
     Main function to run the swarm trajectory mission.
     """
-    # Configure logging
-    configure_logging("swarm_trajectory")
-    logger = logging.getLogger(__name__)
-
     parser = argparse.ArgumentParser(description='Swarm Trajectory Mission Script')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
     parser.add_argument(
@@ -1566,21 +1566,15 @@ def main():
         choices=['return_home', 'land_current', 'hold_position', 'continue_heading'],
         help='End-of-mission behavior override'
     )
-    parser.add_argument(
-        '--debug',
-        action='store_true',
-        help='Enable debug mode for verbose logging.',
-    )
-    
+    add_log_arguments(parser)
+
     args = parser.parse_args()
 
-    # Adjust logging level based on debug flag
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.debug("Debug mode ENABLED: Verbose logging is active.")
-    else:
-        logging.getLogger().setLevel(logging.INFO)
-        logger.info("Debug mode DISABLED: Standard logging level set to INFO.")
+    # Initialize unified logging
+    apply_log_args(args)
+    register_component("swarm_trajectory", "drone", "Swarm trajectory mission")
+    init_drone_logging()
+    logger = get_logger("swarm_trajectory")
 
     # Get the synchronized start time (exact match with drone_show.py)
     if args.start_time:

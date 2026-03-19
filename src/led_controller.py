@@ -1,8 +1,9 @@
 # src/led_controller.py
 
 import time
-import logging
 import threading
+
+from mds_logging import get_logger
 from typing import Union, Tuple, TYPE_CHECKING
 from src.params import Params
 
@@ -82,8 +83,7 @@ class LEDController:
             raise Exception("This class is a singleton!")
 
         # Setup logging
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger = get_logger("led")
 
         self.strip = None
         self.led_library = None

@@ -96,7 +96,6 @@ import asyncio
 import csv
 import json
 import subprocess
-import logging
 import socket
 import psutil
 import requests
@@ -124,12 +123,16 @@ from src.params import Params
 from src import origin_cache  # Phase 2: Origin caching system
 
 from drone_show_src.utils import (
-    configure_logging,
     read_hw_id,
     clamp_led_value,
     global_to_local,
     get_expected_position_from_trajectory,
 )
+
+# Unified logging system
+from mds_logging.drone import init_drone_logging
+from mds_logging import get_logger, register_component
+from mds_logging.cli import add_log_arguments, apply_log_args
 
 # ----------------------------- #
 #        Data Structures        #
@@ -2155,10 +2158,6 @@ def main():
     """
     Main function to run the drone.
     """
-    # Configure logging
-    configure_logging("drone_show")
-    logger = logging.getLogger(__name__)
-
     parser = argparse.ArgumentParser(description='Drone Show Script')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
     parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file, e.g., active.csv')
@@ -2192,20 +2191,14 @@ def main():
         default=None,
         help='Mission type: 1=DRONE_SHOW_FROM_CSV, 3=CUSTOM_CSV, 106=HOVER_TEST. Required for Phase 2 filtering.',
     )
-    parser.add_argument(
-        '--debug',
-        action='store_true',
-        help='Enable debug mode for verbose logging.',
-    )
+    add_log_arguments(parser)
     args = parser.parse_args()
 
-    # Adjust logging level based on debug flag
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.debug("Debug mode ENABLED: Verbose logging is active.")
-    else:
-        logging.getLogger().setLevel(logging.INFO)
-        logger.info("Debug mode DISABLED: Standard logging level set to INFO.")
+    # Initialize unified logging
+    apply_log_args(args)
+    register_component("drone_show", "drone", "Offline trajectory execution")
+    init_drone_logging()
+    logger = get_logger("drone_show")
 
     # Get the synchronized start time
     if args.start_time:

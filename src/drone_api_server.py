@@ -29,7 +29,6 @@ import math
 import os
 import time
 import subprocess
-import logging
 from typing import Dict, Any, Optional, List
 
 # FastAPI imports
@@ -41,6 +40,10 @@ import uvicorn
 import requests
 import asyncio
 import json
+
+from mds_logging import get_logger
+
+logger = get_logger("drone_api")
 
 # Project imports
 from src.drone_config import DroneConfig
@@ -227,7 +230,7 @@ class DroneAPIServer:
                 # Validate command structure
                 validation_result = self._validate_command(command_data)
                 if not validation_result['valid']:
-                    logging.warning(f"Command rejected: {validation_result['message']}")
+                    logger.warning(f"Command rejected: {validation_result['message']}")
                     return CommandAckResponse(
                         status="rejected",
                         command_id=command_id,
@@ -247,7 +250,7 @@ class DroneAPIServer:
                 # Check state preconditions
                 state_check = self._check_state_preconditions(mission_type)
                 if not state_check['valid']:
-                    logging.warning(f"Command rejected due to state: {state_check['message']}")
+                    logger.warning(f"Command rejected due to state: {state_check['message']}")
                     return CommandAckResponse(
                         status="rejected",
                         command_id=command_id,
@@ -274,7 +277,7 @@ class DroneAPIServer:
                 except ValueError:
                     mission_name = f"MISSION_{mission_type}"
 
-                logging.info(f"Command accepted: {mission_name} (trigger: {trigger_time})")
+                logger.info(f"Command accepted: {mission_name} (trigger: {trigger_time})")
                 return CommandAckResponse(
                     status="accepted",
                     command_id=command_id,
@@ -289,7 +292,7 @@ class DroneAPIServer:
                 )
 
             except KeyError as e:
-                logging.error(f"Missing field in command: {e}")
+                logger.error(f"Missing field in command: {e}")
                 return CommandAckResponse(
                     status="rejected",
                     command_id=command_data.get('command_id') if command_data else None,
@@ -302,7 +305,7 @@ class DroneAPIServer:
                     timestamp=timestamp
                 )
             except ValueError as e:
-                logging.error(f"Invalid value in command: {e}")
+                logger.error(f"Invalid value in command: {e}")
                 return CommandAckResponse(
                     status="rejected",
                     command_id=command_data.get('command_id') if command_data else None,
@@ -315,7 +318,7 @@ class DroneAPIServer:
                     timestamp=timestamp
                 )
             except AttributeError as e:
-                logging.error(f"Configuration attribute error: {e}")
+                logger.error(f"Configuration attribute error: {e}")
                 return CommandAckResponse(
                     status="rejected",
                     command_id=command_data.get('command_id') if command_data else None,
@@ -328,7 +331,7 @@ class DroneAPIServer:
                     timestamp=timestamp
                 )
             except Exception as e:
-                logging.exception(f"Unexpected error processing command: {e}")
+                logger.exception(f"Unexpected error processing command: {e}")
                 return CommandAckResponse(
                     status="rejected",
                     command_id=command_data.get('command_id') if command_data else None,
@@ -356,15 +359,15 @@ class DroneAPIServer:
                         'altitude': home_pos.get('alt'),
                         'timestamp': int(time.time() * 1000)
                     }
-                    logging.debug(f"Retrieved home position: {home_pos_with_timestamp}")
+                    logger.debug(f"Retrieved home position: {home_pos_with_timestamp}")
                     return home_pos_with_timestamp
                 else:
-                    logging.warning("Home position requested but not set.")
+                    logger.warning("Home position requested but not set.")
                     raise HTTPException(status_code=404, detail="Home position not set")
             except HTTPException:
                 raise
             except Exception as e:
-                logging.error(f"Error retrieving home position: {e}")
+                logger.error(f"Error retrieving home position: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve home position")
 
         @self.app.get('/get-gps-global-origin')
@@ -383,15 +386,15 @@ class DroneAPIServer:
                         'origin_time_usec': gps_origin.get('time_usec'),
                         'timestamp': int(time.time() * 1000)
                     }
-                    logging.debug(f"Retrieved GPS global origin: {gps_origin_with_timestamp}")
+                    logger.debug(f"Retrieved GPS global origin: {gps_origin_with_timestamp}")
                     return gps_origin_with_timestamp
                 else:
-                    logging.warning("GPS global origin requested but not set.")
+                    logger.warning("GPS global origin requested but not set.")
                     raise HTTPException(status_code=404, detail="GPS global origin not set")
             except HTTPException:
                 raise
             except Exception as e:
-                logging.error(f"Error retrieving GPS global origin: {e}")
+                logger.error(f"Error retrieving GPS global origin: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve GPS global origin")
 
         @self.app.get('/get-git-status')
@@ -505,7 +508,7 @@ class DroneAPIServer:
             except HTTPException:
                 raise
             except Exception as e:
-                logging.error(f"Error in get_position_deviation: {e}")
+                logger.error(f"Error in get_position_deviation: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/get-network-status")
@@ -523,13 +526,13 @@ class DroneAPIServer:
             except HTTPException:
                 raise
             except Exception as e:
-                logging.error(f"Error in network-info endpoint: {e}")
+                logger.error(f"Error in network-info endpoint: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get('/get-swarm-data')
         async def get_swarm():
             """Get swarm configuration data"""
-            logging.info("Swarm data requested")
+            logger.info("Swarm data requested")
             try:
                 swarm = self.load_swarm(SWARM_FILE_PATH)
                 return swarm
@@ -552,7 +555,7 @@ class DroneAPIServer:
                 ned_data = self.drone_config.local_position_ned
 
                 if ned_data['time_boot_ms'] == 0:  # Initial zero value indicates no data yet
-                    logging.warning("LOCAL_POSITION_NED data not yet received")
+                    logger.warning("LOCAL_POSITION_NED data not yet received")
                     raise HTTPException(status_code=404, detail="NED data not available")
 
                 response = {
@@ -566,13 +569,13 @@ class DroneAPIServer:
                     'timestamp': int(time.time() * 1000)
                 }
 
-                logging.debug(f"Returning LOCAL_POSITION_NED: {response}")
+                logger.debug(f"Returning LOCAL_POSITION_NED: {response}")
                 return response
 
             except HTTPException:
                 raise
             except Exception as e:
-                logging.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
+                logger.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve NED position")
 
         # ====================================================================
@@ -613,8 +616,8 @@ class DroneAPIServer:
             await websocket.accept()
             self.active_websockets.append(websocket)
 
-            logging.info(f"WebSocket client connected from {websocket.client.host}")
-            logging.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+            logger.info(f"WebSocket client connected from {websocket.client.host}")
+            logger.info(f"Active WebSocket connections: {len(self.active_websockets)}")
 
             try:
                 while True:
@@ -640,14 +643,14 @@ class DroneAPIServer:
                     await asyncio.sleep(1.0)
 
             except WebSocketDisconnect:
-                logging.info(f"WebSocket client disconnected from {websocket.client.host}")
+                logger.info(f"WebSocket client disconnected from {websocket.client.host}")
             except Exception as e:
-                logging.error(f"WebSocket error: {e}")
+                logger.error(f"WebSocket error: {e}")
             finally:
                 # Clean up
                 if websocket in self.active_websockets:
                     self.active_websockets.remove(websocket)
-                logging.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+                logger.info(f"Active WebSocket connections: {len(self.active_websockets)}")
 
     # ========================================================================
     # Command Validation Methods
@@ -791,7 +794,7 @@ class DroneAPIServer:
         try:
             gcs_ip = self.params.GCS_IP
             if not gcs_ip:
-                logging.error("GCS IP not configured in Params")
+                logger.error("GCS IP not configured in Params")
                 return None
 
             gcs_port = self.params.gcs_api_port
@@ -805,13 +808,13 @@ class DroneAPIServer:
                     DroneAPIServer._origin_fetch_error_logged = False
                     return {'lat': float(data['lat']), 'lon': float(data['lon'])}
             else:
-                logging.warning(f"GCS responded with status code {response.status_code}")
+                logger.warning(f"GCS responded with status code {response.status_code}")
             return None
         except requests.RequestException as e:
             # Log once to avoid spam - GCS might not be running yet
             if not DroneAPIServer._origin_fetch_error_logged:
                 DroneAPIServer._origin_fetch_error_logged = True
-                logging.warning(f"Origin fetch from GCS failed (will retry): {e}")
+                logger.warning(f"Origin fetch from GCS failed (will retry): {e}")
             return None
 
     def _execute_git_command(self, command):
@@ -887,9 +890,9 @@ class DroneAPIServer:
             if not DroneAPIServer._network_info_error_logged:
                 DroneAPIServer._network_info_error_logged = True
                 if Params.sim_mode:
-                    logging.debug(f"nmcli not available (expected in SITL): {e}")
+                    logger.debug(f"nmcli not available (expected in SITL): {e}")
                 else:
-                    logging.warning(f"Network info unavailable: {e}")
+                    logger.warning(f"Network info unavailable: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,
@@ -899,7 +902,7 @@ class DroneAPIServer:
             # Unexpected errors still logged, but only once
             if not DroneAPIServer._network_info_error_logged:
                 DroneAPIServer._network_info_error_logged = True
-                logging.warning(f"Unexpected error getting network info: {e}")
+                logger.warning(f"Unexpected error getting network info: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,

@@ -1,14 +1,16 @@
 # src/heartbeat_sender.py
 import threading
 import time
-import logging
 import requests
 import socket
 import netifaces
 import subprocess
 
+from mds_logging import get_logger
 from src.params import Params
 from src.drone_config import DroneConfig
+
+logger = get_logger("heartbeat")
 
 class HeartbeatSender:
     """
@@ -34,17 +36,17 @@ class HeartbeatSender:
         Start the heartbeat thread.
         """
         if not self.gcs_ip:
-            logging.warning("GCS IP not configured in Params. Heartbeat will not start.")
+            logger.warning("GCS IP not configured in Params. Heartbeat will not start.")
             return
 
         if self.running:
-            logging.warning("HeartbeatSender is already running.")
+            logger.warning("HeartbeatSender is already running.")
             return
 
         self.running = True
         self.thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self.thread.start()
-        logging.info("HeartbeatSender started.")
+        logger.info("HeartbeatSender started.")
 
     def stop(self):
         """
@@ -53,7 +55,7 @@ class HeartbeatSender:
         self.running = False
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2)
-        logging.info("HeartbeatSender stopped.")
+        logger.info("HeartbeatSender stopped.")
 
     def _heartbeat_loop(self):
         """
@@ -63,7 +65,7 @@ class HeartbeatSender:
             try:
                 self.send_heartbeat()
             except Exception as e:
-                logging.error(f"HeartbeatSender encountered an error: {e}", exc_info=True)
+                logger.error(f"HeartbeatSender encountered an error: {e}", exc_info=True)
             time.sleep(self.interval)
 
     def send_heartbeat(self):
@@ -100,7 +102,7 @@ class HeartbeatSender:
         }
 
         url = f"http://{self.gcs_ip}:{self.gcs_port}{Params.gcs_heartbeat_endpoint}"
-        logging.debug(f"Sending heartbeat to {url} with data={data}")
+        logger.debug(f"Sending heartbeat to {url} with data={data}")
         
         try:
             resp = requests.post(url, json=data, timeout=3)
@@ -108,18 +110,18 @@ class HeartbeatSender:
                 if not HeartbeatSender._gcs_connected:
                     HeartbeatSender._gcs_connected = True
                     HeartbeatSender._gcs_connection_error_logged = False
-                    logging.info(f"Heartbeat connected to GCS: hw_id={hw_id}, ip={netbird_ip}")
+                    logger.info(f"Heartbeat connected to GCS: hw_id={hw_id}, ip={netbird_ip}")
                 else:
-                    logging.debug(f"Heartbeat OK: hw_id={hw_id}, ip={netbird_ip}")
+                    logger.debug(f"Heartbeat OK: hw_id={hw_id}, ip={netbird_ip}")
             else:
-                logging.warning(f"Heartbeat failed with status {resp.status_code}: {resp.text}")
+                logger.warning(f"Heartbeat failed with status {resp.status_code}: {resp.text}")
         except requests.RequestException as e:
             HeartbeatSender._gcs_connected = False
             if not HeartbeatSender._gcs_connection_error_logged:
                 HeartbeatSender._gcs_connection_error_logged = True
-                logging.warning(f"GCS unreachable (will retry silently): {e}")
+                logger.warning(f"GCS unreachable (will retry silently): {e}")
             else:
-                logging.debug(f"Heartbeat request exception: {e}")
+                logger.debug(f"Heartbeat request exception: {e}")
 
     def _get_netbird_ip(self):
         """
@@ -143,9 +145,9 @@ class HeartbeatSender:
             if not HeartbeatSender._netbird_error_logged:
                 HeartbeatSender._netbird_error_logged = True
                 if Params.sim_mode:
-                    logging.debug(f"Netbird IP not available (expected in SITL): {e}")
+                    logger.debug(f"Netbird IP not available (expected in SITL): {e}")
                 else:
-                    logging.warning(f"Failed to retrieve Netbird IP: {e}")
+                    logger.warning(f"Failed to retrieve Netbird IP: {e}")
             return None
 
     def _get_network_info(self):
@@ -216,9 +218,9 @@ class HeartbeatSender:
             if not HeartbeatSender._network_info_error_logged:
                 HeartbeatSender._network_info_error_logged = True
                 if Params.sim_mode:
-                    logging.debug(f"nmcli not available (expected in SITL): {e}")
+                    logger.debug(f"nmcli not available (expected in SITL): {e}")
                 else:
-                    logging.warning(f"Network info unavailable: {e}")
+                    logger.warning(f"Network info unavailable: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,
@@ -228,7 +230,7 @@ class HeartbeatSender:
             # Unexpected errors still logged, but only once
             if not HeartbeatSender._network_info_error_logged:
                 HeartbeatSender._network_info_error_logged = True
-                logging.warning(f"Unexpected error getting network info: {e}")
+                logger.warning(f"Unexpected error getting network info: {e}")
             return {
                 "wifi": None,
                 "ethernet": None,

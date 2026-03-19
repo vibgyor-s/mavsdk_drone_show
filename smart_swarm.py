@@ -84,12 +84,11 @@
 
 import os
 import sys
+import logging
 import time
 import asyncio
 import csv
 import subprocess
-import logging
-import logging.handlers
 import socket
 import psutil
 import argparse
@@ -118,7 +117,10 @@ from smart_swarm_src.utils import (
     lla_to_ned
 )
 
-from drone_show_src.utils import configure_logging
+# Unified logging system
+from mds_logging.drone import init_drone_logging
+from mds_logging import get_logger, register_component
+from mds_logging.cli import add_log_arguments, apply_log_args
 
 # ----------------------------- #
 #        Data Structures        #
@@ -1294,17 +1296,21 @@ def main():
     """
     Main function to run the smart swarm mode.
     """
-    # Configure logging
-    configure_logging("smart_swarm")
-
-    # Parse command-line arguments if needed
+    # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Smart Swarm Mode')
+    add_log_arguments(parser)
     args = parser.parse_args()
+
+    # Initialize unified logging
+    apply_log_args(args)
+    register_component("smart_swarm", "drone", "Smart swarm following mode")
+    init_drone_logging()
+    _logger = get_logger("smart_swarm")
 
     try:
         asyncio.run(run_smart_swarm())
     except Exception:
-        logging.exception("Unhandled exception in main")
+        _logger.exception("Unhandled exception in main")
         sys.exit(1)
 
 if __name__ == "__main__":

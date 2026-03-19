@@ -3,7 +3,6 @@
 
 import asyncio
 import datetime
-import logging
 import subprocess
 import time
 import os
@@ -12,9 +11,10 @@ from typing import Optional
 
 import aiohttp
 
+from mds_logging import get_logger
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
-logger = logging.getLogger(__name__)
+logger = get_logger("drone_setup")
 
 class DroneSetup:
     """

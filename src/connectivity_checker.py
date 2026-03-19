@@ -1,10 +1,10 @@
-import logging
 import threading
 import requests  # Make sure requests is installed
+from mds_logging import get_logger
 from src.params import Params
 from src.led_colors import LEDColors
 
-logger = logging.getLogger(__name__)
+logger = get_logger("connectivity")
 
 class ConnectivityChecker:
     """

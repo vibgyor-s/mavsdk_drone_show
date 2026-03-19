@@ -21,7 +21,6 @@ import sys
 import time
 import threading
 import datetime
-import logging
 import sdnotify  # For systemd watchdog notifications
 import asyncio  # For async mission scheduling
 from enum import Enum
@@ -44,38 +43,13 @@ from src.led_colors import LEDColors, LEDState  # Unified LED color system
 from src.heartbeat_sender import HeartbeatSender
 from src.pos_id_auto_detector import PosIDAutoDetector  # Import the new class
 
-# For log rotation
-from logging.handlers import RotatingFileHandler
+# Unified logging system
+from mds_logging.drone import init_drone_logging
+from mds_logging import get_logger, register_component
 
-# -----------------------------------------------------------------------------
-# Logging Setup
-# -----------------------------------------------------------------------------
-
-LOG_DIR = 'logs'
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
-
-now = datetime.datetime.now()
-current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-log_filename = os.path.join(LOG_DIR, f'{current_time}.log')
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.propagate = False  # Prevent duplicate logs to root logger
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-
-file_handler = RotatingFileHandler(log_filename, maxBytes=5 * 1024 * 1024, backupCount=5)
-file_handler.setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s',
-                              datefmt='%Y-%m-%d %H:%M:%S')
-console_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
-
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
+register_component("coordinator", "drone", "System initialization and heartbeat")
+init_drone_logging()
+logger = get_logger("coordinator")
 
 # -----------------------------------------------------------------------------
 # Startup State Machine

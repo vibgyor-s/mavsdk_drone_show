@@ -1,12 +1,13 @@
 # src/params.py
 
-import logging
 import os
 import struct
 from enum import Enum
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from mds_logging import get_logger
+
+logger = get_logger("params")
 
 # ===================================================================================
 # LOCAL CONFIGURATION LOADING

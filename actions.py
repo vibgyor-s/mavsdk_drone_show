@@ -50,8 +50,6 @@ This script executes various drone actions using MAVSDK:
 import argparse
 import asyncio
 import csv
-import logging
-import logging.handlers
 import os
 import socket
 import subprocess
@@ -65,33 +63,20 @@ from src.drone_config import ConfigLoader
 from src.led_controller import LEDController
 from src.params import Params
 
+# Unified logging system
+from mds_logging.drone import init_drone_logging
+from mds_logging import get_logger, register_component
+
+register_component("actions", "drone", "Drone action execution")
+init_drone_logging()
+logger = get_logger("actions")
+
 # Return codes: 0 = success, 1 = failure
 RETURN_CODE = 0
 
 GRPC_PORT = Params.DEFAULT_GRPC_PORT
 UDP_PORT = Params.mavsdk_port
 HW_ID = None
-
-# Configure logging
-logs_directory = os.path.join("logs", "action_logs")
-os.makedirs(logs_directory, exist_ok=True)
-
-logger = logging.getLogger("action_logger")
-logger.setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s', '%Y-%m-%d %H:%M:%S')
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-
-log_file = os.path.join(logs_directory, "actions.log")
-file_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
 
 # -----------------------
 # Helper / Setup Functions
