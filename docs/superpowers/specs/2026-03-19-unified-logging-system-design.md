@@ -39,9 +39,10 @@ The MAVSDK Drone Show (MDS) project has fragmented logging across its components
 ## 3. Non-Goals
 
 - Centralized log aggregation database (overkill for current scale)
-- Push-based log streaming from drones (bandwidth risk)
+- Constant push-based log streaming from drones (bandwidth risk — but see Section 11.7 for optional periodic pull)
 - Custom log shipping agents/sidecars (operational complexity)
 - Integration with external monitoring platforms (can be added later via JSONL export)
+- PX4 onboard ULG flight log management (binary flight data, large files, requires MAVSDK `log_files` plugin — separate feature, planned for a dedicated future phase)
 
 ## 4. Architecture
 
@@ -258,6 +259,33 @@ In-memory pub/sub via `mds_logging/watcher.py`:
 ### 11.6 Security
 
 Log endpoints follow the same trust model as existing drone/GCS API endpoints — they are expected to operate on a private network (direct WiFi, Netbird VPN, or local SITL). Network-level access control is the security boundary. No application-level authentication is added in this iteration, consistent with the existing API surface. If authentication is added to the main API in the future, log endpoints inherit the same middleware.
+
+### 11.7 Periodic Background Pull (Optional Safety Net)
+
+**Problem:** If a drone crashes or loses connectivity mid-mission, its logs are lost until (if ever) it comes back online. With pure on-demand pull, there's no safety net.
+
+**Solution:** An optional background task on GCS that periodically pulls recent WARNING+ logs from all connected drones and stores them locally on GCS. **Disabled by default** — only enabled when bandwidth allows (test missions, good WiFi, SITL).
+
+**Configuration:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MDS_LOG_BACKGROUND_PULL` | `false` | Enable periodic log collection from drones |
+| `MDS_LOG_PULL_INTERVAL_SEC` | `30` | How often to pull (seconds) |
+| `MDS_LOG_PULL_LEVEL` | `WARNING` | Minimum level to collect (WARNING+ by default) |
+| `MDS_LOG_PULL_MAX_DRONES` | `10` | Max concurrent drone pulls (prevents network flood) |
+
+**Behavior:**
+- Runs as an async background task in GCS FastAPI (similar to existing telemetry polling)
+- For each drone, fetches `GET /api/logs/stream?since={last_pull_timestamp}&level=WARNING`
+- Stores collected entries in GCS-side session files under `logs/sessions/drone_{id}/`
+- Respects circuit breaker: skips unreachable drones immediately
+- Sequential drone polling with concurrency cap (`MDS_LOG_PULL_MAX_DRONES`)
+- If disabled (default), zero overhead — task does not start
+
+**UI toggle:** The Log Viewer UI includes a toggle in the toolbar: "Background Collection: OFF/ON" which maps to `POST /api/logs/config` to change the setting at runtime without restart.
+
+**Implementation:** Added in Phase 2 (aggregation layer), after core endpoints are working.
 
 ## 12. Frontend Log Viewer
 
@@ -574,5 +602,18 @@ Steps 3.1-3.18 — build all components, integrate SSE hook, Operations + Develo
 4. Switch to Developer mode → verify search, filter, historical session, export
 5. Stop a drone → verify "offline" badge, no UI freeze
 6. Trigger React error → verify appears in log viewer
-7. Run full grep verification → zero old references
-8. Run full test suite → 100% pass
+7. Enable background pull → verify logs accumulate on GCS from drones
+8. Disable background pull → verify zero overhead
+9. Run full grep verification → zero old references
+10. Run full test suite → 100% pass
+
+## 18. Future Phase: PX4 Flight Log Management
+
+**Not in scope for this spec**, but planned for a dedicated future phase:
+
+- **PX4 ULG flight logs** stored on drone SD cards are binary flight data files (10-100MB each)
+- MAVSDK provides a `log_files` plugin to list and download these logs
+- A future "Flight Logs" tab in the Log Viewer could show available ULG files per drone, with download/delete capabilities
+- Requires: robust download with progress bar, resume on disconnect, cancel support, size warnings
+- This is fundamentally different from application JSONL logs (binary vs text, large vs small, flight data vs operational logs) and warrants its own design spec
+- The modular Log Viewer UI is designed to accommodate this as a future tab without architectural changes
