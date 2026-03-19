@@ -31,7 +31,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "functions*", "gcs-server*"]
+include = ["src*", "functions*", "gcs-server*", "mds_logging*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.csv", "*.yaml"]
