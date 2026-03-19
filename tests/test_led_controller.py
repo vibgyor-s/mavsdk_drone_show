@@ -1,10 +1,8 @@
 import time
-import logging
+from mds_logging import get_logger
 from src.led_controller import LEDController
 
-# Setup logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_logger("test_led")
 
 def run_tests():
     logger.info("Starting LEDController tests...")

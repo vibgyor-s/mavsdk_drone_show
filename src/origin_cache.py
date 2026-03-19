@@ -28,16 +28,17 @@ Version: 3.8 (Phase 2)
 
 import json
 import os
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict
+
+from mds_logging import get_logger
 
 # Cache file location in user's home directory
 CACHE_DIR = Path.home() / '.mavsdk_drone_show'
 CACHE_FILE = CACHE_DIR / 'origin_cache.json'
 
-logger = logging.getLogger(__name__)
+logger = get_logger("origin_cache")
 
 
 def save_origin_to_cache(origin_data: Dict) -> bool:
@@ -193,11 +194,8 @@ def get_cache_info() -> Dict:
 
 # Example usage
 if __name__ == "__main__":
-    # Configure logging for standalone testing
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    from mds_logging.drone import init_drone_logging
+    init_drone_logging()
 
     print("Origin Cache System Test")
     print("=" * 50)

@@ -11,7 +11,6 @@ from functions.file_management import (
     ensure_directory_exists,
     clear_directory,
     copy_files,
-    setup_logging
 )
 
 __all__ = [
@@ -23,5 +22,4 @@ __all__ = [
     'ensure_directory_exists',
     'clear_directory',
     'copy_files',
-    'setup_logging',
 ]

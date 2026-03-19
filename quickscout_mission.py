@@ -15,7 +15,6 @@ import sys
 import json
 import time
 import asyncio
-import logging
 import argparse
 import math
 
@@ -26,12 +25,9 @@ from mavsdk.mission import MissionItem, MissionPlan
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from params import Params
 from led_controller import LEDController
+from mds_logging import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [QuickScout] %(levelname)s: %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger("quickscout")
 
 
 def parse_args():

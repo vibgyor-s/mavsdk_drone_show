@@ -37,8 +37,11 @@ Updated: 2025 - Added unified LED color system support
 """
 
 import sys
-import logging
 import argparse
+
+from mds_logging import get_logger
+
+logger = get_logger("led_indicator")
 
 # Try to import LED library (may not be available on non-Pi systems)
 try:
@@ -211,11 +214,7 @@ def main():
     Main function to parse arguments, initialize the LED strip, and set its color.
     Supports both --color (direct color) and --state (semantic state) arguments.
     """
-    # Configure logging to output informational messages with timestamps
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    # Logging already configured via mds_logging
 
     # Parse command-line arguments
     args = parse_arguments()
@@ -260,14 +259,14 @@ def main():
         # Get the RGB color
         r, g, b = get_rgb_from_name(color_name)
     except ValueError as error:
-        logging.error(error)
+        logger.error(error)
         sys.exit(1)
 
-    logging.info(f"Setting LED: {color_name} ({r}, {g}, {b}) - {meaning}")
+    logger.info(f"Setting LED: {color_name} ({r}, {g}, {b}) - {meaning}")
 
     # Set the LEDs
     if not LED_AVAILABLE:
-        logging.info(f"[DRY-RUN] Would set LEDs to RGB({r}, {g}, {b})")
+        logger.info(f"[DRY-RUN] Would set LEDs to RGB({r}, {g}, {b})")
         sys.exit(0)
 
     try:
@@ -276,9 +275,9 @@ def main():
         # Set all LEDs to the specified color
         led_color = Color(r, g, b)
         set_strip_color(strip, led_color)
-        logging.info(f"LEDs successfully set to {color_name}.")
+        logger.info(f"LEDs successfully set to {color_name}.")
     except Exception as e:
-        logging.error(f"Error initializing or controlling LEDs: {e}")
+        logger.error(f"Error initializing or controlling LEDs: {e}")
         sys.exit(1)
 
 

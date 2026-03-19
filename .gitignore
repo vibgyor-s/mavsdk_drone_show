@@ -128,9 +128,12 @@ venv.bak/
 *_bak.py
 *_old.py
 
-# Logs
+# Logs — session files and symlinks (never committed)
 logs/
+logs/sessions/
+logs/current
 *.log
+*.jsonl
 gcs-server/logs/
 
 # Test and optimization files
