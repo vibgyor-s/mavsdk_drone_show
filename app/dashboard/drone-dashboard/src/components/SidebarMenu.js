@@ -16,7 +16,8 @@ import {
   FaClock,
   FaCodeBranch,
   FaSearchLocation,
-  FaMagic
+  FaMagic,
+  FaClipboardList
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -57,6 +58,12 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
         { to: '/trajectory-planning', icon: FaRoute, label: 'Trajectory Planning' },
         { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory' },
         { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout' },
+      ],
+    },
+    {
+      label: 'System',
+      items: [
+        { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],
     },
   ];

@@ -36,6 +36,8 @@ import SwarmTrajectory from './pages/SwarmTrajectory';
 import TrajectoryPlanning from './pages/TrajectoryPlanning';
 import QuickScoutPage from './pages/QuickScoutPage';
 import SyncWarningBanner from './components/SyncWarningBanner';
+import LogViewer from './pages/LogViewer';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Import external styles
 import { ToastContainer } from 'react-toastify';
@@ -56,6 +58,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
+      <ErrorBoundary>
       <MapProvider>
       <Router
         future={{
@@ -87,6 +90,9 @@ const App = () => {
             {/* QuickScout SAR */}
             <Route path="/quickscout" element={<QuickScoutPage />} />
 
+            {/* System */}
+            <Route path="/logs" element={<LogViewer />} />
+
             {/* Backward-compatible alias used by workflow guidance */}
             <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />
             
@@ -113,6 +119,7 @@ const App = () => {
       />
       </Router>
       </MapProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 };
