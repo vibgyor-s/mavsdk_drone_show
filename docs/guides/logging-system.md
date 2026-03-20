@@ -249,3 +249,50 @@ Ensure init is called only once per process. The init functions call `root.handl
 
 **Where are log files?**
 Default: `logs/sessions/s_YYYYMMDD_HHMMSS.jsonl`. Override with `MDS_LOG_DIR` env var or `--log-dir` CLI flag.
+
+---
+
+## Log Viewer UI
+
+### Accessing the Log Viewer
+
+Navigate to `/logs` in the dashboard sidebar (under "System" section).
+
+### Modes
+
+**Operations Mode** (default):
+- Shows WARNING and ERROR entries only
+- Health bar: GCS status, drone count, error/warning counts
+- Live event feed with auto-scroll
+- Ideal for field operators during missions
+
+**Developer Mode**:
+- All log levels (DEBUG through CRITICAL)
+- Component source tree for filtering
+- Full-text search across log messages
+- Session selector for historical log browsing
+- MUI DataGrid with virtual scroll for large datasets
+- Export to JSONL, CSV, or ZIP
+
+### Real-Time Streaming
+
+The Log Viewer uses Server-Sent Events (SSE) for real-time streaming:
+- 200ms batch interval prevents UI thrashing
+- 5000-line ring buffer prevents memory bloat
+- Auto-reconnect on connection loss
+- Pause/resume button to freeze the view without losing data
+
+### Export
+
+In Developer mode, click the Export button to:
+- Select one or more sessions
+- Choose JSONL (machine-readable), CSV, or ZIP format
+- Download filtered results
+
+### Error Boundary
+
+The app is wrapped in an `ErrorBoundary` component that:
+- Catches React render errors anywhere in the component tree
+- Automatically reports the error to `POST /api/logs/frontend`
+- Shows a fallback UI with a "Try Again" button
+- The error appears in the Log Viewer under the `frontend` source

@@ -18,6 +18,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - In-memory pub/sub watcher for SSE streaming
   - Shared CLI flags: `--verbose`, `--debug`, `--quiet`, `--log-json`, `--log-dir`
   - Environment variable config with `MDS_LOG_*` prefix and deprecation shims
+- **Frontend Log Viewer (Phase 3)**:
+  - Log Viewer page at `/logs` with Operations and Developer modes
+  - Operations mode: WARNING+ filter, health bar, live event feed, clean UI
+  - Developer mode: all log levels, component tree, search, session selector, export
+  - MUI DataGrid virtual scroll for 100K+ log rows
+  - Real-time SSE streaming via `useLogStream` hook with 200ms batching and 5000-line ring buffer
+  - Historical session browsing with filtering and client-side pagination
+  - Export sessions as JSONL, CSV, or ZIP
+  - ErrorBoundary catches React render errors and reports to `POST /api/logs/frontend`
+  - New "System" sidebar section with Log Viewer entry
+  - `@mui/x-data-grid` dependency for virtual scroll
 - **Log Aggregation & Streaming (Phase 2)**:
   - Drone-side log API: `GET /api/logs/sessions`, `GET /api/logs/sessions/{id}`, `GET /api/logs/stream` (SSE)
   - GCS log API router with 10 endpoints at `/api/logs/*`
