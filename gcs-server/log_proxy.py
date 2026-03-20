@@ -54,6 +54,7 @@ async def fetch_drone_session_content(
     component: str | None = None,
     limit: int | None = None,
     offset: int = 0,
+    since: str | None = None,
 ) -> Optional[dict]:
     """Fetch session content from a drone. Returns None if unreachable."""
     params: dict = {}
@@ -65,6 +66,8 @@ async def fetch_drone_session_content(
         params["limit"] = limit
     if offset:
         params["offset"] = offset
+    if since:
+        params["since"] = since
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.get(
@@ -82,6 +85,7 @@ async def stream_drone_logs(
     drone_ip: str,
     level: str | None = None,
     component: str | None = None,
+    source: str | None = None,
 ):
     """Async generator that proxies SSE from a drone. Yields SSE data lines."""
     params: dict = {}
@@ -89,6 +93,8 @@ async def stream_drone_logs(
         params["level"] = level
     if component:
         params["component"] = component
+    if source:
+        params["source"] = source
     try:
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
@@ -98,7 +104,7 @@ async def stream_drone_logs(
             ) as resp:
                 async for line in resp.aiter_lines():
                     if line.startswith("data: "):
-                        yield line + "\n"
+                        yield line + "\n\n"
     except Exception as e:
         error = json.dumps({"event": "error", "drone_ip": drone_ip, "msg": str(e)})
         yield f"data: {error}\n\n"

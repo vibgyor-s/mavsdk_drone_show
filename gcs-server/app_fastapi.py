@@ -308,13 +308,13 @@ app.add_middleware(
 # Register SAR router
 app.include_router(sar_router)
 
-# Register Log API router
-from log_routes import create_log_router
-app.include_router(create_log_router())
-
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
 from log_background import BackgroundLogPuller
 background_puller = BackgroundLogPuller()
+
+# Register Log API router (puller injected to avoid circular import)
+from log_routes import create_log_router
+app.include_router(create_log_router(puller=background_puller))
 
 
 # ============================================================================

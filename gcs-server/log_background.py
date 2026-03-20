@@ -29,6 +29,7 @@ class BackgroundLogPuller:
         self.log_dir = log_dir or get_log_dir()
         self.enabled = get_background_pull_enabled()
         self._task: asyncio.Task | None = None
+        self._last_ts: dict[int, str] = {}  # drone_id -> last pulled timestamp
 
     def set_enabled(self, enabled: bool) -> None:
         """Toggle background pull at runtime."""
@@ -95,8 +96,11 @@ class BackgroundLogPuller:
             latest = sessions[0]
             sid = latest["session_id"]
 
-            # Fetch content at WARNING+ level
-            content = await fetch_drone_session_content(ip, sid, level=level)
+            # Fetch content at WARNING+ level, only entries newer than last pull
+            since = self._last_ts.get(drone_id)
+            content = await fetch_drone_session_content(
+                ip, sid, level=level, since=since,
+            )
             if content is None or not content.get("lines"):
                 continue
 
@@ -107,6 +111,11 @@ class BackgroundLogPuller:
             with open(outfile, "a", encoding="utf-8") as f:
                 for entry in content["lines"]:
                     f.write(json.dumps(entry) + "\n")
+
+            # Track last timestamp for incremental pulls
+            last_entry = content["lines"][-1]
+            if "ts" in last_entry:
+                self._last_ts[drone_id] = last_entry["ts"]
 
             logger.debug(
                 f"Pulled {len(content['lines'])} entries from drone {drone_id} session {sid}"

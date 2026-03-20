@@ -64,11 +64,13 @@ def read_session_lines(
     component: str | None = None,
     limit: int | None = None,
     offset: int = 0,
+    since: str | None = None,
 ) -> list[dict] | None:
     """Read and filter JSONL lines from a session file.
 
     Returns None if the session file does not exist.
     Silently skips malformed lines.
+    ``since`` filters by ISO 8601 timestamp string comparison (lexicographic).
     """
     filepath = os.path.join(log_dir, f"{session_id}.jsonl")
     if not os.path.isfile(filepath):
@@ -90,6 +92,8 @@ def read_session_lines(
             if level and _LEVEL_ORDER.get(entry.get("level", ""), 0) < min_level:
                 continue
             if component and entry.get("component") != component:
+                continue
+            if since and entry.get("ts", "") <= since:
                 continue
             # Apply offset
             if idx < offset:

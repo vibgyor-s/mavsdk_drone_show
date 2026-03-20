@@ -110,6 +110,18 @@ class TestFrontendReport:
         assert resp.json()["status"] == "received"
 
 
+    def test_rejects_invalid_level(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/frontend", json={
+            "level": "BOGUS",
+            "msg": "test",
+        })
+        assert resp.status_code == 400
+        assert "Invalid log level" in resp.json()["detail"]
+
+
 class TestExport:
     def test_export_single_session_jsonl(self, tmp_path):
         log_dir = str(tmp_path / "sessions")

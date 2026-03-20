@@ -667,10 +667,11 @@ class DroneAPIServer:
         @self.app.get("/api/logs/sessions/{session_id}")
         async def get_log_session(
             session_id: str,
-            level: str = None,
-            component: str = None,
-            limit: int = None,
+            level: Optional[str] = None,
+            component: Optional[str] = None,
+            limit: Optional[int] = None,
             offset: int = 0,
+            since: Optional[str] = None,
         ):
             """Retrieve filtered JSONL content from a log session."""
             from mds_logging.session import read_session_lines
@@ -678,6 +679,7 @@ class DroneAPIServer:
             lines = read_session_lines(
                 get_log_dir(), session_id,
                 level=level, component=component, limit=limit, offset=offset,
+                since=since,
             )
             if lines is None:
                 raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -685,9 +687,9 @@ class DroneAPIServer:
 
         @self.app.get("/api/logs/stream")
         async def stream_logs(
-            level: str = None,
-            component: str = None,
-            source: str = None,
+            level: Optional[str] = None,
+            component: Optional[str] = None,
+            source: Optional[str] = None,
         ):
             """Stream current session logs in real-time via SSE."""
             import json as _json

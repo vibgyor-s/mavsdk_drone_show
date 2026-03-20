@@ -32,11 +32,13 @@ logger = get_logger("log_api")
 def create_log_router(
     log_dir: str | None = None,
     watcher: LogWatcher | None = None,
+    puller=None,
 ) -> APIRouter:
     """Create the log API router. Accepts overrides for testing."""
 
     _log_dir = log_dir or get_log_dir()
     _watcher = watcher or get_watcher()
+    _puller = puller  # BackgroundLogPuller instance (injected from app_fastapi)
 
     router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
@@ -58,11 +60,13 @@ def create_log_router(
         component: Optional[str] = None,
         limit: Optional[int] = None,
         offset: int = 0,
+        since: Optional[str] = None,
     ):
         """Retrieve filtered JSONL content from a GCS log session."""
         lines = read_session_lines(
             _log_dir, session_id,
             level=level, component=component, limit=limit, offset=offset,
+            since=since,
         )
         if lines is None:
             raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -91,12 +95,14 @@ def create_log_router(
     @router.post("/frontend")
     async def receive_frontend_report(report: dict):
         """Receive error/log reports from the React frontend."""
-        level = report.get("level", "ERROR")
+        level = report.get("level", "ERROR").upper()
+        if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+            raise HTTPException(status_code=400, detail=f"Invalid log level: '{level}'")
         component = report.get("component", "frontend")
         msg = report.get("msg", "")
         extra = report.get("extra")
         fe_logger = get_logger(component)
-        log_level = getattr(logging, level, logging.ERROR)
+        log_level = getattr(logging, level)
         fe_logger.log(log_level, msg, extra={"mds_extra": extra})
         return {"status": "received"}
 
@@ -165,6 +171,7 @@ def create_log_router(
         component: Optional[str] = None,
         limit: Optional[int] = None,
         offset: int = 0,
+        since: Optional[str] = None,
     ):
         """Retrieve session content from a specific drone (proxied)."""
         from log_proxy import resolve_drone_ip, fetch_drone_session_content
@@ -173,6 +180,7 @@ def create_log_router(
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         result = await fetch_drone_session_content(
             ip, session_id, level=level, component=component, limit=limit, offset=offset,
+            since=since,
         )
         if result is None:
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
@@ -183,6 +191,7 @@ def create_log_router(
         drone_id: int,
         level: Optional[str] = None,
         component: Optional[str] = None,
+        source: Optional[str] = None,
     ):
         """Proxy real-time log stream from a specific drone via SSE."""
         from log_proxy import resolve_drone_ip, stream_drone_logs
@@ -190,7 +199,7 @@ def create_log_router(
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         return StreamingResponse(
-            stream_drone_logs(ip, level=level, component=component),
+            stream_drone_logs(ip, level=level, component=component, source=source),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -200,9 +209,8 @@ def create_log_router(
     @router.post("/config")
     async def update_log_config(config: dict):
         """Update runtime log configuration (e.g., background pull toggle)."""
-        import app_fastapi
-        if "background_pull" in config:
-            app_fastapi.background_puller.set_enabled(config["background_pull"])
+        if _puller is not None and "background_pull" in config:
+            _puller.set_enabled(config["background_pull"])
         return {"status": "updated"}
 
     return router

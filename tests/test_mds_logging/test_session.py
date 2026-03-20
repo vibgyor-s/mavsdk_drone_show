@@ -131,3 +131,14 @@ class TestReadSessionLines:
             f.write(json.dumps({"level": "INFO", "msg": "also_good"}) + "\n")
         lines = read_session_lines(tmp_log_dir, "s_20260319_100000")
         assert len(lines) == 2
+
+    def test_since_filter(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            f.write(json.dumps({"ts": "2026-03-19T10:00:00.000Z", "level": "INFO", "msg": "old"}) + "\n")
+            f.write(json.dumps({"ts": "2026-03-19T10:00:01.000Z", "level": "INFO", "msg": "boundary"}) + "\n")
+            f.write(json.dumps({"ts": "2026-03-19T10:00:02.000Z", "level": "INFO", "msg": "new"}) + "\n")
+        # since is exclusive: entries with ts > since are included
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000", since="2026-03-19T10:00:01.000Z")
+        assert len(lines) == 1
+        assert lines[0]["msg"] == "new"
