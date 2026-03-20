@@ -135,6 +135,8 @@ logs/current
 *.log
 *.jsonl
 gcs-server/logs/
+# Re-include source component directories named logs
+!app/dashboard/drone-dashboard/src/components/logs/
 
 # Test and optimization files
 test_logging_optimizations.py

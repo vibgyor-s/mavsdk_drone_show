@@ -1,0 +1,418 @@
+/* src/styles/LogViewer.css */
+/* Unified styles for Log Viewer page and all log components */
+
+/* === PAGE LAYOUT === */
+.log-viewer-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 20px);
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+/* === TOOLBAR === */
+.log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  flex-wrap: wrap;
+  min-height: 48px;
+}
+
+.log-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.log-toolbar-spacer {
+  flex: 1;
+}
+
+.log-toolbar select,
+.log-toolbar input {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  height: var(--button-height-sm);
+}
+
+.log-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  height: var(--button-height-sm);
+  transition: var(--transition-fast);
+}
+
+.log-toolbar button:hover {
+  background: var(--color-bg-quaternary);
+}
+
+.log-toolbar button.active {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary);
+}
+
+.log-mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.log-mode-toggle button {
+  border: none;
+  border-radius: 0;
+}
+
+.log-mode-toggle button + button {
+  border-left: 1px solid var(--color-border-primary);
+}
+
+/* === HEALTH BAR === */
+.log-health-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  flex-wrap: wrap;
+}
+
+.log-health-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-secondary);
+}
+
+.log-health-stat .stat-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.log-health-stat.error-count .stat-value {
+  color: var(--color-danger);
+}
+
+.log-health-stat.warning-count .stat-value {
+  color: var(--color-warning);
+}
+
+/* === LOG TABLE (DataGrid overrides) === */
+.log-table-container {
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.log-table-container .MuiDataGrid-root {
+  border: none;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.log-table-container .MuiDataGrid-columnHeader {
+  background: var(--color-bg-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.log-table-container .MuiDataGrid-columnHeaderRow {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.log-table-container .MuiDataGrid-cell {
+  border-bottom: 1px solid var(--color-border-primary);
+  padding: 2px 8px;
+  line-height: 1.4;
+}
+
+.log-table-container .MuiDataGrid-row:hover {
+  background: var(--color-bg-tertiary) !important;
+}
+
+.log-table-container .MuiDataGrid-row.level-ERROR,
+.log-table-container .MuiDataGrid-row.level-CRITICAL {
+  background: var(--color-danger-light);
+}
+
+.log-table-container .MuiDataGrid-row.level-WARNING {
+  background: var(--color-warning-light);
+}
+
+.log-table-container .MuiDataGrid-footerContainer {
+  border-top: 1px solid var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+  min-height: 36px;
+}
+
+.log-table-container .MuiTablePagination-root {
+  color: var(--color-text-secondary);
+}
+
+/* Level cell styling */
+.log-level-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: var(--font-weight-semibold);
+  font-size: 11px;
+}
+
+.log-level-cell.level-DEBUG    { color: var(--color-text-secondary); }
+.log-level-cell.level-INFO     { color: var(--color-info); }
+.log-level-cell.level-WARNING  { color: var(--color-warning); }
+.log-level-cell.level-ERROR    { color: var(--color-danger); }
+.log-level-cell.level-CRITICAL { color: var(--color-danger); font-weight: var(--font-weight-bold); }
+
+.log-component-cell {
+  color: var(--color-primary);
+  font-size: 11px;
+}
+
+.log-ts-cell {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.log-drone-cell {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+/* === ROW DETAIL (expanded) === */
+.log-row-detail {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.log-row-detail pre {
+  margin: 0;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-primary);
+  border-radius: var(--border-radius-sm);
+  overflow-x: auto;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* === LIVE INDICATOR === */
+.log-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.log-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: log-pulse 1.5s ease-in-out infinite;
+}
+
+.log-live-dot.disconnected {
+  background: var(--color-danger);
+  animation: none;
+}
+
+.log-live-dot.paused {
+  background: var(--color-warning);
+  animation: none;
+}
+
+@keyframes log-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* === SOURCE TREE (Developer mode) === */
+.log-source-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--spacing-xs);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+}
+
+.log-source-tree-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--spacing-xs);
+}
+
+.log-source-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-primary);
+}
+
+.log-source-item:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.log-source-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.log-source-badge {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}
+
+/* === SESSION SELECTOR === */
+.log-session-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.log-session-selector select {
+  min-width: 200px;
+}
+
+/* === EXPORT DIALOG === */
+.log-export-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.log-export-dialog {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  min-width: 360px;
+  max-width: 480px;
+}
+
+.log-export-dialog h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+}
+
+.log-export-dialog .export-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.log-export-dialog .export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* === SEARCH INPUT === */
+.log-search-input {
+  min-width: 180px;
+}
+
+/* === EMPTY STATE === */
+.log-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  gap: var(--spacing-sm);
+}
+
+/* === ERROR BOUNDARY === */
+.error-boundary-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: var(--spacing-xl);
+  text-align: center;
+  gap: var(--spacing-md);
+  color: var(--color-text-primary);
+}
+
+.error-boundary-fallback h2 {
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.error-boundary-fallback pre {
+  background: var(--color-bg-secondary);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  max-width: 600px;
+  overflow-x: auto;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .log-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .log-toolbar-spacer {
+    display: none;
+  }
+}
