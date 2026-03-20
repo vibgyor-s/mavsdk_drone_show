@@ -33,7 +33,7 @@ from typing import Dict, Any, Optional, List
 
 # FastAPI imports
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 import uvicorn
@@ -651,6 +651,59 @@ class DroneAPIServer:
                 if websocket in self.active_websockets:
                     self.active_websockets.remove(websocket)
                 logger.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+
+        # ====================================================================
+        # Log API Endpoints (Phase 2 — log aggregation)
+        # ====================================================================
+
+        @self.app.get("/api/logs/sessions")
+        async def get_log_sessions():
+            """List available log sessions on this drone."""
+            from mds_logging.session import list_sessions
+            from mds_logging.constants import get_log_dir
+            sessions = list_sessions(get_log_dir())
+            return {"sessions": sessions}
+
+        @self.app.get("/api/logs/sessions/{session_id}")
+        async def get_log_session(
+            session_id: str,
+            level: str = None,
+            component: str = None,
+            limit: int = None,
+            offset: int = 0,
+        ):
+            """Retrieve filtered JSONL content from a log session."""
+            from mds_logging.session import read_session_lines
+            from mds_logging.constants import get_log_dir
+            lines = read_session_lines(
+                get_log_dir(), session_id,
+                level=level, component=component, limit=limit, offset=offset,
+            )
+            if lines is None:
+                raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+            return {"session_id": session_id, "count": len(lines), "lines": lines}
+
+        @self.app.get("/api/logs/stream")
+        async def stream_logs(
+            level: str = None,
+            component: str = None,
+            source: str = None,
+        ):
+            """Stream current session logs in real-time via SSE."""
+            import json as _json
+            from mds_logging.watcher import get_watcher
+
+            async def event_generator():
+                async for entry in get_watcher().subscribe(
+                    level=level, component=component, source=source,
+                ):
+                    yield f"data: {_json.dumps(entry)}\n\n"
+
+            return StreamingResponse(
+                event_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
 
     # ========================================================================
     # Command Validation Methods
