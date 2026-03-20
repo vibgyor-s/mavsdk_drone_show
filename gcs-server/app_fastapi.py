@@ -304,6 +304,10 @@ app.add_middleware(
 # Register SAR router
 app.include_router(sar_router)
 
+# Register Log API router
+from log_routes import create_log_router
+app.include_router(create_log_router())
+
 
 # ============================================================================
 # Middleware & Logging
