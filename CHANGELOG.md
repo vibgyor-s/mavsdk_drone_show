@@ -15,9 +15,21 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - Session-based retention with configurable limits (count + size)
   - Colored console output with component-tagged messages
   - Component self-registration registry for auto-discovery
-  - In-memory pub/sub watcher for future SSE streaming
+  - In-memory pub/sub watcher for SSE streaming
   - Shared CLI flags: `--verbose`, `--debug`, `--quiet`, `--log-json`, `--log-dir`
   - Environment variable config with `MDS_LOG_*` prefix and deprecation shims
+- **Log Aggregation & Streaming (Phase 2)**:
+  - Drone-side log API: `GET /api/logs/sessions`, `GET /api/logs/sessions/{id}`, `GET /api/logs/stream` (SSE)
+  - GCS log API router with 10 endpoints at `/api/logs/*`
+  - Real-time SSE streaming with level/component/source/drone_id filtering
+  - GCS-to-drone log proxy (sessions, session content, SSE stream forwarding)
+  - Session export as JSONL or ZIP via `POST /api/logs/export`
+  - Frontend error reporting via `POST /api/logs/frontend`
+  - Component registry endpoint at `GET /api/logs/sources`
+  - Optional background pull of WARNING+ logs from drones (`MDS_LOG_BACKGROUND_PULL`)
+  - Runtime config toggle at `POST /api/logs/config`
+  - `read_session_lines()` helper for filtered session content retrieval
+  - `httpx` async HTTP client dependency for drone proxy
 
 ### Changed
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`

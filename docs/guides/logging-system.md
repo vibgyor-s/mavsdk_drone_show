@@ -164,9 +164,77 @@ from mds_logging import register_component, get_registry
 register_component("coordinator", "drone", "System initialization")
 register_component("api", "gcs", "FastAPI server")
 
-# GCS exposes this via GET /api/logs/sources (Phase 2)
+# GCS exposes this via GET /api/logs/sources
 registry = get_registry()
 ```
+
+## Log API Endpoints
+
+### Drone-Side Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/logs/sessions` | GET | List available log sessions |
+| `/api/logs/sessions/{session_id}` | GET | Retrieve session JSONL (supports `?level=`, `?component=`, `?limit=`, `?offset=`) |
+| `/api/logs/stream` | GET (SSE) | Real-time log stream via Server-Sent Events |
+
+### GCS-Side Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/logs/sources` | GET | List registered log components |
+| `/api/logs/sessions` | GET | List GCS sessions |
+| `/api/logs/sessions/{session_id}` | GET | Retrieve GCS session content |
+| `/api/logs/stream` | GET (SSE) | Real-time GCS log stream via SSE |
+| `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |
+| `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |
+| `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |
+| `/api/logs/frontend` | POST | Receive frontend error reports |
+| `/api/logs/export` | POST | Export sessions as JSONL or ZIP |
+| `/api/logs/config` | POST | Toggle background pull at runtime |
+
+### SSE Stream Usage
+
+Connect via `EventSource` (browser) or any SSE client:
+
+```javascript
+const source = new EventSource('/api/logs/stream?level=WARNING');
+source.onmessage = (event) => {
+  const entry = JSON.parse(event.data);
+  console.log(`[${entry.level}] ${entry.component}: ${entry.msg}`);
+};
+```
+
+Query parameters for filtering:
+- `level` — minimum log level (e.g., `WARNING` shows WARNING, ERROR, CRITICAL)
+- `component` — filter by component name
+- `source` — filter by source type (`drone`, `gcs`, `frontend`, `infra`)
+- `drone_id` — filter by drone ID
+
+### Session Export
+
+```bash
+# Single session as JSONL
+curl -X POST /api/logs/export -H 'Content-Type: application/json' \
+  -d '{"session_ids": ["s_20260319_140000"], "format": "jsonl"}' -o session.jsonl
+
+# Multiple sessions as ZIP
+curl -X POST /api/logs/export -H 'Content-Type: application/json' \
+  -d '{"session_ids": ["s_20260319_140000", "s_20260319_150000"], "format": "zip"}' -o logs.zip
+```
+
+### Background Pull
+
+Optional periodic pull of WARNING+ logs from drones to GCS. Disabled by default.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MDS_LOG_BACKGROUND_PULL` | `false` | Enable periodic log collection |
+| `MDS_LOG_PULL_INTERVAL_SEC` | `30` | Pull interval in seconds |
+| `MDS_LOG_PULL_LEVEL` | `WARNING` | Minimum level to collect |
+| `MDS_LOG_PULL_MAX_DRONES` | `10` | Max concurrent drone pulls |
+
+Toggle at runtime: `POST /api/logs/config` with `{"background_pull": true}`.
 
 ## Troubleshooting
 
