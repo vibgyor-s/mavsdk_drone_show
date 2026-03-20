@@ -78,6 +78,10 @@ const useLogStream = ({ level = null, component = null, source = null, droneId =
         const entry = JSON.parse(event.data);
         entry._id = idCounterRef.current++;  // Stable monotonic ID for DataGrid row key
         batchRef.current.push(entry);
+        // Cap batch size to prevent unbounded growth when paused
+        if (batchRef.current.length > MAX_LOG_LINES) {
+          batchRef.current = batchRef.current.slice(-MAX_LOG_LINES);
+        }
       } catch {
         // Skip malformed SSE data
       }

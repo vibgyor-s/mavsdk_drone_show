@@ -22,9 +22,6 @@ export const MAX_LOG_LINES = 5000;
 // SSE batching interval (ms) — prevents re-render per line
 export const SSE_BATCH_INTERVAL_MS = 200;
 
-// Historical session pagination
-export const SESSION_PAGE_SIZE = 100;
-
 // Health bar poll interval (ms)
 export const HEALTH_POLL_INTERVAL_MS = 5000;
 

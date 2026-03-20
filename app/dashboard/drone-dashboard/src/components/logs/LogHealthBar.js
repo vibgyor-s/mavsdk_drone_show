@@ -1,5 +1,5 @@
 // src/components/logs/LogHealthBar.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FaServer, FaPlane, FaExclamationTriangle, FaTimesCircle, FaClock } from 'react-icons/fa';
 import { getSources } from '../../services/logService';
 import { HEALTH_POLL_INTERVAL_MS } from '../../constants/logConstants';
@@ -8,8 +8,14 @@ const LogHealthBar = ({ entries }) => {
   const [droneCount, setDroneCount] = useState(0);
   const [gcsOnline, setGcsOnline] = useState(false);
 
-  const errorCount = entries.filter(e => e.level === 'ERROR' || e.level === 'CRITICAL').length;
-  const warningCount = entries.filter(e => e.level === 'WARNING').length;
+  const { errorCount, warningCount } = useMemo(() => {
+    let errors = 0, warnings = 0;
+    for (const e of entries) {
+      if (e.level === 'ERROR' || e.level === 'CRITICAL') errors++;
+      else if (e.level === 'WARNING') warnings++;
+    }
+    return { errorCount: errors, warningCount: warnings };
+  }, [entries]);
 
   useEffect(() => {
     let mounted = true;
