@@ -195,4 +195,14 @@ def create_log_router(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    # --- Runtime config toggle ---
+
+    @router.post("/config")
+    async def update_log_config(config: dict):
+        """Update runtime log configuration (e.g., background pull toggle)."""
+        import app_fastapi
+        if "background_pull" in config:
+            app_fastapi.background_puller.set_enabled(config["background_pull"])
+        return {"status": "updated"}
+
     return router

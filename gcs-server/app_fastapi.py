@@ -268,10 +268,14 @@ async def lifespan(app: FastAPI):
 
     log_system_event("GCS FastAPI server ready - all services started", "INFO", "startup")
 
+    # Start background log puller (no-op loop if disabled via env)
+    await background_puller.start()
+
     yield
 
     # Shutdown - only runs in worker process
     log_system_event("GCS FastAPI server shutting down...", "INFO", "shutdown")
+    await background_puller.stop()
     await background_services.stop()
     log_system_event("GCS FastAPI server stopped", "INFO", "shutdown")
 
@@ -307,6 +311,10 @@ app.include_router(sar_router)
 # Register Log API router
 from log_routes import create_log_router
 app.include_router(create_log_router())
+
+# Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
+from log_background import BackgroundLogPuller
+background_puller = BackgroundLogPuller()
 
 
 # ============================================================================
