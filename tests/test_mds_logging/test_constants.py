@@ -5,6 +5,8 @@ from unittest.mock import patch
 from mds_logging.constants import (
     get_log_level, get_file_log_level, get_max_sessions,
     get_max_size_mb, get_log_dir, get_console_format, get_flush_enabled,
+    get_background_pull_enabled, get_pull_interval_sec,
+    get_pull_level, get_pull_max_drones,
     DEFAULTS,
 )
 
@@ -66,3 +68,29 @@ class TestDeprecationShims:
             "DRONE_LOG_LEVEL": "DEBUG",
         }):
             assert get_log_level() == "ERROR"
+
+
+class TestBackgroundPullDefaults:
+    def test_default_background_pull_disabled(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert get_background_pull_enabled() is False
+
+    def test_default_pull_interval(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert get_pull_interval_sec() == 30
+
+    def test_default_pull_level(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert get_pull_level() == "WARNING"
+
+    def test_default_pull_max_drones(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert get_pull_max_drones() == 10
+
+    def test_enable_background_pull(self):
+        with patch.dict(os.environ, {"MDS_LOG_BACKGROUND_PULL": "true"}):
+            assert get_background_pull_enabled() is True
+
+    def test_custom_pull_interval(self):
+        with patch.dict(os.environ, {"MDS_LOG_PULL_INTERVAL_SEC": "60"}):
+            assert get_pull_interval_sec() == 60

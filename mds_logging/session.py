@@ -6,6 +6,7 @@ Reference: docs/guides/logging-system.md
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 
@@ -50,6 +51,55 @@ def list_sessions(log_dir: str) -> list[dict]:
             })
     files.sort(key=lambda f: f["modified"], reverse=True)
     return files
+
+
+# Level ordering for filtering (same values as watcher.py)
+_LEVEL_ORDER = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
+
+
+def read_session_lines(
+    log_dir: str,
+    session_id: str,
+    level: str | None = None,
+    component: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[dict] | None:
+    """Read and filter JSONL lines from a session file.
+
+    Returns None if the session file does not exist.
+    Silently skips malformed lines.
+    """
+    filepath = os.path.join(log_dir, f"{session_id}.jsonl")
+    if not os.path.isfile(filepath):
+        return None
+
+    min_level = _LEVEL_ORDER.get(level, 0) if level else 0
+    results: list[dict] = []
+    with open(filepath, "r", encoding="utf-8") as f:
+        idx = 0
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            # Apply filters
+            if level and _LEVEL_ORDER.get(entry.get("level", ""), 0) < min_level:
+                continue
+            if component and entry.get("component") != component:
+                continue
+            # Apply offset
+            if idx < offset:
+                idx += 1
+                continue
+            idx += 1
+            results.append(entry)
+            if limit is not None and len(results) >= limit:
+                break
+    return results
 
 
 def cleanup_sessions(log_dir: str, max_sessions: int, max_size_mb: int) -> None:

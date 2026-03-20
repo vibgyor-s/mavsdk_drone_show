@@ -18,6 +18,10 @@ DEFAULTS = {
     "log_dir": "logs/sessions",
     "console_format": "text",
     "flush": True,
+    "background_pull": False,
+    "pull_interval_sec": 30,
+    "pull_level": "WARNING",
+    "pull_max_drones": 10,
 }
 
 
@@ -64,3 +68,21 @@ def get_console_format() -> str:
 
 def get_flush_enabled() -> bool:
     return os.environ.get("MDS_LOG_FLUSH", str(DEFAULTS["flush"])).lower() in ("true", "1", "yes")
+
+
+# --- Background pull configuration ---
+
+def get_background_pull_enabled() -> bool:
+    return os.environ.get("MDS_LOG_BACKGROUND_PULL", "false").lower() in ("true", "1", "yes")
+
+
+def get_pull_interval_sec() -> int:
+    return int(os.environ.get("MDS_LOG_PULL_INTERVAL_SEC", DEFAULTS["pull_interval_sec"]))
+
+
+def get_pull_level() -> str:
+    return os.environ.get("MDS_LOG_PULL_LEVEL", DEFAULTS["pull_level"])
+
+
+def get_pull_max_drones() -> int:
+    return int(os.environ.get("MDS_LOG_PULL_MAX_DRONES", DEFAULTS["pull_max_drones"]))

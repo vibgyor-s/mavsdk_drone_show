@@ -1,10 +1,11 @@
 """Tests for mds_logging.session — session lifecycle management."""
+import json
 import os
 import time
 import pytest
 from mds_logging.session import (
     create_session, get_session_id, get_session_filepath,
-    list_sessions, cleanup_sessions,
+    list_sessions, cleanup_sessions, read_session_lines,
 )
 
 
@@ -78,3 +79,55 @@ class TestCleanupSessions:
         cleanup_sessions(tmp_log_dir, max_sessions=3, max_size_mb=1000)
         remaining = sorted(os.listdir(tmp_log_dir))
         assert remaining[0] == "s_20260301_000002.jsonl"  # oldest surviving
+
+
+class TestReadSessionLines:
+    def test_reads_all_lines(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            f.write(json.dumps({"level": "INFO", "msg": "one"}) + "\n")
+            f.write(json.dumps({"level": "ERROR", "msg": "two"}) + "\n")
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000")
+        assert len(lines) == 2
+        assert lines[0]["msg"] == "one"
+
+    def test_filter_by_level(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            f.write(json.dumps({"level": "DEBUG", "msg": "skip"}) + "\n")
+            f.write(json.dumps({"level": "WARNING", "msg": "keep"}) + "\n")
+            f.write(json.dumps({"level": "ERROR", "msg": "also_keep"}) + "\n")
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000", level="WARNING")
+        assert len(lines) == 2
+        assert lines[0]["msg"] == "keep"
+
+    def test_filter_by_component(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            f.write(json.dumps({"level": "INFO", "component": "gcs", "msg": "a"}) + "\n")
+            f.write(json.dumps({"level": "INFO", "component": "coord", "msg": "b"}) + "\n")
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000", component="coord")
+        assert len(lines) == 1
+        assert lines[0]["msg"] == "b"
+
+    def test_limit_and_offset(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            for i in range(10):
+                f.write(json.dumps({"level": "INFO", "msg": f"line_{i}"}) + "\n")
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000", limit=3, offset=2)
+        assert len(lines) == 3
+        assert lines[0]["msg"] == "line_2"
+
+    def test_missing_session_returns_none(self, tmp_log_dir):
+        result = read_session_lines(tmp_log_dir, "s_nonexistent")
+        assert result is None
+
+    def test_skips_malformed_lines(self, tmp_log_dir):
+        fpath = os.path.join(tmp_log_dir, "s_20260319_100000.jsonl")
+        with open(fpath, "w") as f:
+            f.write(json.dumps({"level": "INFO", "msg": "good"}) + "\n")
+            f.write("not json\n")
+            f.write(json.dumps({"level": "INFO", "msg": "also_good"}) + "\n")
+        lines = read_session_lines(tmp_log_dir, "s_20260319_100000")
+        assert len(lines) == 2
