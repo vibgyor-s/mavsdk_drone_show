@@ -100,6 +100,49 @@ def create_log_router(
         fe_logger.log(log_level, msg, extra={"mds_extra": extra})
         return {"status": "received"}
 
+    # --- Export endpoint ---
+
+    @router.post("/export")
+    async def export_sessions(request: dict):
+        """Export one or more sessions as JSONL or ZIP."""
+        import io
+        import zipfile
+        from fastapi.responses import Response
+
+        session_ids = request.get("session_ids", [])
+        fmt = request.get("format", "jsonl")
+
+        if not session_ids:
+            raise HTTPException(status_code=400, detail="session_ids required")
+
+        # Verify all sessions exist
+        for sid in session_ids:
+            filepath = os.path.join(_log_dir, f"{sid}.jsonl")
+            if not os.path.isfile(filepath):
+                raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
+
+        if fmt == "zip" or len(session_ids) > 1:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for sid in session_ids:
+                    filepath = os.path.join(_log_dir, f"{sid}.jsonl")
+                    zf.write(filepath, f"{sid}.jsonl")
+            buf.seek(0)
+            return Response(
+                content=buf.getvalue(),
+                media_type="application/zip",
+                headers={"Content-Disposition": "attachment; filename=mds_logs_export.zip"},
+            )
+        else:
+            filepath = os.path.join(_log_dir, f"{session_ids[0]}.jsonl")
+            with open(filepath, "r") as f:
+                content = f.read()
+            return Response(
+                content=content,
+                media_type="application/x-ndjson",
+                headers={"Content-Disposition": f"attachment; filename={session_ids[0]}.jsonl"},
+            )
+
     # --- Drone proxy endpoints ---
 
     @router.get("/drone/{drone_id}/sessions")

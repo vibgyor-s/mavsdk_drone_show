@@ -108,3 +108,57 @@ class TestFrontendReport:
         })
         assert resp.status_code == 200
         assert resp.json()["status"] == "received"
+
+
+class TestExport:
+    def test_export_single_session_jsonl(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        with open(os.path.join(log_dir, "s_20260319_100000.jsonl"), "w") as f:
+            f.write(json.dumps({"level": "INFO", "msg": "test"}) + "\n")
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": ["s_20260319_100000"],
+            "format": "jsonl",
+        })
+        assert resp.status_code == 200
+        assert "application/x-ndjson" in resp.headers["content-type"]
+        assert "test" in resp.text
+
+    def test_export_multiple_sessions_zip(self, tmp_path):
+        import zipfile
+        import io
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        for sid in ["s_20260319_100000", "s_20260319_110000"]:
+            with open(os.path.join(log_dir, f"{sid}.jsonl"), "w") as f:
+                f.write(json.dumps({"level": "INFO", "msg": sid}) + "\n")
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": ["s_20260319_100000", "s_20260319_110000"],
+            "format": "zip",
+        })
+        assert resp.status_code == 200
+        assert "application/zip" in resp.headers["content-type"]
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        assert len(zf.namelist()) == 2
+
+    def test_export_session_not_found(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": ["s_nonexistent"],
+            "format": "jsonl",
+        })
+        assert resp.status_code == 404
+
+    def test_export_empty_session_ids(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": [],
+            "format": "jsonl",
+        })
+        assert resp.status_code == 400
