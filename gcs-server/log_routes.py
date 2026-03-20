@@ -100,4 +100,56 @@ def create_log_router(
         fe_logger.log(log_level, msg, extra={"mds_extra": extra})
         return {"status": "received"}
 
+    # --- Drone proxy endpoints ---
+
+    @router.get("/drone/{drone_id}/sessions")
+    async def get_drone_sessions(drone_id: int):
+        """List log sessions on a specific drone (proxied)."""
+        from log_proxy import resolve_drone_ip, fetch_drone_sessions
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        result = await fetch_drone_sessions(ip)
+        if result is None:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
+        return result
+
+    @router.get("/drone/{drone_id}/sessions/{session_id}")
+    async def get_drone_session(
+        drone_id: int,
+        session_id: str,
+        level: Optional[str] = None,
+        component: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ):
+        """Retrieve session content from a specific drone (proxied)."""
+        from log_proxy import resolve_drone_ip, fetch_drone_session_content
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        result = await fetch_drone_session_content(
+            ip, session_id, level=level, component=component, limit=limit, offset=offset,
+        )
+        if result is None:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
+        return result
+
+    @router.get("/drone/{drone_id}/stream")
+    async def stream_drone(
+        drone_id: int,
+        level: Optional[str] = None,
+        component: Optional[str] = None,
+    ):
+        """Proxy real-time log stream from a specific drone via SSE."""
+        from log_proxy import resolve_drone_ip, stream_drone_logs
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        return StreamingResponse(
+            stream_drone_logs(ip, level=level, component=component),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     return router
