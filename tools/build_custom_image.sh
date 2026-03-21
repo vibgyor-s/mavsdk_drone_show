@@ -205,11 +205,11 @@ build_custom_image() {
     git_commands=$(cat << EOF
 set -e
 cd /root/mavsdk_drone_show
-if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
-    export MDS_MAVSDK_VERSION="${MDS_MAVSDK_VERSION}"
+if [[ -n "${MDS_MAVSDK_VERSION-}" ]]; then
+    export MDS_MAVSDK_VERSION="${MDS_MAVSDK_VERSION-}"
 fi
-if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
-    export MDS_MAVSDK_URL="${MDS_MAVSDK_URL}"
+if [[ -n "${MDS_MAVSDK_URL-}" ]]; then
+    export MDS_MAVSDK_URL="${MDS_MAVSDK_URL-}"
 fi
 echo "Current repository status:"
 git remote -v
