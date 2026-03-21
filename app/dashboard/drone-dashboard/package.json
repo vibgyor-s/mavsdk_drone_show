@@ -95,7 +95,9 @@
       "node_modules/(?!(axios|react-leaflet|@react-leaflet/core)/)"
     ],
     "moduleNameMapper": {
-      "\\.(css)$": "<rootDir>/src/__mocks__/styleMock.js"
+      "\\.(css)$": "<rootDir>/src/__mocks__/styleMock.js",
+      "^react-cytoscapejs$": "<rootDir>/src/__mocks__/styleMock.js",
+      "^mapbox-gl$": "<rootDir>/src/__mocks__/styleMock.js"
     }
   }
 }

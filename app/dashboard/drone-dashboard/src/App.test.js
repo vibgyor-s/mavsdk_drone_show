@@ -1,16 +1,9 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 
-// Mock heavy visualization libraries that require browser APIs unavailable in JSDOM
-jest.mock('react-cytoscapejs', () => {
-  return function MockCytoscape() { return <div data-testid="cytoscape" />; };
-});
-jest.mock('mapbox-gl', () => ({
-  Map: jest.fn(),
-  NavigationControl: jest.fn(),
-  Marker: jest.fn(),
-  Popup: jest.fn(),
-}));
+// Mock visualization libraries that require browser APIs unavailable in JSDOM.
+// react-cytoscapejs and mapbox-gl are mapped to empty mocks via moduleNameMapper
+// in package.json because their ESM exports prevent jest.mock from resolving them.
 jest.mock('react-map-gl', () => ({
   __esModule: true,
   default: function MockMap({ children }) { return <div data-testid="map">{children}</div>; },
@@ -64,7 +57,6 @@ import App from './App';
 describe('App', () => {
   test('renders without crashing', () => {
     render(<App />);
-    // App should mount and show the sidebar
     expect(document.querySelector('.app-container')).toBeInTheDocument();
   });
 });
