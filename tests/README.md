@@ -313,31 +313,31 @@ pip install pytest-asyncio
 ## Future Enhancements
 
 ### Planned Tests
-- [ ] GCS Server API tests
+- [x] GCS Server API tests
 - [ ] Integration tests with SITL
 - [ ] End-to-end swarm coordination tests
 - [ ] Performance/load tests
 - [ ] Security tests (input validation, injection)
 
 ### Tools to Add
-- [ ] `pytest-benchmark` for performance testing
-- [ ] `pytest-xdist` for parallel test execution
+- [x] `pytest-benchmark` for performance testing
+- [x] `pytest-xdist` for parallel test execution
 - [ ] `tox` for multi-Python version testing
-- [ ] `hypothesis` for property-based testing
+- [x] `hypothesis` for property-based testing
 
 ---
 
 ## Dependencies
 
 **Required:**
-- pytest >= 8.3.4
-- pytest-asyncio >= 0.24.0
-- pytest-cov >= 6.0.0
-- httpx >= 0.27.2
-- pytest-mock >= 3.14.0
+- pytest >= 9.0.2
+- pytest-asyncio >= 1.3.0
+- pytest-cov >= 7.0.0
+- httpx >= 0.28.1
+- pytest-mock >= 3.15.1
 
 **Optional:**
-- coverage[toml] >= 7.6.9 (for detailed reports)
+- coverage[toml] >= 7.13.0 (for detailed reports)
 
 ---
 
