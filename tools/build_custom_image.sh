@@ -76,20 +76,20 @@ EXAMPLES:
     # Use defaults (from env vars or built-in defaults):
     ${SCRIPT_NAME}
 
-    # Specify repository only:
-    ${SCRIPT_NAME} git@github.com:company/fork.git
+    # Specify repository only (recommended for public GitHub repos):
+    ${SCRIPT_NAME} https://github.com/company/fork.git
 
     # Specify repository and branch:
-    ${SCRIPT_NAME} git@github.com:company/fork.git production
+    ${SCRIPT_NAME} https://github.com/company/fork.git production
 
     # Specify all parameters:
-    ${SCRIPT_NAME} git@github.com:company/fork.git production company-drone:v1.0
+    ${SCRIPT_NAME} https://github.com/company/fork.git production company-drone:v1.0
 
-    # Use HTTPS (no SSH keys needed):
-    ${SCRIPT_NAME} https://github.com/company/fork.git main company-drone:v1.0
+    # SSH still works for GitHub, and public repos auto-fallback to HTTPS:
+    ${SCRIPT_NAME} git@github.com:company/fork.git main company-drone:v1.0
 
 ENVIRONMENT VARIABLES:
-    export MDS_REPO_URL="git@github.com:company/fork.git"
+    export MDS_REPO_URL="https://github.com/company/fork.git"
     export MDS_BRANCH="production"
     export MDS_DOCKER_IMAGE="company-drone:v1.0"
     ${SCRIPT_NAME}
@@ -101,6 +101,7 @@ OPTIONS:
 NOTES:
     - This script requires the base image '${BASE_IMAGE}' to exist
     - For private repositories, ensure git credentials are properly configured
+    - Public GitHub SSH URLs retry over HTTPS automatically if SSH auth is unavailable
     - The resulting image can be used with: export MDS_DOCKER_IMAGE=<IMAGE_NAME>
 EOF
 }
@@ -126,6 +127,15 @@ log_verbose() {
     if [[ "${VERBOSE:-false}" == "true" ]]; then
         echo "🔍 [VERBOSE] $*"
     fi
+}
+
+github_https_fallback_url() {
+    local repo_url="$1"
+    if [[ "$repo_url" =~ ^git@github\.com:(.+)$ ]]; then
+        echo "https://github.com/${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
 }
 
 # Clean up function for error handling
@@ -216,8 +226,20 @@ git remote -v
 git branch -a
 echo "Updating remote URL to: ${repo_url}"
 git remote set-url origin "${repo_url}"
+fallback_repo_url=""
+if [[ "${repo_url}" =~ ^git@github\.com:(.+)$ ]]; then
+    fallback_repo_url="https://github.com/${BASH_REMATCH[1]}"
+fi
 echo "Fetching from repository..."
-git fetch origin "${branch}"
+if ! git fetch origin "${branch}"; then
+    if [[ -n "${fallback_repo_url}" && "${fallback_repo_url}" != "${repo_url}" ]]; then
+        echo "SSH fetch failed. Retrying with HTTPS fallback: ${fallback_repo_url}"
+        git remote set-url origin "${fallback_repo_url}"
+        git fetch origin "${branch}"
+    else
+        exit 1
+    fi
+fi
 echo "Checking out branch: ${branch}"
 git checkout "${branch}"
 echo "Pulling latest changes..."

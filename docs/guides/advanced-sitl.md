@@ -20,17 +20,17 @@ This guide is for advanced users who want to use their own forked repository or 
 
 ### Step 1: Set Your Configuration
 
-Copy and paste these commands, replacing with your repository details:
+Copy and paste these commands, replacing with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys.
 
 ```bash
 # Set your custom repository configuration
-export MDS_REPO_URL="git@github.com:YOURORG/YOURREPO.git"
+export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 export MDS_BRANCH="your-branch-name"
 export MDS_DOCKER_IMAGE="your-custom-image:latest"
 
 # Save to file for future use (optional)
 cat > ~/.mds_config << EOF
-export MDS_REPO_URL="git@github.com:YOURORG/YOURREPO.git"
+export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 export MDS_BRANCH="your-branch-name"
 export MDS_DOCKER_IMAGE="your-custom-image:latest"
 EOF
@@ -70,7 +70,7 @@ cd /path/to/mavsdk_drone_show
 bash tools/build_custom_image.sh
 ```
 
-`tools/build_custom_image.sh` now ensures `/root/mavsdk_drone_show/mavsdk_server` exists before committing the image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime.
+`tools/build_custom_image.sh` now ensures `/root/mavsdk_drone_show/mavsdk_server` exists before committing the image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
 
 ### Step 3: Deploy Your Drones
 
@@ -114,7 +114,7 @@ Some scripts support direct arguments:
 bash app/linux_dashboard_start.sh --sitl -b your-branch-name
 
 # Build custom image with arguments
-bash tools/build_custom_image.sh "git@github.com:YOURORG/YOURREPO.git" "your-branch"
+bash tools/build_custom_image.sh "https://github.com/YOURORG/YOURREPO.git" "your-branch"
 ```
 
 ---
@@ -124,7 +124,7 @@ bash tools/build_custom_image.sh "git@github.com:YOURORG/YOURREPO.git" "your-bra
 ### Example 1: Company Fork
 
 ```bash
-export MDS_REPO_URL="git@github.com:mycompany/mds-fork.git"
+export MDS_REPO_URL="https://github.com/mycompany/mds-fork.git"
 export MDS_BRANCH="production"
 export MDS_DOCKER_IMAGE="mycompany-drone:v1.0"
 
@@ -135,7 +135,7 @@ bash multiple_sitl/create_dockers.sh 10
 ### Example 2: Development Branch
 
 ```bash
-export MDS_REPO_URL="git@github.com:myusername/mds-dev.git"
+export MDS_REPO_URL="https://github.com/myusername/mds-dev.git"
 export MDS_BRANCH="feature-branch"
 
 bash multiple_sitl/create_dockers.sh 3
@@ -145,12 +145,12 @@ bash multiple_sitl/create_dockers.sh 3
 
 ```bash
 # Development
-export MDS_REPO_URL="git@github.com:company/mds.git"
+export MDS_REPO_URL="https://github.com/company/mds.git"
 export MDS_BRANCH="develop"
 bash multiple_sitl/create_dockers.sh 2
 
 # Production
-export MDS_REPO_URL="git@github.com:company/mds.git"
+export MDS_REPO_URL="https://github.com/company/mds.git"
 export MDS_BRANCH="production"
 bash multiple_sitl/create_dockers.sh 20
 ```
@@ -197,7 +197,7 @@ docker exec drone-1 bash -c "cd /root/mavsdk_drone_show && git remote -v"
 
 ### Problem: SSH Authentication Failed
 
-**Solution:** Use HTTPS instead:
+**Solution:** Use HTTPS instead, or let public GitHub SSH URLs auto-fallback inside the container:
 ```bash
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 ```
@@ -239,7 +239,7 @@ sudo docker run -it --name my-drone-dev drone-template:latest /bin/bash
 cd /root/mavsdk_drone_show
 
 # Update to your repository if needed
-git remote set-url origin git@github.com:YOURORG/YOURREPO.git
+git remote set-url origin https://github.com/YOURORG/YOURREPO.git
 git pull origin your-branch
 
 # Edit files, test changes, debug issues

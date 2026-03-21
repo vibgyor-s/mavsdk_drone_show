@@ -26,7 +26,7 @@ set -euo pipefail
 #
 # FOR ADVANCED USERS (Custom Forks):
 #   - Set environment variables on HOST before running create_dockers.sh:
-#     export MDS_REPO_URL="git@github.com:yourcompany/your-fork.git"
+#     export MDS_REPO_URL="https://github.com/yourcompany/your-fork.git"
 #     export MDS_BRANCH="your-production-branch"
 #   - Environment variables are automatically passed to containers
 #   - All containers will use your custom repository configuration
@@ -37,7 +37,8 @@ set -euo pipefail
 #   export MDS_BRANCH="production"
 #   bash create_dockers.sh 5
 #
-#   # Use SSH URL (requires SSH keys in Docker image):
+#   # Use SSH URL only when the container has working SSH credentials.
+#   # Public GitHub repos will retry over HTTPS automatically if SSH fails.
 #   export MDS_REPO_URL="git@github.com:company/fork.git"
 #   export MDS_BRANCH="main"
 #   bash create_dockers.sh 10
@@ -541,6 +542,15 @@ sitl_retry() {
     return 1
 }
 
+github_https_fallback_url() {
+    local repo_url="$1"
+    if [[ "$repo_url" =~ ^git@github\.com:(.+)$ ]]; then
+        echo "https://github.com/${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
 # Function to update the repository
 update_repository() {
     local start_time
@@ -559,14 +569,31 @@ update_repository() {
         git stash push --include-untracked || log_message "WARNING: stash failed, continuing"
     fi
 
+    local fallback_repo_url=""
+    if fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
+        :
+    else
+        fallback_repo_url=""
+    fi
+
     log_message "Setting Git remote to $GIT_REMOTE..."
     git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL" || true
 
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! sitl_retry 3 "GIT-FETCH" git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
-        log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
-        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
-        exit 1
+        if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$GITHUB_REPO_URL" ]; then
+            log_message "SSH fetch failed. Retrying with HTTPS fallback: $fallback_repo_url"
+            git remote set-url "$GIT_REMOTE" "$fallback_repo_url" || true
+            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
+                log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH even after HTTPS fallback."
+                echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
+                exit 1
+            fi
+        else
+            log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
+            echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
+            exit 1
+        fi
     fi
 
     log_message "Checking out branch $GIT_BRANCH..."
