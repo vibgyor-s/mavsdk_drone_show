@@ -94,7 +94,7 @@ sudo apt update
 sudo apt install -y python3 python3-venv python3-pip tmux lsof git megatools p7zip-full
 ```
 
-#### Downloading the Custom Drone Image
+#### Downloading the Official SITL Docker Image
 
 The current SITL image is **not** published in GitHub Releases yet. For now, download the compressed archive from Mega, extract it locally, then load the resulting tar into Docker.
 
@@ -103,12 +103,12 @@ cd ~
 # Public Mega download; large archives may take several minutes to complete.
 megadl 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE'
 # Extraction also takes time on large images.
-7z x drone-template-v4.7z
+7z x mavsdk-drone-show-sitl-image.7z
 ```
 
 After extraction you should have:
-- `drone-template-v4.7z` - compressed archive from Mega
-- `drone-template-v4.tar` - Docker image tar produced by `7z`
+- `mavsdk-drone-show-sitl-image.7z` - compressed archive from Mega
+- `mavsdk-drone-show-sitl-image.tar` - Docker image tar produced by `7z`
 
 > **Notes**
 > - `megadl` comes from the `megatools` package and works with this public link without logging in.
@@ -131,18 +131,20 @@ Load the extracted image into Docker:
 
 ```bash
 # Large image imports may take several minutes.
-docker load < drone-template-v5.tar
+docker load -i mavsdk-drone-show-sitl-image.tar
 ```
 
-This should output something like: `Loaded image: drone-template:v5`
-
-Tag it as `latest` so the drone creation scripts can find it:
+The archive already contains the official Docker tags. After `docker load`, confirm them with:
 
 ```bash
-docker tag drone-template:v5 drone-template:latest
+docker image ls mavsdk-drone-show-sitl
 ```
 
-> **Important:** Replace `v5` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required. The current validated shared image is tagged as both `drone-template:v5` and `drone-template:latest`.
+You should see the current official tags, including:
+- `mavsdk-drone-show-sitl:latest`
+- `mavsdk-drone-show-sitl:v5`
+
+> **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive.
 
 #### Image Features and Components
 

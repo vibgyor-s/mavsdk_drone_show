@@ -127,7 +127,7 @@ bash tools/build_custom_image.sh "https://github.com/YOURORG/YOURREPO.git" "your
 ```bash
 export MDS_REPO_URL="https://github.com/mycompany/mds-fork.git"
 export MDS_BRANCH="production"
-export MDS_DOCKER_IMAGE="mycompany-drone:v1.0"
+export MDS_DOCKER_IMAGE="mycompany-mds-sitl:v1.0"
 
 bash tools/build_custom_image.sh
 bash multiple_sitl/create_dockers.sh 10
@@ -230,7 +230,7 @@ For advanced users who want to develop inside containers and maintain custom ima
 
 ```bash
 # Create a template container directly (avoid create_dockers.sh to prevent hwid generation)
-sudo docker run -it --name my-drone-dev drone-template:latest /bin/bash
+sudo docker run -it --name my-drone-dev mavsdk-drone-show-sitl:latest /bin/bash
 ```
 
 ### Step 2: Make Your Changes Inside Container
@@ -255,10 +255,10 @@ git pull origin your-branch
 exit
 
 # Commit container to new image version
-docker commit -m "Updated custom drone image" my-drone-dev drone-template:v5-custom
+docker commit -m "Updated custom drone image" my-drone-dev mycompany-mds-sitl:v5-custom
 
 # Tag as latest (optional)
-docker tag drone-template:v5-custom drone-template:latest
+docker tag mycompany-mds-sitl:v5-custom mycompany-mds-sitl:latest
 ```
 
 ### Step 4: Export Container (Optional)
@@ -270,17 +270,23 @@ sudo apt install -y p7zip-full pv
 cd ~
 
 # Export to tar file for backup/distribution
-docker save drone-template:v5-custom | pv > drone-template-v5-custom.tar
+docker save mycompany-mds-sitl:v5-custom mycompany-mds-sitl:latest | pv > mycompany-mds-sitl-image.tar
 
 # Optional: compress the tar afterwards for storage or sharing
-7z a drone-template-v5-custom.7z drone-template-v5-custom.tar
+7z a mycompany-mds-sitl-image.7z mycompany-mds-sitl-image.tar
+```
+
+For repeatable official-style packaging, prefer the helper script:
+
+```bash
+bash tools/package_sitl_image.sh --image-repo mycompany-mds-sitl --version-tag v5-custom
 ```
 
 ### Step 5: Use Your Custom Image for Real SITL Operations
 
 ```bash
 # Set your custom image for future SITL deployments
-export MDS_DOCKER_IMAGE="drone-template:v5-custom"
+export MDS_DOCKER_IMAGE="mycompany-mds-sitl:v5-custom"
 
 # NOW use create_dockers.sh for actual SITL drone operations
 # (This will properly generate hwid and configure each drone)
@@ -291,7 +297,7 @@ bash multiple_sitl/create_dockers.sh 5
 
 ```bash
 # Start your development container again (for image updates only)
-sudo docker run -it --name my-drone-dev-v2 drone-template:latest /bin/bash
+sudo docker run -it --name my-drone-dev-v2 mycompany-mds-sitl:latest /bin/bash
 
 # Make updates inside container
 cd /root/mavsdk_drone_show
@@ -299,14 +305,14 @@ git pull
 
 # Exit and commit new version
 exit
-docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v5-custom-2
-docker tag drone-template:v5-custom-2 drone-template:latest
+docker commit -m "Updated to latest version" my-drone-dev-v2 mycompany-mds-sitl:v5-custom-2
+docker tag mycompany-mds-sitl:v5-custom-2 mycompany-mds-sitl:latest
 
 # Clean up old containers
 docker rm my-drone-dev my-drone-dev-v2
 ```
 
-> **Current official release tag:** the validated shared SITL image is published as `drone-template:v5` and also tagged as `drone-template:latest`.
+> **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v5` and also tagged as `mavsdk-drone-show-sitl:latest`.
 
 > **💡 Pro Tip:** This workflow is for customizing Docker images only. For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.
 

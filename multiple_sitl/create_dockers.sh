@@ -60,20 +60,20 @@ echo
 # via environment variables while maintaining full backward compatibility.
 #
 # FOR NORMAL USERS (99%):
-#   - No action required - uses default drone-template:latest image
+#   - No action required - uses default mavsdk-drone-show-sitl:latest image
 #   - Uses: git@github.com:alireza787b/mavsdk_drone_show.git@main-candidate
 #   - Simply run: bash create_dockers.sh <number_of_drones>
 #
 # FOR ADVANCED USERS (Custom Docker Images & Repositories):
 #   - Build custom image first (see tools/build_custom_image.sh)
 #   - Set environment variables before running this script:
-#     export MDS_DOCKER_IMAGE="company-drone:v1.0"
+#     export MDS_DOCKER_IMAGE="company-mds-sitl:v1.0"
 #     export MDS_REPO_URL="git@github.com:company/fork.git"
 #     export MDS_BRANCH="production"
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
-#   MDS_DOCKER_IMAGE  - Docker image name to use (default: drone-template:latest)
+#   MDS_DOCKER_IMAGE  - Docker image name to use (default: mavsdk-drone-show-sitl:latest)
 #   Any MDS_* runtime variable exported on the host is forwarded into the
 #   container, except the internal MDS_BASE_DIR / MDS_HWID_DIR paths which are
 #   fixed by this launcher.
@@ -83,7 +83,7 @@ echo
 #   bash create_dockers.sh 5
 #
 #   # Advanced usage with custom image and repository:
-#   export MDS_DOCKER_IMAGE="mycompany-drone:v2.0"
+#   export MDS_DOCKER_IMAGE="mycompany-mds-sitl:v2.0"
 #   export MDS_REPO_URL="git@github.com:mycompany/drone-fork.git"
 #   export MDS_BRANCH="production"
 #   bash create_dockers.sh 10
@@ -95,7 +95,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
-TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-drone-template:latest}"
+TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
 

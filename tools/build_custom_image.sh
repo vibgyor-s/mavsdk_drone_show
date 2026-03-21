@@ -7,7 +7,7 @@
 # who want to deploy MDS with their own forked repositories.
 #
 # WHAT THIS SCRIPT DOES:
-# 1. Takes a base drone-template:latest image
+# 1. Takes a base mavsdk-drone-show-sitl:latest image
 # 2. Temporarily runs it as a container
 # 3. Updates the repository inside to your custom fork/branch
 # 4. Commits the customized container as a new Docker image
@@ -15,7 +15,7 @@
 #
 # PREREQUISITES:
 # - Docker must be installed and running
-# - Base image 'drone-template:latest' must exist
+# - Base image 'mavsdk-drone-show-sitl:latest' must exist
 # - Network connectivity to access your repository
 # - Appropriate git credentials (for private repos)
 #
@@ -44,8 +44,8 @@ SCRIPT_VERSION="1.0.0"
 
 DEFAULT_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
 DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
-DEFAULT_IMAGE_NAME="${MDS_DOCKER_IMAGE:-drone-template:custom}"
-BASE_IMAGE="drone-template:latest"
+DEFAULT_IMAGE_NAME="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:custom}"
+BASE_IMAGE="mavsdk-drone-show-sitl:latest"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -83,15 +83,15 @@ EXAMPLES:
     ${SCRIPT_NAME} https://github.com/company/fork.git production
 
     # Specify all parameters:
-    ${SCRIPT_NAME} https://github.com/company/fork.git production company-drone:v1.0
+    ${SCRIPT_NAME} https://github.com/company/fork.git production company-mds-sitl:v1.0
 
     # SSH still works for GitHub, and public repos auto-fallback to HTTPS:
-    ${SCRIPT_NAME} git@github.com:company/fork.git main company-drone:v1.0
+    ${SCRIPT_NAME} git@github.com:company/fork.git main company-mds-sitl:v1.0
 
 ENVIRONMENT VARIABLES:
     export MDS_REPO_URL="https://github.com/company/fork.git"
     export MDS_BRANCH="production"
-    export MDS_DOCKER_IMAGE="company-drone:v1.0"
+    export MDS_DOCKER_IMAGE="company-mds-sitl:v1.0"
     ${SCRIPT_NAME}
 
 OPTIONS:
@@ -170,7 +170,7 @@ check_base_image() {
     if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${base_image}$"; then
         log_error "Base image '${base_image}' not found"
         log_error "Please ensure the base image is loaded:"
-        log_error "  docker load < drone-template-v3.tar"
+        log_error "  docker load -i mavsdk-drone-show-sitl-image.tar"
         exit 1
     fi
 
