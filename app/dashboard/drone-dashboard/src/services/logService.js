@@ -5,10 +5,23 @@ import axios from 'axios';
 import { getBackendURL } from '../utilities/utilities';
 
 const logsAPI = () => `${getBackendURL()}/api/logs`;
+const backendAPI = () => getBackendURL();
 
 /** GET /api/logs/sources — registered components */
 export const getSources = async () => {
   const resp = await axios.get(`${logsAPI()}/sources`);
+  return resp.data;
+};
+
+/** GET /get-config-data — configured drone inventory */
+export const getConfiguredDrones = async () => {
+  const resp = await axios.get(`${backendAPI()}/get-config-data`);
+  return resp.data;
+};
+
+/** GET /get-heartbeats — online/offline drone status */
+export const getHeartbeats = async () => {
+  const resp = await axios.get(`${backendAPI()}/get-heartbeats`);
   return resp.data;
 };
 
@@ -52,9 +65,12 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
 };
 
 /** POST /api/logs/export — export sessions as JSONL or ZIP */
-export const exportSessions = async (sessionIds, format = 'jsonl') => {
+export const exportSessions = async (sessionIds, format = 'jsonl', droneId = null) => {
+  const endpoint = droneId != null
+    ? `${logsAPI()}/drone/${droneId}/export`
+    : `${logsAPI()}/export`;
   const resp = await axios.post(
-    `${logsAPI()}/export`,
+    endpoint,
     { session_ids: sessionIds, format },
     { responseType: 'blob' },
   );

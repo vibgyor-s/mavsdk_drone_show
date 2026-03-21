@@ -32,6 +32,20 @@
   gap: var(--spacing-xs);
 }
 
+.log-time-range-group {
+  flex-wrap: wrap;
+}
+
+.log-time-range-group input {
+  min-width: 180px;
+}
+
+.log-time-range-separator {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
 .log-toolbar-spacer {
   flex: 1;
 }
@@ -108,6 +122,26 @@
   color: var(--color-text-secondary);
 }
 
+.log-health-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  color: inherit;
+  font: inherit;
+}
+
+.log-health-button:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.log-health-button.active {
+  border-color: var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+}
+
 .log-health-stat .stat-value {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -119,6 +153,30 @@
 
 .log-health-stat.warning-count .stat-value {
   color: var(--color-warning);
+}
+
+.log-viewer-context {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.log-context-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.3px;
+}
+
+.log-context-note {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 /* === LOG TABLE (DataGrid overrides) === */
@@ -319,7 +377,7 @@
 }
 
 .log-session-selector select {
-  min-width: 200px;
+  min-width: 280px;
 }
 
 /* === EXPORT DIALOG === */
@@ -412,7 +470,29 @@
     flex-direction: column;
     align-items: stretch;
   }
+
+  .log-toolbar-group,
+  .log-session-selector,
+  .log-time-range-group {
+    width: 100%;
+  }
+
+  .log-toolbar select,
+  .log-toolbar input,
+  .log-session-selector select {
+    width: 100%;
+    min-width: 0;
+  }
+
   .log-toolbar-spacer {
     display: none;
+  }
+
+  .log-health-bar {
+    gap: var(--spacing-sm);
+  }
+
+  .log-health-button {
+    justify-content: space-between;
   }
 }

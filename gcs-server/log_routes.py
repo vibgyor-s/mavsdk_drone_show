@@ -121,6 +121,9 @@ def create_log_router(
         if not session_ids:
             raise HTTPException(status_code=400, detail="session_ids required")
 
+        if fmt not in ("jsonl", "zip"):
+            raise HTTPException(status_code=400, detail="format must be 'jsonl' or 'zip'")
+
         # Verify all sessions exist
         for sid in session_ids:
             filepath = os.path.join(_log_dir, f"{sid}.jsonl")
@@ -150,6 +153,59 @@ def create_log_router(
             )
 
     # --- Drone proxy endpoints ---
+
+    @router.post("/drone/{drone_id}/export")
+    async def export_drone_sessions(drone_id: int, request: dict):
+        """Export one or more sessions from a specific drone as JSONL or ZIP."""
+        import io
+        import zipfile
+        from fastapi.responses import Response
+
+        from log_proxy import resolve_drone_ip, fetch_drone_session_content
+
+        session_ids = request.get("session_ids", [])
+        fmt = request.get("format", "jsonl")
+
+        if not session_ids:
+            raise HTTPException(status_code=400, detail="session_ids required")
+
+        if fmt not in ("jsonl", "zip"):
+            raise HTTPException(status_code=400, detail="format must be 'jsonl' or 'zip'")
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+
+        session_payloads: list[tuple[str, list[dict]]] = []
+        for sid in session_ids:
+            result = await fetch_drone_session_content(ip, sid)
+            if result is None:
+                raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
+            session_payloads.append((sid, result.get("lines", [])))
+
+        def _to_jsonl(lines: list[dict]) -> str:
+            if not lines:
+                return ""
+            return "".join(f"{json.dumps(line)}\n" for line in lines)
+
+        if fmt == "zip" or len(session_ids) > 1:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for sid, lines in session_payloads:
+                    zf.writestr(f"{sid}.jsonl", _to_jsonl(lines))
+            buf.seek(0)
+            return Response(
+                content=buf.getvalue(),
+                media_type="application/zip",
+                headers={"Content-Disposition": f"attachment; filename=drone_{drone_id}_logs_export.zip"},
+            )
+
+        sid, lines = session_payloads[0]
+        return Response(
+            content=_to_jsonl(lines),
+            media_type="application/x-ndjson",
+            headers={"Content-Disposition": f"attachment; filename={sid}.jsonl"},
+        )
 
     @router.get("/drone/{drone_id}/sessions")
     async def get_drone_sessions(drone_id: int):

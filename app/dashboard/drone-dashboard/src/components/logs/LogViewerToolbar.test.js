@@ -21,6 +21,16 @@ describe('LogViewerToolbar', () => {
     sessionsLoading: false,
     onExportOpen: jest.fn(),
     onClear: jest.fn(),
+    scopeDroneId: null,
+    scopeOptions: [{ hw_id: 5, label: 'Drone #5' }],
+    onScopeChange: jest.fn(),
+    liveWindow: 'all',
+    onLiveWindowChange: jest.fn(),
+    timeStart: '',
+    onTimeStartChange: jest.fn(),
+    timeEnd: '',
+    onTimeEndChange: jest.fn(),
+    onClearTimeRange: jest.fn(),
   };
 
   test('renders Ops and Dev mode buttons', () => {
@@ -47,5 +57,17 @@ describe('LogViewerToolbar', () => {
     expect(screen.queryByText('Export')).not.toBeInTheDocument();
     rerender(<LogViewerToolbar {...defaultProps} mode={MODES.DEV} />);
     expect(screen.getByText('Export')).toBeInTheDocument();
+  });
+
+  test('renders scope selector options', () => {
+    render(<LogViewerToolbar {...defaultProps} />);
+    expect(screen.getByLabelText('Select log scope')).toBeInTheDocument();
+    expect(screen.getByText('Drone #5')).toBeInTheDocument();
+  });
+
+  test('shows absolute time range inputs for historical sessions', () => {
+    render(<LogViewerToolbar {...defaultProps} selectedSession="s_20260320_072832" />);
+    expect(screen.getByLabelText('Filter logs from time')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filter logs to time')).toBeInTheDocument();
   });
 });

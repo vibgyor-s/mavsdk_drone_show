@@ -1,26 +1,9 @@
 // src/components/logs/LogSourceTree.js
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { FaCircle } from 'react-icons/fa';
-import { getSources } from '../../services/logService';
 
-const LogSourceTree = ({ selectedComponent, onSelect }) => {
-  const [components, setComponents] = useState({});
-
-  useEffect(() => {
-    let mounted = true;
-    const fetchData = async () => {
-      try {
-        const data = await getSources();
-        if (mounted) setComponents(data.components || {});
-      } catch {
-        // Silently fail
-      }
-    };
-    fetchData();
-    return () => { mounted = false; };
-  }, []);
-
-  const entries = Object.entries(components);
+const LogSourceTree = ({ components, selectedComponent, onSelect }) => {
+  const entries = components || [];
 
   return (
     <div className="log-source-tree" role="listbox" aria-label="Log sources">
@@ -34,17 +17,17 @@ const LogSourceTree = ({ selectedComponent, onSelect }) => {
         <FaCircle size={6} />
         All Components
       </div>
-      {entries.map(([name, info]) => (
+      {entries.map((entry) => (
         <div
-          key={name}
-          className={`log-source-item ${selectedComponent === name ? 'active' : ''}`}
-          onClick={() => onSelect(name)}
+          key={entry.name}
+          className={`log-source-item ${selectedComponent === entry.name ? 'active' : ''}`}
+          onClick={() => onSelect(entry.name)}
           role="option"
-          aria-selected={selectedComponent === name}
+          aria-selected={selectedComponent === entry.name}
         >
           <FaCircle size={6} />
-          {name}
-          <span className="log-source-badge">{info.category}</span>
+          {entry.name}
+          <span className="log-source-badge">{entry.category}</span>
         </div>
       ))}
     </div>

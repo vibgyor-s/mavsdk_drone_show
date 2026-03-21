@@ -1,8 +1,9 @@
 // src/components/logs/LogSessionSelector.js
 import React from 'react';
 import { FaClock } from 'react-icons/fa';
+import { formatSessionLabel } from '../../utilities/logViewerUtils';
 
-const LogSessionSelector = ({ sessions, selectedSession, onSelect, loading }) => {
+const LogSessionSelector = ({ sessions, selectedSession, onSelect, loading, liveLabel = 'Live Session' }) => {
   return (
     <div className="log-session-selector">
       <FaClock size={12} />
@@ -12,10 +13,10 @@ const LogSessionSelector = ({ sessions, selectedSession, onSelect, loading }) =>
         disabled={loading}
         aria-label="Select log session"
       >
-        <option value="__live__">Live Session</option>
+        <option value="__live__">{liveLabel}</option>
         {(sessions || []).map(s => (
-          <option key={s.session_id} value={s.session_id}>
-            {s.session_id} ({s.size_kb ? `${s.size_kb}KB` : '...'})
+          <option key={s.session_id} value={s.session_id} title={s.session_id}>
+            {formatSessionLabel(s)}
           </option>
         ))}
       </select>

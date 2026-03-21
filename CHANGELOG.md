@@ -22,10 +22,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - Log Viewer page at `/logs` with Operations and Developer modes
   - Operations mode: WARNING+ filter, health bar, live event feed, clean UI
   - Developer mode: all log levels, component tree, search, session selector, export
+  - Explicit `GCS` vs `Drone #N` scope switch for live streams and historical sessions
+  - Human-readable session labels, clickable error/warning drill-down, and time-window focus controls
   - MUI DataGrid virtual scroll for 100K+ log rows
   - Real-time SSE streaming via `useLogStream` hook with 200ms batching and 5000-line ring buffer
   - Historical session browsing with filtering and client-side pagination
-  - Export sessions as JSONL, CSV, or ZIP
+  - Export sessions as JSONL or ZIP, including proxied drone sessions
   - ErrorBoundary catches React render errors and reports to `POST /api/logs/frontend`
   - New "System" sidebar section with Log Viewer entry
   - `@mui/x-data-grid` dependency for virtual scroll

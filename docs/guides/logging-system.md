@@ -262,17 +262,21 @@ Navigate to `/logs` in the dashboard sidebar (under "System" section).
 
 **Operations Mode** (default):
 - Shows WARNING and ERROR entries only
-- Health bar: GCS status, drone count, error/warning counts
+- Health bar: GCS status, live drone availability, error/warning drill-down counts
 - Live event feed with auto-scroll
+- One-click drill-down into warnings or errors from the health bar
 - Ideal for field operators during missions
 
 **Developer Mode**:
 - All log levels (DEBUG through CRITICAL)
 - Component source tree for filtering
 - Full-text search across log messages
+- Scope switcher for `GCS` vs `Drone #N` live and historical browsing
+- Human-readable session labels in UTC
 - Session selector for historical log browsing
+- Time focus controls: relative live windows, absolute start/end range for historical sessions
 - MUI DataGrid with virtual scroll for large datasets
-- Export to JSONL, CSV, or ZIP
+- Export to JSONL or ZIP
 
 ### Real-Time Streaming
 
@@ -286,8 +290,8 @@ The Log Viewer uses Server-Sent Events (SSE) for real-time streaming:
 
 In Developer mode, click the Export button to:
 - Select one or more sessions
-- Choose JSONL (machine-readable), CSV, or ZIP format
-- Download filtered results
+- Choose JSONL (machine-readable) or ZIP
+- Export the current scope (`GCS` or the selected drone)
 
 ### Error Boundary
 

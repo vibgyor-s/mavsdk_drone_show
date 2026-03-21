@@ -81,7 +81,15 @@ const LogTable = ({ entries, autoScroll = true, searchQuery = '' }) => {
     if (!searchQuery) return entries;
     const q = searchQuery.toLowerCase();
     return entries.filter(e => {
-      const text = `${e.msg || ''} ${e.component || ''} ${e.level || ''}`.toLowerCase();
+      const extraText = e.extra ? JSON.stringify(e.extra) : '';
+      const text = [
+        e.msg || '',
+        e.component || '',
+        e.level || '',
+        e.source || '',
+        e.drone_id != null ? `drone ${e.drone_id}` : '',
+        extraText,
+      ].join(' ').toLowerCase();
       return text.includes(q);
     });
   }, [entries, searchQuery]);

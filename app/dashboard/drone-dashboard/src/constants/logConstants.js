@@ -27,3 +27,17 @@ export const HEALTH_POLL_INTERVAL_MS = 5000;
 
 // Modes
 export const MODES = { OPS: 'operations', DEV: 'developer' };
+
+// Live-view time windows
+export const LIVE_TIME_WINDOWS = [
+  { value: 'all', label: 'All Buffered', durationMs: null },
+  { value: '5m', label: 'Last 5m', durationMs: 5 * 60 * 1000 },
+  { value: '15m', label: 'Last 15m', durationMs: 15 * 60 * 1000 },
+  { value: '1h', label: 'Last 1h', durationMs: 60 * 60 * 1000 },
+];
+
+// Exact-severity drill-down from the health bar
+export const SEVERITY_FOCUS = {
+  WARNINGS: 'warnings',
+  ERRORS: 'errors',
+};

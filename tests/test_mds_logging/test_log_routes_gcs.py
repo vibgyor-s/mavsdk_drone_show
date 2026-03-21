@@ -174,3 +174,70 @@ class TestExport:
             "format": "jsonl",
         })
         assert resp.status_code == 400
+
+    def test_export_rejects_invalid_format(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": ["s_20260319_100000"],
+            "format": "csv",
+        })
+        assert resp.status_code == 400
+        assert "jsonl" in resp.json()["detail"]
+
+    def test_export_drone_session_jsonl(self, tmp_path, monkeypatch):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+
+        import log_proxy
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_fetch(drone_ip, session_id, **_kwargs):
+            assert drone_ip == "10.0.0.5"
+            return {
+                "session_id": session_id,
+                "lines": [{"level": "INFO", "msg": "hello from drone"}],
+            }
+
+        monkeypatch.setattr(log_proxy, "fetch_drone_session_content", fake_fetch)
+
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/drone/5/export", json={
+            "session_ids": ["s_20260319_100000"],
+            "format": "jsonl",
+        })
+
+        assert resp.status_code == 200
+        assert "application/x-ndjson" in resp.headers["content-type"]
+        assert "hello from drone" in resp.text
+
+    def test_export_drone_sessions_zip(self, tmp_path, monkeypatch):
+        import io
+        import zipfile
+        import log_proxy
+
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_fetch(_drone_ip, session_id, **_kwargs):
+            return {
+                "session_id": session_id,
+                "lines": [{"level": "INFO", "msg": session_id}],
+            }
+
+        monkeypatch.setattr(log_proxy, "fetch_drone_session_content", fake_fetch)
+
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/drone/5/export", json={
+            "session_ids": ["s_20260319_100000", "s_20260319_110000"],
+            "format": "zip",
+        })
+
+        assert resp.status_code == 200
+        assert "application/zip" in resp.headers["content-type"]
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        assert sorted(zf.namelist()) == ["s_20260319_100000.jsonl", "s_20260319_110000.jsonl"]

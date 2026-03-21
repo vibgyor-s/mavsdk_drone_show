@@ -1,16 +1,36 @@
 // src/pages/LogViewer.js
 /**
  * Log Viewer — real-time and historical log viewing for drone operations.
- * Operations mode (default): WARNING+, health bar, live feed.
- * Developer mode: all levels, component tree, search, export.
+ * Operations mode (default): WARNING+, health drill-down, focused live feed.
+ * Developer mode: all levels, component tree, time controls, scope switching.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { useTheme } from '../hooks/useTheme';
 import useLogStream from '../hooks/useLogStream';
-import { getSessions, getSessionContent } from '../services/logService';
-import { MODES, OPS_DEFAULT_LEVEL, DEV_DEFAULT_LEVEL } from '../constants/logConstants';
+import {
+  getConfiguredDrones,
+  getDroneSessionContent,
+  getDroneSessions,
+  getHeartbeats,
+  getSessionContent,
+  getSessions,
+  getSources,
+} from '../services/logService';
+import {
+  DEV_DEFAULT_LEVEL,
+  HEALTH_POLL_INTERVAL_MS,
+  LIVE_TIME_WINDOWS,
+  MODES,
+  OPS_DEFAULT_LEVEL,
+} from '../constants/logConstants';
+import {
+  applySeverityFocus,
+  buildComponentCatalog,
+  filterEntriesByAbsoluteTimeRange,
+  filterEntriesByRelativeWindow,
+} from '../utilities/logViewerUtils';
 
 import LogViewerToolbar from '../components/logs/LogViewerToolbar';
 import LogHealthBar from '../components/logs/LogHealthBar';
@@ -19,6 +39,18 @@ import LogSourceTree from '../components/logs/LogSourceTree';
 import LogExportDialog from '../components/logs/LogExportDialog';
 
 import '../styles/LogViewer.css';
+
+const normalizeDroneOption = (drone) => {
+  const hwId = Number(drone?.hw_id);
+  if (!Number.isFinite(hwId)) {
+    return null;
+  }
+
+  return {
+    hw_id: hwId,
+    label: `Drone #${hwId}`,
+  };
+};
 
 const LogViewer = () => {
   const { isDark } = useTheme();
@@ -30,6 +62,17 @@ const LogViewer = () => {
   const [paused, setPaused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showExport, setShowExport] = useState(false);
+  const [scopeDroneId, setScopeDroneId] = useState(null);
+  const [severityFocus, setSeverityFocus] = useState(null);
+  const [liveWindow, setLiveWindow] = useState('all');
+  const [timeStart, setTimeStart] = useState('');
+  const [timeEnd, setTimeEnd] = useState('');
+
+  // Fleet metadata
+  const [fleet, setFleet] = useState([]);
+  const [onlineDroneIds, setOnlineDroneIds] = useState(new Set());
+  const [gcsOnline, setGcsOnline] = useState(false);
+  const [gcsSources, setGcsSources] = useState({});
 
   // Session state
   const [sessions, setSessions] = useState([]);
@@ -41,59 +84,133 @@ const LogViewer = () => {
   const streamEnabled = !selectedSession;
   const { entries: liveEntries, connected, error: streamError, clear } = useLogStream({
     level,
-    component,
     enabled: streamEnabled,
     paused,
+    droneId: scopeDroneId,
   });
 
-  // Show SSE errors as toast
   useEffect(() => {
-    if (streamError) toast.warning(streamError);
+    if (!streamError) {
+      return;
+    }
+    toast.warning(streamError);
   }, [streamError]);
 
-  // Fetch session list
-  const fetchSessions = useCallback(async () => {
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchFleetSnapshot = async () => {
+      try {
+        const [configData, heartbeatData, sourcesData] = await Promise.all([
+          getConfiguredDrones(),
+          getHeartbeats(),
+          getSources(),
+        ]);
+
+        if (!mounted) {
+          return;
+        }
+
+        const configuredDrones = (configData || [])
+          .map(normalizeDroneOption)
+          .filter(Boolean)
+          .sort((left, right) => left.hw_id - right.hw_id);
+
+        const onlineIds = new Set(
+          (heartbeatData?.heartbeats || [])
+            .filter((heartbeat) => heartbeat?.online)
+            .map((heartbeat) => String(heartbeat.hw_id)),
+        );
+
+        setFleet(configuredDrones);
+        setOnlineDroneIds(onlineIds);
+        setGcsSources(sourcesData?.components || {});
+        setGcsOnline(true);
+      } catch {
+        if (mounted) {
+          setGcsOnline(false);
+        }
+      }
+    };
+
+    fetchFleetSnapshot();
+    const timer = setInterval(fetchFleetSnapshot, HEALTH_POLL_INTERVAL_MS);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const fetchSessions = useCallback(async (showErrors = false) => {
     setSessionsLoading(true);
     try {
-      const data = await getSessions();
+      const data = scopeDroneId != null
+        ? await getDroneSessions(scopeDroneId)
+        : await getSessions();
       setSessions(data.sessions || []);
-    } catch {
-      // Silently fail — not critical
+    } catch (error) {
+      setSessions([]);
+      if (showErrors) {
+        const scopeLabel = scopeDroneId != null ? `drone #${scopeDroneId}` : 'GCS';
+        toast.error(`Failed to load ${scopeLabel} sessions: ${error.message}`);
+      }
     } finally {
       setSessionsLoading(false);
     }
-  }, []);
+  }, [scopeDroneId]);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
-  // Load historical session content
+  useEffect(() => {
+    setSelectedSession(null);
+    setHistoricalEntries([]);
+    setPaused(false);
+    setComponent(null);
+    setSeverityFocus(null);
+    setSearchQuery('');
+    setTimeStart('');
+    setTimeEnd('');
+    setShowExport(false);
+  }, [scopeDroneId]);
+
   useEffect(() => {
     if (!selectedSession) {
       setHistoricalEntries([]);
       return;
     }
+
     let mounted = true;
+
     const loadSession = async () => {
       try {
-        // Fetch all lines — DataGrid handles client-side pagination via pageSizeOptions
-        const data = await getSessionContent(selectedSession, {
-          level,
-          component,
-        });
-        // Add stable _id for DataGrid row keys
+        const data = scopeDroneId != null
+          ? await getDroneSessionContent(scopeDroneId, selectedSession, { level })
+          : await getSessionContent(selectedSession, { level });
+
         const lines = (data.lines || []).map((line, idx) => ({ ...line, _id: `hist_${idx}` }));
-        if (mounted) setHistoricalEntries(lines);
-      } catch (err) {
-        if (mounted) toast.error(`Failed to load session: ${err.message}`);
+        if (mounted) {
+          setHistoricalEntries(lines);
+        }
+      } catch (error) {
+        if (mounted) {
+          toast.error(`Failed to load session: ${error.message}`);
+        }
       }
     };
-    loadSession();
-    return () => { mounted = false; };
-  }, [selectedSession, level, component]);
 
-  // Mode change: switch level defaults
+    loadSession();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedSession, level, scopeDroneId]);
+
   const handleModeChange = useCallback((newMode) => {
     setMode(newMode);
+    setSeverityFocus(null);
+
     if (newMode === MODES.OPS) {
       setLevel(OPS_DEFAULT_LEVEL);
       setSearchQuery('');
@@ -103,8 +220,58 @@ const LogViewer = () => {
     }
   }, []);
 
-  // Displayed entries: live or historical
-  const displayedEntries = selectedSession ? historicalEntries : liveEntries;
+  const handleSessionSelect = useCallback((sessionId) => {
+    setSelectedSession(sessionId);
+    setPaused(false);
+    setSeverityFocus(null);
+    setTimeStart('');
+    setTimeEnd('');
+  }, []);
+
+  const handleClear = useCallback(() => {
+    if (!selectedSession) {
+      clear();
+    }
+    setSearchQuery('');
+    setComponent(null);
+    setTimeStart('');
+    setTimeEnd('');
+    setSeverityFocus(null);
+  }, [clear, selectedSession]);
+
+  const liveWindowDuration = useMemo(() => (
+    LIVE_TIME_WINDOWS.find((window) => window.value === liveWindow)?.durationMs ?? null
+  ), [liveWindow]);
+
+  const baseEntries = selectedSession ? historicalEntries : liveEntries;
+
+  const timeScopedEntries = useMemo(() => {
+    if (selectedSession) {
+      return filterEntriesByAbsoluteTimeRange(baseEntries, timeStart, timeEnd);
+    }
+
+    return filterEntriesByRelativeWindow(baseEntries, liveWindowDuration);
+  }, [baseEntries, selectedSession, timeStart, timeEnd, liveWindowDuration]);
+
+  const availableComponents = useMemo(() => (
+    buildComponentCatalog(timeScopedEntries, scopeDroneId == null ? gcsSources : undefined)
+  ), [timeScopedEntries, scopeDroneId, gcsSources]);
+
+  const componentScopedEntries = useMemo(() => (
+    component
+      ? timeScopedEntries.filter((entry) => entry.component === component)
+      : timeScopedEntries
+  ), [timeScopedEntries, component]);
+
+  const displayedEntries = useMemo(() => (
+    applySeverityFocus(componentScopedEntries, severityFocus)
+  ), [componentScopedEntries, severityFocus]);
+
+  const onlineDroneCount = useMemo(() => (
+    fleet.filter((drone) => onlineDroneIds.has(String(drone.hw_id))).length
+  ), [fleet, onlineDroneIds]);
+
+  const scopeLabel = scopeDroneId != null ? `Drone #${scopeDroneId}` : 'GCS';
 
   return (
     <div className={`log-viewer-page ${isDark ? 'dark' : 'light'}`}>
@@ -114,25 +281,58 @@ const LogViewer = () => {
         level={level}
         onLevelChange={setLevel}
         paused={paused}
-        onTogglePause={() => setPaused(p => !p)}
+        onTogglePause={() => setPaused((current) => !current)}
         connected={connected}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         sessions={sessions}
         selectedSession={selectedSession}
-        onSessionSelect={(sid) => { setSelectedSession(sid); setPaused(false); }}
+        onSessionSelect={handleSessionSelect}
         sessionsLoading={sessionsLoading}
-        onExportOpen={() => { fetchSessions(); setShowExport(true); }}
-        onClear={clear}
+        onExportOpen={async () => {
+          await fetchSessions(true);
+          setShowExport(true);
+        }}
+        onClear={handleClear}
+        scopeDroneId={scopeDroneId}
+        scopeOptions={fleet}
+        onScopeChange={setScopeDroneId}
+        liveWindow={liveWindow}
+        onLiveWindowChange={setLiveWindow}
+        timeStart={timeStart}
+        onTimeStartChange={setTimeStart}
+        timeEnd={timeEnd}
+        onTimeEndChange={setTimeEnd}
+        onClearTimeRange={() => {
+          setTimeStart('');
+          setTimeEnd('');
+        }}
       />
 
-      <LogHealthBar entries={displayedEntries} />
+      <LogHealthBar
+        entries={componentScopedEntries}
+        displayedCount={displayedEntries.length}
+        gcsOnline={gcsOnline}
+        fleetCount={fleet.length}
+        onlineDroneCount={onlineDroneCount}
+        severityFocus={severityFocus}
+        onSeverityFocusChange={setSeverityFocus}
+      />
+
+      <div className="log-viewer-context">
+        <span className="log-context-pill">{scopeLabel}</span>
+        {selectedSession ? (
+          <span className="log-context-note">Historical session view</span>
+        ) : (
+          <span className="log-context-note">Live stream view</span>
+        )}
+      </div>
 
       <div style={{ display: 'flex', flex: 1, gap: 'var(--spacing-sm)', overflow: 'hidden' }}>
-        {/* Source tree — Developer mode only */}
         {mode === MODES.DEV && (
-          <div style={{ width: 200, flexShrink: 0 }}>
+          <div style={{ width: 220, flexShrink: 0 }}>
             <LogSourceTree
+              components={availableComponents}
               selectedComponent={component}
               onSelect={setComponent}
             />
@@ -149,6 +349,8 @@ const LogViewer = () => {
       {showExport && (
         <LogExportDialog
           sessions={sessions}
+          droneId={scopeDroneId}
+          scopeLabel={scopeLabel}
           onClose={() => setShowExport(false)}
         />
       )}

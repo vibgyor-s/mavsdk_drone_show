@@ -60,10 +60,16 @@ const useLogStream = ({ level = null, component = null, source = null, droneId =
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      batchRef.current = [];
+      idCounterRef.current = 0;
+      setEntries([]);
       setConnected(false);
       return;
     }
 
+    batchRef.current = [];
+    idCounterRef.current = 0;
+    setEntries([]);
     const url = buildStreamURL({ level, component, source }, droneId);
     const es = new EventSource(url);
     esRef.current = es;
@@ -104,6 +110,7 @@ const useLogStream = ({ level = null, component = null, source = null, droneId =
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      setEntries([]);
       setConnected(false);
     };
   }, [level, component, source, droneId, enabled, flush]);

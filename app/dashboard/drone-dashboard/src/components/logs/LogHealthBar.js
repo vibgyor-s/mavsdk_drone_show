@@ -1,13 +1,17 @@
 // src/components/logs/LogHealthBar.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { FaServer, FaPlane, FaExclamationTriangle, FaTimesCircle, FaClock } from 'react-icons/fa';
-import { getSources } from '../../services/logService';
-import { HEALTH_POLL_INTERVAL_MS } from '../../constants/logConstants';
+import { SEVERITY_FOCUS } from '../../constants/logConstants';
 
-const LogHealthBar = ({ entries }) => {
-  const [droneCount, setDroneCount] = useState(0);
-  const [gcsOnline, setGcsOnline] = useState(false);
-
+const LogHealthBar = ({
+  entries,
+  displayedCount,
+  gcsOnline,
+  fleetCount,
+  onlineDroneCount,
+  severityFocus,
+  onSeverityFocusChange,
+}) => {
   const { errorCount, warningCount } = useMemo(() => {
     let errors = 0, warnings = 0;
     for (const e of entries) {
@@ -16,25 +20,6 @@ const LogHealthBar = ({ entries }) => {
     }
     return { errorCount: errors, warningCount: warnings };
   }, [entries]);
-
-  useEffect(() => {
-    let mounted = true;
-    const fetchSources = async () => {
-      try {
-        const data = await getSources();
-        if (!mounted) return;
-        setGcsOnline(true);
-        const components = data.components || {};
-        const droneSources = Object.values(components).filter(c => c.category === 'drone');
-        setDroneCount(droneSources.length);
-      } catch {
-        if (mounted) setGcsOnline(false);
-      }
-    };
-    fetchSources();
-    const timer = setInterval(fetchSources, HEALTH_POLL_INTERVAL_MS);
-    return () => { mounted = false; clearInterval(timer); };
-  }, []);
 
   return (
     <div className="log-health-bar" role="status" aria-label="System health">
@@ -48,22 +33,38 @@ const LogHealthBar = ({ entries }) => {
       <div className="log-health-stat">
         <FaPlane size={12} />
         <span>Drones</span>
-        <span className="stat-value">{droneCount}</span>
+        <span className="stat-value">
+          {fleetCount > 0 ? `${onlineDroneCount}/${fleetCount}` : '0'}
+        </span>
       </div>
-      <div className="log-health-stat error-count">
+      <button
+        type="button"
+        className={`log-health-stat log-health-button error-count ${severityFocus === SEVERITY_FOCUS.ERRORS ? 'active' : ''}`}
+        aria-pressed={severityFocus === SEVERITY_FOCUS.ERRORS}
+        onClick={() => onSeverityFocusChange(
+          severityFocus === SEVERITY_FOCUS.ERRORS ? null : SEVERITY_FOCUS.ERRORS
+        )}
+      >
         <FaTimesCircle size={12} />
         <span>Errors</span>
         <span className="stat-value">{errorCount}</span>
-      </div>
-      <div className="log-health-stat warning-count">
+      </button>
+      <button
+        type="button"
+        className={`log-health-stat log-health-button warning-count ${severityFocus === SEVERITY_FOCUS.WARNINGS ? 'active' : ''}`}
+        aria-pressed={severityFocus === SEVERITY_FOCUS.WARNINGS}
+        onClick={() => onSeverityFocusChange(
+          severityFocus === SEVERITY_FOCUS.WARNINGS ? null : SEVERITY_FOCUS.WARNINGS
+        )}
+      >
         <FaExclamationTriangle size={12} />
         <span>Warnings</span>
         <span className="stat-value">{warningCount}</span>
-      </div>
+      </button>
       <div className="log-health-stat">
         <FaClock size={12} />
-        <span>Entries</span>
-        <span className="stat-value">{entries.length}</span>
+        <span>Showing</span>
+        <span className="stat-value">{displayedCount}</span>
       </div>
     </div>
   );
