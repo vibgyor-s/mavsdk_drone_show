@@ -36,6 +36,15 @@ class TestDetectPx4MavlinkPort:
 
         assert detector.extract_ports_from_log(log_text, EXCLUDED_PORTS) == [14560]
 
+    def test_extract_ports_from_proc_net_output(self):
+        proc_output = "\n".join([
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+            "  17: 0100007F:488A 0100007F:38D6 01 00000000:00000000 00:00000000 00000000     0        0 0 2 0000000000000000 0",
+            "  18: 0100007F:488B 0100007F:38DC 01 00000000:00000000 00:00000000 00000000     0        0 0 2 0000000000000000 0",
+        ])
+
+        assert detector.extract_ports_from_proc_net_output(proc_output, EXCLUDED_PORTS) == [14550, 14556]
+
     def test_choose_port_prefers_modern_port_when_available(self):
         assert detector.choose_port([14560, 14550], 14550) == 14550
 
@@ -46,6 +55,27 @@ class TestDetectPx4MavlinkPort:
         ss_output = 'UNCONN 0 0 127.0.0.1:18570 127.0.0.1:14550 users:(("px4",pid=123,fd=42))'
 
         with patch.object(detector.subprocess, "run", return_value=Mock(stdout=ss_output)):
+            port = detector.detect_from_runtime(
+                default_port=14550,
+                timeout=0.1,
+                poll_interval=0.01,
+                sitl_log=None,
+                excluded_ports=EXCLUDED_PORTS,
+            )
+
+        assert port == 14550
+
+    def test_detect_from_runtime_falls_back_to_proc_net_when_ss_missing(self):
+        proc_output = "\n".join([
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+            "  17: 0100007F:488A 0100007F:38D6 01 00000000:00000000 00:00000000 00000000     0        0 0 2 0000000000000000 0",
+        ])
+
+        with patch.object(detector.subprocess, "run", side_effect=FileNotFoundError("ss")), patch.object(
+            detector,
+            "_read_proc_net_candidates",
+            return_value=detector.extract_ports_from_proc_net_output(proc_output, EXCLUDED_PORTS),
+        ):
             port = detector.detect_from_runtime(
                 default_port=14550,
                 timeout=0.1,

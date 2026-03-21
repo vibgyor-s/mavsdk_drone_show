@@ -23,6 +23,7 @@ from typing import Iterable, List, Sequence
 PROCESS_PATTERN = re.compile(r'users:\(\("([^"]+)"')
 PORT_PATTERN = re.compile(r":(\d+)$")
 REMOTE_PORT_PATTERN = re.compile(r"\bremote port (?P<port>\d+)\b", re.IGNORECASE)
+PROC_NET_UDP_FILES = (Path("/proc/net/udp"), Path("/proc/net/udp6"))
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,6 +102,31 @@ def extract_ports_from_log(
     return sorted(set(candidates))
 
 
+def extract_ports_from_proc_net_output(
+    output: str,
+    excluded_ports: Sequence[int],
+) -> List[int]:
+    """
+    Extract candidate remote UDP ports from /proc/net/udp* tables.
+    """
+    candidates: List[int] = []
+    for line in output.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        remote_endpoint = parts[2]
+        if ":" not in remote_endpoint:
+            continue
+        try:
+            port = int(remote_endpoint.rsplit(":", 1)[1], 16)
+        except ValueError:
+            continue
+        if _candidate_port(port, excluded_ports):
+            candidates.append(port)
+
+    return sorted(set(candidates))
+
+
 def choose_port(candidates: Iterable[int], default_port: int) -> int:
     candidates = sorted(set(candidates))
     if not candidates:
@@ -117,6 +143,17 @@ def _read_sitl_log(sitl_log: Path | None) -> str:
         return sitl_log.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
+
+
+def _read_proc_net_candidates(excluded_ports: Sequence[int]) -> List[int]:
+    candidates: List[int] = []
+    for path in PROC_NET_UDP_FILES:
+        try:
+            table_text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        candidates.extend(extract_ports_from_proc_net_output(table_text, excluded_ports))
+    return sorted(set(candidates))
 
 
 def detect_from_runtime(
@@ -140,19 +177,20 @@ def detect_from_runtime(
             ss_candidates = extract_ports_from_ss_output(result.stdout, excluded_ports)
             if ss_candidates:
                 return choose_port(ss_candidates, default_port)
-
-            log_candidates = extract_ports_from_log(_read_sitl_log(sitl_log), excluded_ports)
-            if log_candidates:
-                return choose_port(log_candidates, default_port)
         except (FileNotFoundError, subprocess.CalledProcessError) as exc:
             last_error = exc
-            log_candidates = extract_ports_from_log(_read_sitl_log(sitl_log), excluded_ports)
-            if log_candidates:
-                return choose_port(log_candidates, default_port)
+
+        proc_candidates = _read_proc_net_candidates(excluded_ports)
+        if proc_candidates:
+            return choose_port(proc_candidates, default_port)
+
+        log_candidates = extract_ports_from_log(_read_sitl_log(sitl_log), excluded_ports)
+        if log_candidates:
+            return choose_port(log_candidates, default_port)
 
         time.sleep(poll_interval)
 
-    if last_error:
+    if last_error and not isinstance(last_error, FileNotFoundError):
         print(
             f"Warning: falling back to default MAVLink port {default_port} "
             f"after detection error: {last_error}",
