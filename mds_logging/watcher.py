@@ -9,6 +9,7 @@ Reference: docs/guides/logging-system.md
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections import deque
 
 # Level ordering for filtering
@@ -35,11 +36,14 @@ class LogWatcher:
     def __init__(self, max_buffer: int = 100):
         self._subscribers: list[asyncio.Queue] = []
         self._buffer: deque = deque(maxlen=max_buffer)
+        self._lock = threading.Lock()
 
     def publish(self, log_entry: dict) -> None:
-        """Called by log handler on every write. Non-blocking."""
-        self._buffer.append(log_entry)
-        for queue in self._subscribers[:]:
+        """Called by log handler on every write. Non-blocking, thread-safe."""
+        with self._lock:
+            self._buffer.append(log_entry)
+            subscribers = self._subscribers[:]
+        for queue in subscribers:
             try:
                 queue.put_nowait(log_entry)
             except asyncio.QueueFull:
@@ -49,10 +53,13 @@ class LogWatcher:
                         source: str | None = None, drone_id: int | None = None):
         """Async generator yielding filtered log entries."""
         queue: asyncio.Queue = asyncio.Queue(maxsize=200)
-        self._subscribers.append(queue)
+        with self._lock:
+            self._subscribers.append(queue)
         try:
-            # Send buffered recent lines first (snapshot to avoid mutation during iteration)
-            for entry in list(self._buffer):
+            # Snapshot buffer under lock to avoid concurrent mutation
+            with self._lock:
+                buffered = list(self._buffer)
+            for entry in buffered:
                 if _matches_filter(entry, level, component, source, drone_id):
                     yield entry
             # Stream live
@@ -61,7 +68,8 @@ class LogWatcher:
                 if _matches_filter(entry, level, component, source, drone_id):
                     yield entry
         finally:
-            self._subscribers.remove(queue)
+            with self._lock:
+                self._subscribers.remove(queue)
 
 
 # Global watcher instance — shared across the process
