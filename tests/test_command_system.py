@@ -341,7 +341,7 @@ class TestGcsCommandDistribution:
         from src.enums import Mission
 
         drone = {'hw_id': 1, 'ip': '172.18.0.2'}
-        command_data = {'missionType': 'RTL', 'triggerTime': '0'}
+        command_data = {'missionType': 'RTL', 'triggerTime': 0}
 
         mock_response = Mock()
         mock_response.status_code = 200
@@ -354,6 +354,7 @@ class TestGcsCommandDistribution:
         assert error == ""
         assert category == 'accepted'
         assert mock_post.call_args.kwargs['json']['missionType'] == str(Mission.RETURN_RTL.value)
+        assert mock_post.call_args.kwargs['json']['triggerTime'] == '0'
 
     def test_send_commands_to_all_normalizes_rejected_drone_ids(self):
         """Rejected/error logging should not crash when config uses integer hw_id values."""

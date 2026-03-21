@@ -201,6 +201,8 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     command_payload = command_data.copy()
     if 'missionType' in command_payload:
         command_payload['missionType'] = normalized_mission_type
+    if 'triggerTime' in command_payload:
+        command_payload['triggerTime'] = str(command_payload['triggerTime'])
 
     while attempt < retries:
         try:
