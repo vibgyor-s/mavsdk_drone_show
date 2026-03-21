@@ -6,16 +6,15 @@ import '@testing-library/jest-dom';
 
 // JSDOM does not implement window.matchMedia — polyfill for components
 // that use media queries (MUI, ThemeContext, responsive layouts).
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+window.matchMedia = window.matchMedia || function matchMediaPolyfill(query) {
+  return {
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+    addListener() {},
+    removeListener() {},
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() { return false; },
+  };
+};
