@@ -23,27 +23,9 @@ export const sendDroneCommand = async (commandData) => {
   const requestURI = `${getBackendURL()}/submit_command`;
 
   try {
-    console.log('Sending command:', JSON.stringify(commandData));
-    console.log('Request URI:', requestURI);
-    console.log('Base Server URL:', process.env.REACT_APP_SERVER_URL);
-    console.log('Service Port:', process.env.REACT_APP_GCS_PORT);
-
     const response = await axios.post(requestURI, commandData);
-    console.log('Response received from server:', response.data);
-
-    return response.data; // e.g. { status: 'success', message: ... }
+    return response.data;
   } catch (error) {
-    console.error('Error in sendDroneCommand:', error);
-
-    if (error.response) {
-      console.error('Error response data:', error.response.data);
-      console.error('Error status code:', error.response.status);
-    } else if (error.request) {
-      console.error('No response received from the server:', error.request);
-    } else {
-      console.error('Error message:', error.message);
-    }
-
     throw error;
   }
 };
@@ -77,7 +59,6 @@ export const getSwarmClusterStatus = async () => {
       processed_trajectories: statusData.status.processed_trajectories || 0
     };
   } catch (error) {
-    console.error('Error fetching swarm cluster status:', error);
     throw error;
   }
 };
@@ -87,7 +68,6 @@ export const getProcessingRecommendation = async () => {
     const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/recommendation`);
     return response.data;
   } catch (error) {
-    console.error('Error fetching processing recommendation:', error);
     throw error;
   }
 };
@@ -102,7 +82,6 @@ export const processTrajectories = async (options = {}) => {
     });
     return response.data;
   } catch (error) {
-    console.error('Error processing trajectories:', error);
     throw error;
   }
 };
@@ -114,7 +93,6 @@ export const clearProcessedData = async () => {
     const response = await axios.post(requestURI);
     return response.data;
   } catch (error) {
-    console.error('Error clearing processed data:', error);
     throw error;
   }
 };

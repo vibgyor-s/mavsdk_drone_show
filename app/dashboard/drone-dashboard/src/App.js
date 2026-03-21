@@ -10,7 +10,7 @@
  * For commercial licensing, contact: p30planets@gmail.com
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import theme system
@@ -20,24 +20,24 @@ import { MapProvider } from './contexts/MapContext';
 // Import design tokens first
 import './styles/DesignTokens.css';
 
-// Import pages and components
+// Eagerly loaded — primary operational views
 import Overview from './pages/Overview';
-import Detail from './components/DroneDetail';
-import SidebarMenu from './components/SidebarMenu';
-import SwarmDesign from './pages/SwarmDesign';
 import MissionConfig from './pages/MissionConfig';
-import DroneShowDesign from './pages/DroneShowDesign';
-import CustomShowPage from './pages/CustomShowPage';
-import GlobeView from './pages/GlobeView';
-import ManageDroneShow from './pages/ManageDroneShow';
-import SwarmTrajectory from './pages/SwarmTrajectory';
-
-// Clean import - no error boundary needed with Mapbox
-import TrajectoryPlanning from './pages/TrajectoryPlanning';
-import QuickScoutPage from './pages/QuickScoutPage';
+import SidebarMenu from './components/SidebarMenu';
 import SyncWarningBanner from './components/SyncWarningBanner';
-import LogViewer from './pages/LogViewer';
 import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy loaded — heavy visualization pages (three.js, plotly, cytoscape, mapbox)
+const Detail = lazy(() => import('./components/DroneDetail'));
+const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
+const DroneShowDesign = lazy(() => import('./pages/DroneShowDesign'));
+const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
+const GlobeView = lazy(() => import('./pages/GlobeView'));
+const ManageDroneShow = lazy(() => import('./pages/ManageDroneShow'));
+const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
+const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
+const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
+const LogViewer = lazy(() => import('./pages/LogViewer'));
 
 // Import external styles
 import { ToastContainer } from 'react-toastify';
@@ -73,6 +73,7 @@ const App = () => {
         />
         <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
           <SyncWarningBanner />
+          <Suspense fallback={<div className="page-loading">Loading...</div>}>
           <Routes>
             {/* Main drone management routes */}
             <Route path="/drone-show-design" element={<DroneShowDesign />} />
@@ -99,6 +100,7 @@ const App = () => {
             {/* Default route */}
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
           </Routes>
+          </Suspense>
         </div>
       </div>
       <ToastContainer 
