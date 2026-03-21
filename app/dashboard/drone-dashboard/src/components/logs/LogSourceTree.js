@@ -44,7 +44,7 @@ const LogSourceTree = ({ selectedComponent, onSelect }) => {
         >
           <FaCircle size={6} />
           {name}
-          <span className="log-source-badge">{info.source}</span>
+          <span className="log-source-badge">{info.category}</span>
         </div>
       ))}
     </div>

@@ -252,6 +252,10 @@ background_services = BackgroundServices()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
+    # Initialize unified logging (session file, console, SSE watcher handlers)
+    init_server_logging()
+    register_component("gcs", "gcs", "GCS FastAPI server")
+
     # Startup - only runs in worker process
     mode = "Simulation" if Params.sim_mode else "Production"
     log_system_event(f"Starting GCS FastAPI server ({mode} mode)...", "INFO", "startup")

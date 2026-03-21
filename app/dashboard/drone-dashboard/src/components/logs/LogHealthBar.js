@@ -25,7 +25,7 @@ const LogHealthBar = ({ entries }) => {
         if (!mounted) return;
         setGcsOnline(true);
         const components = data.components || {};
-        const droneSources = Object.values(components).filter(c => c.source === 'drone');
+        const droneSources = Object.values(components).filter(c => c.category === 'drone');
         setDroneCount(droneSources.length);
       } catch {
         if (mounted) setGcsOnline(false);
