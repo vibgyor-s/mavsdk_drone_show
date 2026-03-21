@@ -205,6 +205,12 @@ build_custom_image() {
     git_commands=$(cat << EOF
 set -e
 cd /root/mavsdk_drone_show
+if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
+    export MDS_MAVSDK_VERSION="${MDS_MAVSDK_VERSION}"
+fi
+if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
+    export MDS_MAVSDK_URL="${MDS_MAVSDK_URL}"
+fi
 echo "Current repository status:"
 git remote -v
 git branch -a
@@ -216,6 +222,15 @@ echo "Checking out branch: ${branch}"
 git checkout "${branch}"
 echo "Pulling latest changes..."
 git pull origin "${branch}"
+if [[ -f /root/mavsdk_drone_show/mavsdk_server && ! -x /root/mavsdk_drone_show/mavsdk_server ]]; then
+    chmod +x /root/mavsdk_drone_show/mavsdk_server
+fi
+if [[ ! -x /root/mavsdk_drone_show/mavsdk_server ]]; then
+    echo "Provisioning mavsdk_server into /root/mavsdk_drone_show..."
+    MDS_INSTALL_DIR=/root/mavsdk_drone_show bash /root/mavsdk_drone_show/tools/download_mavsdk_server.sh
+fi
+echo "MAVSDK server version:"
+/root/mavsdk_drone_show/mavsdk_server --version | head -1
 echo "Repository update completed successfully"
 git log --oneline -5
 EOF

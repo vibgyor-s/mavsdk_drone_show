@@ -231,6 +231,7 @@ class DroneSetup:
             return_code = process.returncode
             stdout_str = stdout.decode().strip() if stdout else ""
             stderr_str = stderr.decode().strip() if stderr else ""
+            diagnostic_output = stderr_str or stdout_str
             duration_ms = int((time.time() - start_time) * 1000)
 
             async with self.process_lock:
@@ -250,15 +251,15 @@ class DroneSetup:
             else:
                 logger.error(
                     f"Mission script '{script_name}' failed with return code {return_code}. "
-                    f"Stderr: {stderr_str}"
+                    f"Output: {diagnostic_output}"
                 )
                 self._reset_mission_state(success=False)
                 # Report failure to GCS
                 await self._report_execution_to_gcs(
                     success=False,
-                    error_message=stderr_str[:200] or f"Script failed with code {return_code}",
+                    error_message=diagnostic_output[:200] or f"Script failed with code {return_code}",
                     exit_code=return_code,
-                    script_output=stderr_str[:500],
+                    script_output=diagnostic_output[:500],
                     duration_ms=duration_ms
                 )
 
@@ -458,6 +459,10 @@ class DroneSetup:
         Runs tools/sync_time_linux.sh to synchronize the drone's system clock.
         This is important for coordinated show timing across multiple drones.
         """
+        if getattr(self.params, 'sim_mode', False):
+            logger.info("Simulation mode active. Skipping time synchronization.")
+            return
+
         script_path = self._get_script_path('tools/sync_time_linux.sh')
         if not os.path.isfile(script_path):
             logger.warning("Time sync script not found, skipping time synchronization.")

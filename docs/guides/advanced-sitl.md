@@ -59,6 +59,8 @@ Notes:
 - SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
+- `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
+- If you want to pin the MAVSDK server version or URL, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`.
 
 ### Step 2: Build Custom Docker Image (If Needed)
 
@@ -67,6 +69,8 @@ Notes:
 cd /path/to/mavsdk_drone_show
 bash tools/build_custom_image.sh
 ```
+
+`tools/build_custom_image.sh` now ensures `/root/mavsdk_drone_show/mavsdk_server` exists before committing the image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime.
 
 ### Step 3: Deploy Your Drones
 

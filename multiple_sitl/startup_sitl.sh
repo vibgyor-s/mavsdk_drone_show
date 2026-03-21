@@ -84,6 +84,8 @@ CONFIG_FILE="$BASE_DIR/config_sitl.json"
 PX4_DIR="${MDS_PX4_DIR:-$HOME/PX4-Autopilot}"
 PX4_RCS_PATH="$PX4_DIR/build/px4_sitl_default/etc/init.d-posix/rcS"
 PX4_BUILD_PREP_LOG="$BASE_DIR/logs/px4_build_prepare.log"
+MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
+MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
@@ -722,6 +724,47 @@ setup_python_env() {
     fi
 }
 
+ensure_mavsdk_server() {
+    mkdir -p "$BASE_DIR/logs"
+
+    if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then
+        chmod +x "$MAVSDK_BINARY_PATH"
+    fi
+
+    if [ -x "$MAVSDK_BINARY_PATH" ]; then
+        log_message "MAVSDK server binary ready: $MAVSDK_BINARY_PATH"
+        return
+    fi
+
+    if [ ! -f "$MAVSDK_DOWNLOAD_SCRIPT" ]; then
+        log_message "ERROR: MAVSDK server binary missing and download script not found: $MAVSDK_DOWNLOAD_SCRIPT"
+        exit 1
+    fi
+
+    if ! command -v curl &>/dev/null; then
+        log_message "ERROR: curl is required to download mavsdk_server but is not installed."
+        exit 1
+    fi
+
+    local mavsdk_log="$BASE_DIR/logs/mavsdk_download.log"
+    log_message "MAVSDK server binary missing. Downloading it into $BASE_DIR..."
+
+    if MDS_INSTALL_DIR="$BASE_DIR" bash "$MAVSDK_DOWNLOAD_SCRIPT" &>"$mavsdk_log"; then
+        if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then
+            chmod +x "$MAVSDK_BINARY_PATH"
+        fi
+
+        if [ -x "$MAVSDK_BINARY_PATH" ]; then
+            log_message "MAVSDK server binary installed successfully. Logs: $mavsdk_log"
+            return
+        fi
+    fi
+
+    log_message "ERROR: Failed to provision mavsdk_server. Recent log lines:"
+    tail_log_file "$mavsdk_log"
+    exit 1
+}
+
 # Prepare PX4 build artifacts if the generated rcS file is not available yet.
 prepare_px4_build_artifacts() {
     if [ -f "$PX4_RCS_PATH" ]; then
@@ -968,6 +1011,7 @@ update_repository
 
 # Set up Python environment
 setup_python_env
+ensure_mavsdk_server
 
 # Clean up any stale simulator processes before launching a fresh instance.
 cleanup_stale_simulation_processes

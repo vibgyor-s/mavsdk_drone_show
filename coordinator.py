@@ -260,8 +260,11 @@ def main_loop():
 
         # Synchronize time if enabled
         if params.online_sync_time:
-            drone_setup.synchronize_time()
-            logger.info("Time synchronized.")
+            if params.sim_mode:
+                logger.info("Skipping time synchronization in simulation mode.")
+            else:
+                drone_setup.synchronize_time()
+                logger.info("Time synchronized.")
 
         logger.info("Initialization successful. MAVLink is ready.")
 

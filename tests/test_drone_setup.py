@@ -572,6 +572,25 @@ class TestTimeSynchronization:
         assert hasattr(setup, 'synchronize_time')
         assert callable(setup.synchronize_time)
 
+    @patch('src.drone_setup.subprocess.run')
+    @patch('src.drone_setup.logger')
+    def test_synchronize_time_skips_in_sim_mode(self, mock_logger, mock_run):
+        """Test time sync is skipped cleanly in simulation mode"""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.sim_mode = True
+        drone_config = Mock()
+        drone_config.trigger_time = 0
+        drone_config.mission = 0
+
+        setup = DroneSetup(params, drone_config)
+        setup.synchronize_time()
+
+        mock_run.assert_not_called()
+        mock_logger.info.assert_any_call("Simulation mode active. Skipping time synchronization.")
+
 
 # ============================================================================
 # Test: DroneConfig Integration
@@ -689,3 +708,41 @@ class TestMissionLogging:
 
         assert hasattr(setup, 'last_logged_state')
         assert setup.last_logged_state is None
+
+
+@pytest.mark.unit
+@pytest.mark.mission
+class TestMissionProcessMonitoring:
+    """Test mission subprocess monitoring and diagnostics"""
+
+    @pytest.mark.asyncio
+    async def test_monitor_script_process_uses_stdout_when_stderr_empty(self):
+        """Test child stdout is surfaced when a mission script fails without stderr"""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = Mock()
+        drone_config.trigger_time = 0
+        drone_config.mission = 0
+
+        setup = DroneSetup(params, drone_config)
+        process = Mock()
+        process.communicate = AsyncMock(return_value=(b"mavsdk_server executable not found.\n", b""))
+        process.returncode = 1
+        setup.running_processes["actions.py"] = process
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        with patch('src.drone_setup.logger') as mock_logger:
+            await setup._monitor_script_process("actions.py", process)
+
+        setup._reset_mission_state.assert_called_once_with(success=False)
+        setup._report_execution_to_gcs.assert_awaited_once()
+        report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
+
+        assert report_kwargs["error_message"] == "mavsdk_server executable not found."
+        assert report_kwargs["script_output"] == "mavsdk_server executable not found."
+        mock_logger.error.assert_any_call(
+            "Mission script 'actions.py' failed with return code 1. Output: mavsdk_server executable not found."
+        )

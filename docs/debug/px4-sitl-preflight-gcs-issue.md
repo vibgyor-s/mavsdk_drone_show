@@ -15,6 +15,30 @@ There were two separate problems:
 1. The system assumed the coordinator's application heartbeat meant PX4 had a GCS connection. It does not. PX4 only cares about MAVLink `HEARTBEAT` traffic from a `MAV_TYPE_GCS` endpoint.
 2. The repository was applying SITL parameter overrides by editing the generated build `rcS`. In practice, the trustworthy fix path is PX4's native `PX4_PARAM_*` launch-time override mechanism, which applies after the airframe defaults are loaded.
 
+## Follow-up Regression Found During Verification
+
+After the GCS/preflight issue was fixed, takeoff still failed in one rebuilt Docker image even though `is_ready_to_arm` was already `true`.
+
+That turned out to be a separate packaging problem:
+
+- the image had been rebuilt from a clean git checkout
+- `mavsdk_server` is required at runtime by `actions.py`
+- `mavsdk_server` is not tracked in git
+- the clean-image rebuild accidentally removed `/root/mavsdk_drone_show/mavsdk_server`
+
+Symptoms:
+
+- `POST /api/send-command` accepted `TAKE_OFF`
+- `DroneSetup` launched `actions.py`
+- `actions.py` exited with code `1`
+- the structured child log showed: `mavsdk_server executable not found.`
+
+Final mitigation:
+
+- `multiple_sitl/startup_sitl.sh` now verifies `mavsdk_server` before PX4/coordinator startup and auto-downloads it when missing
+- `tools/build_custom_image.sh` now ensures `mavsdk_server` exists before committing a custom image
+- mission failure logging now falls back to child `stdout` when `stderr` is empty, so the real cause is visible in the parent log
+
 ## Problem Statement
 
 When running PX4 SITL with Gazebo Harmonic (`make px4_sitl gz_x500`) inside Docker
@@ -38,7 +62,9 @@ level (not INFO) suggests `NAV_DLL_ACT > 0` at runtime, which **blocks arming**.
 - **Coordinator**: Running, HTTP heartbeats to the GCS API working
 - **Telemetry**: Drone position/velocity data routed out correctly
 
-## Historical Attempts
+## Legacy Investigation Notes (Historical Only)
+
+The sections below explain why the old rcS-mutation theory looked plausible at the time. They are retained for context only. The active fix path is **not** build-`rcS` mutation anymore; it is launch-time `PX4_PARAM_*` overrides plus ensuring `mavsdk_server` is present in the image/runtime.
 
 ### Approach 1: rcS Override Block (via `configure_px4_sitl_rcs.py`)
 
@@ -194,8 +220,8 @@ At the time, the working theories were:
 ## Success Criteria
 
 1. PX4 SITL starts without `WARN` level "No connection to GCS" (INFO is acceptable)
-2. OR: The drone can arm despite the warning (meaning `NAV_DLL_ACT` is effectively 0)
+2. `actions.py` can find `mavsdk_server`, so accepted `TAKE_OFF` commands can execute
 3. Solution must NOT modify PX4 upstream source files (must survive `git pull`)
-4. Solution must be applied cleanly via `startup_sitl.sh` without modifying PX4 upstream source files
+4. Solution must be applied cleanly via `startup_sitl.sh` and image build tooling without modifying PX4 upstream source files
 5. Solution must be configurable (not hardcoded) — see `DEFAULT_SITL_PARAM_OVERRIDES`
    in `startup_sitl.sh` line 104

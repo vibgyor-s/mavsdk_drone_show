@@ -32,22 +32,23 @@ PixelStrip = None
 Color = None
 Pi5Neo = None
 
-# Try Raspberry Pi 4 library first (default, proven method)
-try:
-    from rpi_ws281x import PixelStrip, Color
-    LED_LIBRARY = 'rpi_ws281x'
-    print("[LED] Loaded rpi_ws281x library (Pi 4 default)")
-except ImportError:
-    print("[LED] rpi_ws281x not available, trying Pi5Neo...")
-    # Fallback to Raspberry Pi 5 library
+if not Params.sim_mode:
+    # Try Raspberry Pi 4 library first (default, proven method)
     try:
-        from Pi5Neo import Pi5Neo
-        LED_LIBRARY = 'Pi5Neo'
-        print("[LED] Loaded Pi5Neo library (Pi 5 fallback)")
+        from rpi_ws281x import PixelStrip, Color
+        LED_LIBRARY = 'rpi_ws281x'
+        print("[LED] Loaded rpi_ws281x library (Pi 4 default)")
     except ImportError:
-        LED_LIBRARY = None
-        print("[LED] WARNING: No LED library available - LED support disabled")
-        print("[LED] Install: pip install rpi-ws281x (Pi 4) OR pip install Pi5Neo (Pi 5)")
+        print("[LED] rpi_ws281x not available, trying Pi5Neo...")
+        # Fallback to Raspberry Pi 5 library
+        try:
+            from Pi5Neo import Pi5Neo
+            LED_LIBRARY = 'Pi5Neo'
+            print("[LED] Loaded Pi5Neo library (Pi 5 fallback)")
+        except ImportError:
+            LED_LIBRARY = None
+            print("[LED] WARNING: No LED library available - LED support disabled")
+            print("[LED] Install: pip install rpi-ws281x (Pi 4) OR pip install Pi5Neo (Pi 5)")
 
 
 class LEDController:
