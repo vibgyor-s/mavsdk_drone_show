@@ -15,12 +15,19 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     // Report to backend — fire-and-forget
-    reportFrontendError('ERROR', `React crash: ${error.message}`, {
-      stack: error.stack,
-      componentStack: errorInfo?.componentStack,
-    }).catch(() => {
-      // Backend unreachable — nothing we can do
-    });
+    try {
+      const result = reportFrontendError('ERROR', `React crash: ${error.message}`, {
+        stack: error.stack,
+        componentStack: errorInfo?.componentStack,
+      });
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {
+          // Backend unreachable — nothing we can do
+        });
+      }
+    } catch {
+      // reportFrontendError itself failed — nothing we can do
+    }
   }
 
   handleReset = () => {
