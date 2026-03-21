@@ -245,11 +245,17 @@ download_mavsdk() {
     # Make executable
     chmod +x "$output_path"
 
-    # Verify binary
+    # Verify binary without executing it. Some MAVSDK server builds do not
+    # exit cleanly for `--version`, which can hang image builds or runtime
+    # provisioning.
     if [[ -x "$output_path" ]]; then
-        local installed_version
-        installed_version=$("$output_path" --version 2>&1 | head -1 || echo "unknown")
-        print_success "MAVSDK server downloaded: $installed_version"
+        local binary_details
+        local binary_size
+        binary_details=$(file "$output_path" 2>/dev/null || echo "unknown binary type")
+        binary_size=$(stat -c%s "$output_path" 2>/dev/null || echo "unknown")
+        print_success "MAVSDK server downloaded successfully"
+        print_info "Binary: $binary_details"
+        print_info "Size (bytes): $binary_size"
         print_success "Location: $output_path"
         return 0
     fi

@@ -254,14 +254,9 @@ if [[ ! -x /root/mavsdk_drone_show/mavsdk_server ]]; then
     echo "Provisioning mavsdk_server into /root/mavsdk_drone_show..."
     MDS_INSTALL_DIR=/root/mavsdk_drone_show bash /root/mavsdk_drone_show/tools/download_mavsdk_server.sh
 fi
-echo "MAVSDK server version:"
-rm -f /tmp/mavsdk_server_version.log
-if timeout 5s /root/mavsdk_drone_show/mavsdk_server --version >/tmp/mavsdk_server_version.log 2>&1; then
-    head -1 /tmp/mavsdk_server_version.log
-else
-    head -1 /tmp/mavsdk_server_version.log || true
-    echo "MAVSDK version probe timed out or exited non-zero; continuing after bounded check"
-fi
+echo "MAVSDK server binary details:"
+file /root/mavsdk_drone_show/mavsdk_server
+stat -c "MAVSDK server size (bytes): %s" /root/mavsdk_drone_show/mavsdk_server
 echo "Repository update completed successfully"
 git log --oneline -5
 EOF
