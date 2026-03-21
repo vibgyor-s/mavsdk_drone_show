@@ -7,7 +7,7 @@ import subprocess
 import time
 import os
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import aiohttp
 
@@ -15,6 +15,8 @@ from mds_logging import get_logger
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
 logger = get_logger("drone_setup")
+
+ManagedProcess = Union[asyncio.subprocess.Process, subprocess.Popen]
 
 class DroneSetup:
     """
@@ -159,6 +161,36 @@ class DroneSetup:
         """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
+    @staticmethod
+    def _is_asyncio_process(process: ManagedProcess) -> bool:
+        wait_method = getattr(process, "wait", None)
+        communicate_method = getattr(process, "communicate", None)
+        return (
+            isinstance(process, asyncio.subprocess.Process)
+            or asyncio.iscoroutinefunction(wait_method)
+            or asyncio.iscoroutinefunction(communicate_method)
+        )
+
+    async def _wait_for_process(self, process: ManagedProcess, timeout: Optional[float] = None):
+        if self._is_asyncio_process(process):
+            wait_coro = process.wait()
+            if timeout is None:
+                return await wait_coro
+            return await asyncio.wait_for(wait_coro, timeout=timeout)
+
+        def _wait_blocking():
+            return process.wait(timeout=timeout)
+
+        try:
+            return await asyncio.to_thread(_wait_blocking)
+        except subprocess.TimeoutExpired as exc:
+            raise asyncio.TimeoutError from exc
+
+    async def _communicate_with_process(self, process: ManagedProcess):
+        if self._is_asyncio_process(process):
+            return await process.communicate()
+        return await asyncio.to_thread(process.communicate)
+
     async def terminate_all_running_processes(self):
         """
         Forcibly stops all currently running mission scripts.
@@ -170,12 +202,12 @@ class DroneSetup:
                     logger.warning(f"Terminating mission script: {script_name} (PID: {process.pid})")
                     process.terminate()
                     try:
-                        await asyncio.wait_for(process.wait(), timeout=5)
+                        await self._wait_for_process(process, timeout=5)
                         logger.info(f"Process '{script_name}' terminated gracefully.")
                     except asyncio.TimeoutError:
                         logger.warning(f"Process '{script_name}' did not terminate in time. Killing it.")
                         process.kill()
-                        await process.wait()
+                        await self._wait_for_process(process)
                         logger.info(f"Process '{script_name}' killed forcefully.")
 
                     # Mark mission as failed to place the system in a safe state
@@ -202,11 +234,21 @@ class DroneSetup:
             logger.info(f"Executing mission script asynchronously: {' '.join(command)}")
 
             try:
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
+                try:
+                    process = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                except NotImplementedError:
+                    logger.warning(
+                        f"Async subprocess execution is unavailable. Falling back to subprocess.Popen for '{script_name}'."
+                    )
+                    process = subprocess.Popen(
+                        command,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
+                    )
                 self.running_processes[script_name] = process
 
                 # Create a background task that monitors this script's completion
@@ -219,7 +261,7 @@ class DroneSetup:
                 self._reset_mission_state(success=False)
                 return (False, f"Exception: {str(e)}")
 
-    async def _monitor_script_process(self, script_name: str, process: asyncio.subprocess.Process):
+    async def _monitor_script_process(self, script_name: str, process: ManagedProcess):
         """
         Monitors the lifetime of the subprocess for a given script.
         Cleans up upon completion, sets mission state accordingly.
@@ -227,7 +269,7 @@ class DroneSetup:
         """
         start_time = time.time()
         try:
-            stdout, stderr = await process.communicate()
+            stdout, stderr = await self._communicate_with_process(process)
             return_code = process.returncode
             stdout_str = stdout.decode().strip() if stdout else ""
             stderr_str = stderr.decode().strip() if stderr else ""

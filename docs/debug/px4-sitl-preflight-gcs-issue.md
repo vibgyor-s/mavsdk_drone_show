@@ -39,6 +39,32 @@ Final mitigation:
 - `tools/build_custom_image.sh` now ensures `mavsdk_server` exists before committing a custom image
 - mission failure logging now falls back to child `stdout` when `stderr` is empty, so the real cause is visible in the parent log
 
+## Second Follow-up Regression Found During End-to-End Takeoff Verification
+
+After the `mavsdk_server` packaging issue was fixed, the next `TAKE_OFF` attempt still failed in Docker SITL even though:
+
+- `is_ready_to_arm` was `true`
+- the command was accepted by `/api/send-command`
+- `actions.py` existed and could be found
+
+That turned out to be an application-runtime issue in our own code, not PX4 or MAVSDK:
+
+- `DroneSetup.execute_mission_script()` used `asyncio.create_subprocess_exec()`
+- in the coordinator runtime, the active event-loop policy did not provide a usable child watcher for that API
+- the failure surfaced as `NotImplementedError` from `asyncio.events.get_child_watcher()`
+
+Symptoms:
+
+- `TAKE_OFF` was accepted
+- `DroneSetup` attempted to launch `actions.py`
+- mission execution failed immediately with a traceback ending in `NotImplementedError`
+
+Final mitigation:
+
+- `src/drone_setup.py` now keeps the normal `asyncio.create_subprocess_exec()` path when available
+- if that path raises `NotImplementedError`, it falls back to `subprocess.Popen` and monitors the child via `asyncio.to_thread`
+- this fix stays inside our application layer and does **not** patch or vendor-modify PX4, MAVSDK, Gazebo, or other third-party code
+
 ## Problem Statement
 
 When running PX4 SITL with Gazebo Harmonic (`make px4_sitl gz_x500`) inside Docker

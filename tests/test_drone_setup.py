@@ -467,6 +467,40 @@ class TestScriptExecution:
         assert result[0] is False
         assert 'not found' in result[1].lower()
 
+    @pytest.mark.asyncio
+    async def test_execute_mission_script_falls_back_to_popen(self):
+        """Test execute_mission_script falls back when asyncio subprocess support is unavailable"""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = Mock()
+        drone_config.trigger_time = 0
+        drone_config.mission = 0
+
+        setup = DroneSetup(params, drone_config)
+        fallback_process = Mock()
+        fallback_process.pid = 1234
+        fallback_process.returncode = None
+
+        def fake_create_task(coro):
+            coro.close()
+            return Mock()
+
+        with patch('src.drone_setup.os.path.isfile', return_value=True), \
+             patch('src.drone_setup.asyncio.create_subprocess_exec', AsyncMock(side_effect=NotImplementedError)), \
+             patch('src.drone_setup.subprocess.Popen', return_value=fallback_process) as mock_popen, \
+             patch('src.drone_setup.asyncio.create_task', side_effect=fake_create_task), \
+             patch('src.drone_setup.logger') as mock_logger:
+            result = await setup.execute_mission_script('actions.py', '--action=takeoff')
+
+        assert result[0] is True
+        assert setup.running_processes['actions.py'] is fallback_process
+        mock_popen.assert_called_once()
+        mock_logger.warning.assert_any_call(
+            "Async subprocess execution is unavailable. Falling back to subprocess.Popen for 'actions.py'."
+        )
+
 
 # ============================================================================
 # Test: Trigger Time Calculation
