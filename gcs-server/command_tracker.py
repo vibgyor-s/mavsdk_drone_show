@@ -16,11 +16,17 @@ Features:
 Command Lifecycle:
 1. CREATED   - Command created, pending drone ACKs
 2. SUBMITTED - Sent to drones, collecting acknowledgments
-3. EXECUTING - All drones acknowledged, execution in progress
+3. EXECUTING - Legacy status once ACK collection finishes
 4. COMPLETED - All drones reported execution success
 5. PARTIAL   - Some drones succeeded, some failed
 6. FAILED    - All drones failed or timeout occurred
 7. CANCELLED - Command was cancelled
+
+Operator-facing lifecycle should use:
+- phase=awaiting_ack        while delivery/ACKs are still pending
+- phase=pending_execution   once ACKs are done but execution has not started
+- phase=in_progress         once at least one drone reports execution start
+- phase=terminal            once a terminal outcome has been reached
 
 Usage:
     tracker = CommandTracker()
@@ -55,7 +61,7 @@ from typing import Any, Dict, List, Optional
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from enums import CommandStatus, Mission
+from enums import CommandOutcome, CommandPhase, CommandStatus, Mission
 from mds_logging import get_logger
 
 logger = get_logger("command_tracker")
@@ -94,6 +100,8 @@ class TrackedCommand:
     target_drones: List[str]
     params: Dict[str, Any]
     status: CommandStatus
+    phase: CommandPhase
+    outcome: Optional[CommandOutcome]
     created_at: int
     updated_at: int
 
@@ -107,6 +115,7 @@ class TrackedCommand:
     acks_errors: int = 0  # Unexpected errors
 
     # Execution tracking
+    execution_starts: Dict[str, int] = field(default_factory=dict)
     executions: Dict[str, DroneExecution] = field(default_factory=dict)
     executions_expected: int = 0
     executions_received: int = 0
@@ -115,6 +124,7 @@ class TrackedCommand:
 
     # Timing
     submitted_at: Optional[int] = None
+    execution_started_at: Optional[int] = None
     completed_at: Optional[int] = None
     timeout_at: Optional[int] = None
 
@@ -203,6 +213,8 @@ class CommandTracker:
             target_drones=list(target_drones),
             params=params or {},
             status=CommandStatus.CREATED,
+            phase=CommandPhase.AWAITING_ACK,
+            outcome=None,
             created_at=timestamp,
             updated_at=timestamp,
             acks_expected=len(target_drones),
@@ -236,6 +248,8 @@ class CommandTracker:
 
             command = self._commands[command_id]
             command.status = CommandStatus.SUBMITTED
+            command.phase = CommandPhase.AWAITING_ACK
+            command.outcome = None
             command.submitted_at = int(time.time() * 1000)
             command.updated_at = command.submitted_at
 
@@ -309,23 +323,33 @@ class CommandTracker:
                 actual_problems = command.acks_rejected + command.acks_errors
 
                 if actual_problems == 0 and command.acks_accepted > 0:
-                    # All reachable drones accepted (some may be offline - that's OK)
+                    # Legacy status becomes EXECUTING here, but the phase remains
+                    # pending_execution until a drone reports an actual start.
                     command.status = CommandStatus.EXECUTING
+                    command.phase = CommandPhase.PENDING_EXECUTION
+                    command.outcome = None
                 elif command.acks_accepted == 0 and actual_problems == 0:
                     # All drones offline - this is informational, not a failure
                     command.status = CommandStatus.FAILED
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.FAILED
                     command.completed_at = timestamp
                     command.error_summary = f"All {command.acks_offline} drones offline"
                     self._stats['failed_commands'] += 1
                 elif command.acks_accepted == 0:
                     # All drones rejected/errored
                     command.status = CommandStatus.FAILED
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.FAILED
                     command.completed_at = timestamp
                     command.error_summary = f"All reachable drones failed ({command.acks_rejected} rejected, {command.acks_errors} errors)"
                     self._stats['failed_commands'] += 1
                 else:
-                    # Partial - some accepted, some had issues
+                    # Some drones accepted while others were unavailable or rejected.
+                    # Execution has still not started yet.
                     command.status = CommandStatus.EXECUTING
+                    command.phase = CommandPhase.PENDING_EXECUTION
+                    command.outcome = None
                     parts = []
                     if command.acks_accepted > 0:
                         parts.append(f"{command.acks_accepted} accepted")
@@ -341,6 +365,51 @@ class CommandTracker:
             f"ACK recorded: {hw_id} -> {category} for {command_id[:8]}... "
             f"({command.acks_received}/{command.acks_expected})"
         )
+
+        return True
+
+    def _mark_execution_started_locked(
+        self,
+        command: TrackedCommand,
+        hw_id: str,
+        timestamp: int,
+    ) -> bool:
+        """Mark a command as actively executing from a specific drone.
+
+        Returns True when this call recorded a new start event, False when it
+        was already known.
+        """
+        if hw_id in command.execution_starts:
+            return False
+
+        command.execution_starts[hw_id] = timestamp
+        command.updated_at = timestamp
+        command.status = CommandStatus.EXECUTING
+        command.phase = CommandPhase.IN_PROGRESS
+        command.outcome = None
+
+        if command.execution_started_at is None:
+            command.execution_started_at = timestamp
+
+        return True
+
+    async def record_execution_start(
+        self,
+        command_id: str,
+        hw_id: str,
+    ) -> bool:
+        """Record that a drone has started executing a previously accepted command."""
+        async with self._lock:
+            if command_id not in self._commands:
+                logger.warning(f"Execution start for unknown command: {command_id}")
+                return False
+
+            command = self._commands[command_id]
+            timestamp = int(time.time() * 1000)
+            is_new_start = self._mark_execution_started_locked(command, hw_id, timestamp)
+
+        if is_new_start:
+            logger.info(f"Execution started: {hw_id} for {command_id[:8]}...")
 
         return True
 
@@ -382,6 +451,8 @@ class CommandTracker:
                 logger.debug(f"Duplicate execution from {hw_id} for {command_id[:8]}")
                 return True
 
+            self._mark_execution_started_locked(command, hw_id, timestamp)
+
             execution = DroneExecution(
                 hw_id=hw_id,
                 success=success,
@@ -407,15 +478,21 @@ class CommandTracker:
             if command.executions_received >= expected_executions and expected_executions > 0:
                 if command.executions_failed == 0:
                     command.status = CommandStatus.COMPLETED
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.COMPLETED
                     self._stats['successful_commands'] += 1
                 elif command.executions_succeeded == 0:
                     command.status = CommandStatus.FAILED
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.FAILED
                     command.error_summary = (
                         f"All {command.executions_failed} executions failed"
                     )
                     self._stats['failed_commands'] += 1
                 else:
                     command.status = CommandStatus.PARTIAL
+                    command.phase = CommandPhase.TERMINAL
+                    command.outcome = CommandOutcome.PARTIAL
                     command.error_summary = (
                         f"{command.executions_failed}/{expected_executions} executions failed"
                     )
@@ -441,6 +518,8 @@ class CommandTracker:
                 return False
 
             command.status = CommandStatus.CANCELLED
+            command.phase = CommandPhase.TERMINAL
+            command.outcome = CommandOutcome.CANCELLED
             command.error_summary = reason
             command.completed_at = int(time.time() * 1000)
             command.updated_at = command.completed_at
@@ -463,17 +542,32 @@ class CommandTracker:
             # Snapshot to list to avoid modification during iteration
             commands_snapshot = list(self._commands.items())
             for command_id, command in commands_snapshot:
-                if command.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
-                                      CommandStatus.EXECUTING]:
+                if command.phase != CommandPhase.TERMINAL:
                     if command.timeout_at and timestamp > command.timeout_at:
+                        previous_phase = command.phase
                         command.status = CommandStatus.TIMEOUT
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.TIMEOUT
                         command.completed_at = timestamp
                         command.updated_at = timestamp
-                        command.error_summary = (
-                            f"Timeout after {(timestamp - command.created_at) / 1000:.1f}s "
-                            f"(ACKs: {command.acks_received}/{command.acks_expected}, "
-                            f"Exec: {command.executions_received}/{command.acks_accepted})"
-                        )
+                        timeout_age_s = (timestamp - command.created_at) / 1000
+                        if previous_phase == CommandPhase.IN_PROGRESS:
+                            command.error_summary = (
+                                f"Tracking timed out after {timeout_age_s:.1f}s after execution started "
+                                f"(results: {command.executions_received}/{command.acks_accepted}). Final outcome unknown."
+                            )
+                        elif command.acks_accepted > 0:
+                            command.error_summary = (
+                                f"Tracking timed out after {timeout_age_s:.1f}s after "
+                                f"{command.acks_accepted}/{command.acks_expected} drones accepted the command. "
+                                f"Execution start was not confirmed."
+                            )
+                        else:
+                            command.error_summary = (
+                                f"Timeout after {timeout_age_s:.1f}s "
+                                f"(ACKs: {command.acks_received}/{command.acks_expected}, "
+                                f"Exec: {command.executions_received}/{command.acks_accepted})"
+                            )
                         self._stats['timeout_commands'] += 1
                         timed_out.append(command_id)
 
@@ -534,8 +628,7 @@ class CommandTracker:
             stats = dict(self._stats)
             stats['active_commands'] = len([
                 c for c in self._commands.values()
-                if c.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
-                               CommandStatus.EXECUTING]
+                if c.phase != CommandPhase.TERMINAL
             ])
             stats['tracked_commands'] = len(self._commands)
 
@@ -556,8 +649,7 @@ class CommandTracker:
         async with self._lock:
             active = [
                 c for c in self._commands.values()
-                if c.status in [CommandStatus.CREATED, CommandStatus.SUBMITTED,
-                               CommandStatus.EXECUTING]
+                if c.phase != CommandPhase.TERMINAL
             ]
 
         return [self._command_to_dict(c) for c in active]
@@ -592,10 +684,13 @@ class CommandTracker:
             'target_drones': list(command.target_drones),  # Copy list too
             'params': dict(command.params),  # Copy dict
             'status': command.status.value,
+            'phase': command.phase.value,
+            'outcome': command.outcome.value if command.outcome else None,
 
             # Timing
             'created_at': command.created_at,
             'submitted_at': command.submitted_at,
+            'execution_started_at': command.execution_started_at,
             'completed_at': command.completed_at,
             'updated_at': command.updated_at,
 
@@ -623,6 +718,8 @@ class CommandTracker:
             # Execution summary
             'executions': {
                 'expected': command.acks_accepted,  # Only those that accepted
+                'started': len(command.execution_starts),
+                'active': max(0, len(command.execution_starts) - command.executions_received),
                 'received': command.executions_received,
                 'succeeded': command.executions_succeeded,
                 'failed': command.executions_failed,

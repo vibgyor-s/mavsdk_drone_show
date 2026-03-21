@@ -4,8 +4,9 @@ import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
 import { FaSkull, FaHome, FaPlaneArrival, FaHandPaper } from 'react-icons/fa';
 import ConfirmationModal from './ConfirmationModal';
-import { buildActionCommand, sendDroneCommand } from '../services/droneApiService';
+import { buildActionCommand } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import '../styles/DroneCriticalCommands.css';
 
 /**
@@ -71,18 +72,7 @@ const DroneCriticalCommands = ({ droneId }) => {
     );
 
     try {
-      const response = await sendDroneCommand(commandData);
-      if (response && response.success) {
-        toast.success(
-          `Command "${pendingAction.label}" sent to drone ${droneId} successfully!`
-        );
-      } else {
-        toast.error(
-          `Error sending command "${pendingAction.label}" to drone ${droneId}: ${
-            response?.message || 'Unknown error'
-          }`
-        );
-      }
+      await submitCommandWithLifecycleFeedback(commandData);
     } catch (error) {
       console.error('Error sending command:', error);
       toast.error(`Failed to send "${pendingAction.label}" to drone ${droneId}.`);

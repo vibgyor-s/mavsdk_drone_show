@@ -120,6 +120,8 @@ class TestCommandTracker:
         assert status['mission_name'] == 'TAKE_OFF'
         assert status['target_drones'] == ['1', '2', '3']
         assert status['status'] == 'created'
+        assert status['phase'] == 'awaiting_ack'
+        assert status['outcome'] is None
         assert status['acks']['expected'] == 3
 
     @pytest.mark.asyncio
@@ -150,6 +152,7 @@ class TestCommandTracker:
         assert status['acks']['received'] == 2
         assert status['acks']['accepted'] == 2
         assert status['status'] == 'executing'  # All ACKs received
+        assert status['phase'] == 'pending_execution'
 
     @pytest.mark.asyncio
     async def test_record_ack_rejected(self, tracker):
@@ -174,6 +177,8 @@ class TestCommandTracker:
         status = await tracker.get_status(command_id)
         assert status['acks']['rejected'] == 2
         assert status['status'] == 'failed'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'failed'
         assert 'E202' in status['acks']['details']['1']['error_code']
 
     @pytest.mark.asyncio
@@ -195,8 +200,11 @@ class TestCommandTracker:
         assert success
 
         status = await tracker.get_status(command_id)
+        assert status['executions']['started'] == 1
         assert status['executions']['succeeded'] == 1
         assert status['status'] == 'completed'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'completed'
 
     @pytest.mark.asyncio
     async def test_partial_success(self, tracker):
@@ -222,6 +230,8 @@ class TestCommandTracker:
         assert status['executions']['succeeded'] == 2
         assert status['executions']['failed'] == 1
         assert status['status'] == 'partial'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'partial'
 
     @pytest.mark.asyncio
     async def test_cancel_command(self, tracker):
@@ -236,6 +246,8 @@ class TestCommandTracker:
 
         status = await tracker.get_status(command_id)
         assert status['status'] == 'cancelled'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'cancelled'
 
     @pytest.mark.asyncio
     async def test_get_recent_commands(self, tracker):
@@ -567,7 +579,14 @@ class TestSchemas:
 
     def test_command_status_response(self):
         """Test CommandStatusResponse schema"""
-        from schemas import CommandStatusResponse, AckSummary, ExecutionSummary, CommandStatus
+        from schemas import (
+            AckSummary,
+            CommandOutcome,
+            CommandPhase,
+            CommandStatus,
+            CommandStatusResponse,
+            ExecutionSummary,
+        )
 
         response = CommandStatusResponse(
             command_id="abc-123",
@@ -575,16 +594,19 @@ class TestSchemas:
             mission_name="TAKE_OFF",
             target_drones=["1"],
             status=CommandStatus.COMPLETED,
+            phase=CommandPhase.TERMINAL,
+            outcome=CommandOutcome.COMPLETED,
             created_at=int(time.time() * 1000),
             updated_at=int(time.time() * 1000),
             acks=AckSummary(
                 expected=1, received=1, accepted=1, rejected=0
             ),
             executions=ExecutionSummary(
-                expected=1, received=1, succeeded=1, failed=0
+                expected=1, started=1, active=0, received=1, succeeded=1, failed=0
             )
         )
         assert response.status == CommandStatus.COMPLETED
+        assert response.phase == CommandPhase.TERMINAL
 
     def test_execution_report_request(self):
         """Test ExecutionReportRequest schema"""

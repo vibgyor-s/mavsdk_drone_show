@@ -111,6 +111,13 @@ class DroneState:
         # Derived flags
         self.is_armed: bool = False
         self.is_ready_to_arm: bool = False
+        self.readiness_status: str = "unknown"
+        self.readiness_summary: str = "Waiting for PX4 telemetry"
+        self.readiness_checks: list[Dict[str, Any]] = []
+        self.preflight_blockers: list[Dict[str, Any]] = []
+        self.preflight_warnings: list[Dict[str, Any]] = []
+        self.status_messages: list[Dict[str, Any]] = []
+        self.preflight_last_update: int = 0
 
         # LOCAL_POSITION_NED data
         self.local_position_ned: Dict[str, float] = {

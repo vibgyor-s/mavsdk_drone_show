@@ -454,6 +454,8 @@ def main():
             led_controller,
             critical=True
         )
+        if drone_setup:
+            drone_config.drone_setup = drone_setup
 
         # Optionally, start the PosIDAutoDetector if auto-detection is enabled
         if params.auto_detection_enabled:

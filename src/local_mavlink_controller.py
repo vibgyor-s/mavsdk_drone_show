@@ -1,8 +1,16 @@
 #src\local_mavlink_controller.py
-import threading
 import logging
-from pymavlink import mavutil
+import threading
 import time
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional
+
+from pymavlink import mavutil
+
+
+STATUS_TEXT_RETENTION_MS = 120000
+STATUS_TEXT_MAX_MESSAGES = 8
+STATUS_TEXT_BUFFER_RETENTION_S = 5
 
 class LocalMavlinkController:
     """
@@ -24,7 +32,8 @@ class LocalMavlinkController:
         # Define which message types to listen for
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
-            'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS','LOCAL_POSITION_NED'
+            'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS', 'LOCAL_POSITION_NED',
+            'STATUSTEXT'
         ]
         
         # Create a Mavlink connection using the provided local Mavlink port
@@ -38,6 +47,8 @@ class LocalMavlinkController:
         self.telemetry_thread = threading.Thread(target=self.mavlink_monitor)
         self.telemetry_thread.start()
         self.home_position_logged = False
+        self._status_text_buffers: Dict[int, Dict[str, Any]] = {}
+        self._status_messages: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
     def log_debug(self, message):
         """Logs a debug message if debugging is enabled."""
@@ -91,8 +102,190 @@ class LocalMavlinkController:
             self.process_gps_global_origin(msg)
         elif msg_type == 'SYS_STATUS':
             self.process_sys_status(msg)
+        elif msg_type == 'STATUSTEXT':
+            self.process_status_text(msg)
         else:
             self.log_debug(f"Received unhandled message type: {msg.get_type()}")
+
+    @staticmethod
+    def _now_ms() -> int:
+        return int(time.time() * 1000)
+
+    @staticmethod
+    def _severity_name(severity: Optional[int]) -> str:
+        mapping = {
+            0: 'emergency',
+            1: 'alert',
+            2: 'critical',
+            3: 'error',
+            4: 'warning',
+            5: 'notice',
+            6: 'info',
+            7: 'debug',
+        }
+        try:
+            return mapping.get(int(severity), 'info')
+        except (TypeError, ValueError):
+            return 'info'
+
+    @staticmethod
+    def _severity_rank(severity: str) -> int:
+        order = {
+            'emergency': 0,
+            'alert': 1,
+            'critical': 2,
+            'error': 3,
+            'warning': 4,
+            'notice': 5,
+            'info': 6,
+            'debug': 7,
+        }
+        return order.get(severity, 6)
+
+    @staticmethod
+    def _trim_statustext(text: Any) -> str:
+        if isinstance(text, bytes):
+            decoded = text.decode('utf-8', errors='ignore')
+        else:
+            decoded = str(text or '')
+        return decoded.split('\x00', 1)[0].strip()
+
+    def _expire_status_text_buffers(self) -> None:
+        cutoff = time.time() - STATUS_TEXT_BUFFER_RETENTION_S
+        stale_ids = [
+            message_id
+            for message_id, buffer in self._status_text_buffers.items()
+            if buffer.get('created_at', 0) < cutoff
+        ]
+        for message_id in stale_ids:
+            self._status_text_buffers.pop(message_id, None)
+
+    def _collect_status_text(self, msg) -> Optional[str]:
+        text_chunk = self._trim_statustext(getattr(msg, 'text', ''))
+        if not text_chunk:
+            return None
+
+        message_id = int(getattr(msg, 'id', 0) or 0)
+        chunk_seq = int(getattr(msg, 'chunk_seq', 0) or 0)
+        if message_id == 0 and chunk_seq == 0:
+            return text_chunk
+
+        self._expire_status_text_buffers()
+        buffer = self._status_text_buffers.setdefault(
+            message_id,
+            {'created_at': time.time(), 'chunks': {}},
+        )
+        buffer['chunks'][chunk_seq] = text_chunk
+
+        if len(text_chunk) >= 50:
+            return None
+
+        combined = ''.join(
+            chunk
+            for _, chunk in sorted(buffer['chunks'].items(), key=lambda item: item[0])
+        ).strip()
+        self._status_text_buffers.pop(message_id, None)
+        return combined or None
+
+    @staticmethod
+    def _classify_status_text(message: str, severity: str) -> Dict[str, Any]:
+        lowered = message.lower()
+        is_preflight = any(
+            token in lowered
+            for token in ('preflight', 'prearm', 'arm denied', 'arming denied', 'takeoff denied')
+        )
+        blocks_readiness = any(
+            token in lowered
+            for token in ('preflight fail', 'prearm fail', 'arm denied', 'arming denied', 'takeoff denied')
+        )
+        category = 'preflight' if is_preflight else 'system'
+        if is_preflight and not blocks_readiness and severity in {'emergency', 'alert', 'critical', 'error'}:
+            blocks_readiness = True
+
+        return {
+            'category': category,
+            'blocks_readiness': blocks_readiness,
+        }
+
+    def _store_status_message(self, message: Dict[str, Any]) -> None:
+        key = f"{message['category']}::{message['severity']}::{message['message'].strip().lower()}"
+        self._status_messages[key] = message
+        self._status_messages.move_to_end(key)
+
+        active_messages = self._get_recent_status_messages(self._now_ms())
+        self.drone_config.status_messages = active_messages[-STATUS_TEXT_MAX_MESSAGES:]
+
+    def _get_recent_status_messages(self, now_ms: Optional[int] = None) -> List[Dict[str, Any]]:
+        current_ms = now_ms if now_ms is not None else self._now_ms()
+        cutoff = current_ms - STATUS_TEXT_RETENTION_MS
+        stale_keys = [
+            key for key, message in self._status_messages.items()
+            if int(message.get('timestamp', 0)) < cutoff
+        ]
+        for key in stale_keys:
+            self._status_messages.pop(key, None)
+        return list(self._status_messages.values())
+
+    @staticmethod
+    def _dedupe_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        deduped: List[Dict[str, Any]] = []
+        seen = set()
+        for message in messages:
+            key = (
+                message.get('source'),
+                message.get('message', '').strip().lower(),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(message)
+        return deduped
+
+    @staticmethod
+    def _build_message(source: str, severity: str, message: str, timestamp: int) -> Dict[str, Any]:
+        return {
+            'source': source,
+            'severity': severity,
+            'message': message,
+            'timestamp': timestamp,
+        }
+
+    @staticmethod
+    def _get_system_status_name(system_status: int) -> str:
+        names = {
+            0: 'UNINIT',
+            1: 'BOOT',
+            2: 'CALIBRATING',
+            3: 'STANDBY',
+            4: 'ACTIVE',
+            5: 'CRITICAL',
+            6: 'EMERGENCY',
+            7: 'POWEROFF',
+            8: 'FLIGHT_TERMINATION',
+        }
+        return names.get(system_status, f'UNKNOWN({system_status})')
+
+    def process_status_text(self, msg):
+        """Capture recent PX4 warnings/errors so readiness issues are visible in telemetry and UI."""
+        message = self._collect_status_text(msg)
+        if not message:
+            return
+
+        severity = self._severity_name(getattr(msg, 'severity', None))
+        if self._severity_rank(severity) > self._severity_rank('warning'):
+            return
+
+        classification = self._classify_status_text(message, severity)
+        timestamp = self._now_ms()
+        self._store_status_message({
+            'source': 'px4',
+            'severity': severity,
+            'category': classification['category'],
+            'message': message,
+            'timestamp': timestamp,
+            'blocks_readiness': classification['blocks_readiness'],
+        })
+        self._update_pre_arm_status()
 
     def process_heartbeat(self, msg):
         """
@@ -160,65 +353,175 @@ class LocalMavlinkController:
                       
     def _update_pre_arm_status(self):
         """
-        Update pre-arm readiness status based on PX4/MAVLink standards.
-        A drone is ready to arm if:
-        1. System status indicates readiness (STANDBY or better)
-        2. Essential sensors are healthy and calibrated
-        3. Flight mode requirements are met (GPS required only for GPS-dependent modes)
-        4. No critical system failures
+        Update the readiness report from both live telemetry and recent PX4 status text.
+
+        `is_ready_to_arm` stays as a simple boolean for compatibility, but the
+        detailed readiness state is published through:
+        - readiness_status / readiness_summary
+        - readiness_checks
+        - preflight_blockers / preflight_warnings
+        - status_messages
         """
-        # Check system status - must be STANDBY (3) or ACTIVE (4) to be ready
+        now_ms = self._now_ms()
+        recent_status_messages = self._get_recent_status_messages(now_ms)
+
+        has_live_vehicle_state = any([
+            self.drone_config.system_status > 0,
+            self.drone_config.last_update_timestamp > 0,
+            bool(recent_status_messages),
+        ])
+
+        if not has_live_vehicle_state:
+            self.drone_config.is_ready_to_arm = False
+            self.drone_config.readiness_status = "unknown"
+            self.drone_config.readiness_summary = "Waiting for PX4 telemetry"
+            self.drone_config.readiness_checks = []
+            self.drone_config.preflight_blockers = []
+            self.drone_config.preflight_warnings = []
+            self.drone_config.status_messages = []
+            self.drone_config.preflight_last_update = now_ms
+            return
+
         system_ready = self.drone_config.system_status >= mavutil.mavlink.MAV_STATE_STANDBY
-        
-        # Check sensor calibrations (IMU sensors always required)
         imu_sensors_ready = (
             self.drone_config.is_gyrometer_calibration_ok and
             self.drone_config.is_accelerometer_calibration_ok
         )
-        
-        # Magnetometer is required but less critical
         mag_ready = self.drone_config.is_magnetometer_calibration_ok
+        gps_fix_ok = getattr(self.drone_config, 'gps_fix_type', 0) >= 3
 
-        # GPS fix status check
-        gps_fix_ok = getattr(self.drone_config, 'gps_fix_type', 0) >= 3  # Require 3D fix or better
-
-        # GPS requirements depend on flight mode
         gps_dependent_modes = [
-            196608,  # Position mode (POSCTL)
-            262147,  # Hold mode (AUTO_LOITER) - requires GPS for position hold
-            262148,  # Mission mode (AUTO_MISSION)  
-            262149,  # Return mode (AUTO_RTL)
-            196609,  # Orbit mode (POSCTL_ORBIT)
-            262152,  # Follow mode (AUTO_FOLLOW)
+            196608,
+            262147,
+            262148,
+            262149,
+            196609,
+            262152,
         ]
-        
-        # GPS-independent modes (including special Hold mode 50593792)
-        gps_independent_modes = [
-            65536,    # Manual
-            131072,   # Altitude
-            327680,   # Acro
-            458752,   # Stabilized
-            524288,   # Rattitude
-            50593792, # Hold (GPS-less variant)
-        ]
-        
-        # Check if current mode requires GPS
         mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
-        
         if mode_requires_gps:
-            # GPS-dependent mode: require good GPS
-            gps_ready = self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
+            gps_ready = gps_fix_ok and self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
         else:
-            # Non-GPS mode (Manual, Stabilized, Altitude, Acro): GPS not required
             gps_ready = True
-        
-        # Overall readiness assessment
+
         sensors_ready = imu_sensors_ready and mag_ready
-        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready
-        
-        self.log_debug(f"Pre-arm checks: system={system_ready}, imu={imu_sensors_ready}, "
-                      f"mag={mag_ready}, gps_required={mode_requires_gps}, "
-                      f"gps_ready={gps_ready} (hdop={self.drone_config.hdop}) -> ready={self.drone_config.is_ready_to_arm}")
+        px4_blockers = [
+            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
+            for message in recent_status_messages
+            if message.get('category') == 'preflight' and message.get('blocks_readiness')
+        ]
+        px4_warnings = [
+            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
+            for message in recent_status_messages
+            if message.get('category') == 'preflight' and not message.get('blocks_readiness')
+        ]
+
+        heuristic_blockers: List[Dict[str, Any]] = []
+        if not system_ready:
+            heuristic_blockers.append(self._build_message(
+                'telemetry',
+                'error',
+                f"Vehicle system state is {self._get_system_status_name(self.drone_config.system_status)}; not yet ready for arming.",
+                now_ms,
+            ))
+        if not imu_sensors_ready:
+            heuristic_blockers.append(self._build_message(
+                'telemetry',
+                'error',
+                "IMU health is incomplete; gyro and accelerometer must both report healthy.",
+                now_ms,
+            ))
+        if not mag_ready:
+            heuristic_blockers.append(self._build_message(
+                'telemetry',
+                'error',
+                "Magnetometer health is incomplete; heading is not yet trustworthy for arming.",
+                now_ms,
+            ))
+        if mode_requires_gps and not gps_ready:
+            if not gps_fix_ok:
+                gps_message = "GPS fix is below 3D while the current flight mode requires GPS."
+            else:
+                gps_message = f"GPS quality is insufficient for the current flight mode (HDOP={self.drone_config.hdop:.2f})."
+            heuristic_blockers.append(self._build_message('telemetry', 'error', gps_message, now_ms))
+
+        heuristic_warnings: List[Dict[str, Any]] = []
+        if not mode_requires_gps and getattr(self.drone_config, 'gps_fix_type', 0) < 3:
+            heuristic_warnings.append(self._build_message(
+                'telemetry',
+                'warning',
+                "GPS is not required for the current mode, but fix quality is currently low.",
+                now_ms,
+            ))
+
+        blockers = self._dedupe_messages(px4_blockers + heuristic_blockers)
+        warnings = self._dedupe_messages(px4_warnings + heuristic_warnings)
+        readiness_checks = [
+            {
+                'id': 'system',
+                'label': 'Vehicle status',
+                'ready': system_ready,
+                'detail': f"PX4 system state: {self._get_system_status_name(self.drone_config.system_status)}",
+            },
+            {
+                'id': 'imu',
+                'label': 'IMU health',
+                'ready': imu_sensors_ready,
+                'detail': "Gyro and accelerometer health",
+            },
+            {
+                'id': 'mag',
+                'label': 'Magnetometer',
+                'ready': mag_ready,
+                'detail': "Compass / heading health",
+            },
+            {
+                'id': 'gps',
+                'label': 'GPS requirement',
+                'ready': gps_ready,
+                'detail': (
+                    f"Mode requires GPS: {'yes' if mode_requires_gps else 'no'}; "
+                    f"fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop:.2f}"
+                ),
+            },
+            {
+                'id': 'px4',
+                'label': 'PX4 arming report',
+                'ready': len(px4_blockers) == 0,
+                'detail': (
+                    "No active PX4 preflight blockers"
+                    if not px4_blockers else
+                    f"{len(px4_blockers)} active PX4 preflight blocker(s)"
+                ),
+            },
+        ]
+
+        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready and not blockers
+        if blockers:
+            readiness_status = "blocked"
+            readiness_summary = blockers[0]['message']
+        elif warnings:
+            readiness_status = "warning"
+            readiness_summary = warnings[0]['message']
+        else:
+            readiness_status = "ready"
+            readiness_summary = "Ready to fly"
+
+        self.drone_config.readiness_status = readiness_status
+        self.drone_config.readiness_summary = readiness_summary
+        self.drone_config.readiness_checks = readiness_checks
+        self.drone_config.preflight_blockers = blockers
+        self.drone_config.preflight_warnings = warnings
+        self.drone_config.status_messages = recent_status_messages[-STATUS_TEXT_MAX_MESSAGES:]
+        self.drone_config.preflight_last_update = now_ms
+
+        self.log_debug(
+            "Pre-arm checks: "
+            f"system={system_ready}, imu={imu_sensors_ready}, mag={mag_ready}, "
+            f"gps_required={mode_requires_gps}, gps_ready={gps_ready} "
+            f"(fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop}) "
+            f"px4_blockers={len(px4_blockers)} -> ready={self.drone_config.is_ready_to_arm}"
+        )
 
     def _get_flight_mode_name(self, custom_mode):
         """
@@ -305,6 +608,7 @@ class LocalMavlinkController:
         self.drone_config.is_magnetometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_MAG) != 0
         self.log_debug(f"Sensor health updated: Gyro: {self.drone_config.is_gyrometer_calibration_ok}, "
                        f"Accel: {self.drone_config.is_accelerometer_calibration_ok}, Mag: {self.drone_config.is_magnetometer_calibration_ok}")
+        self._update_pre_arm_status()
 
     def process_gps_raw_int(self, msg):
         """
@@ -320,6 +624,7 @@ class LocalMavlinkController:
         self.drone_config.satellites_visible = getattr(msg, 'satellites_visible', 0)
 
         self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}")
+        self._update_pre_arm_status()
 
     def process_attitude(self, msg):
         """
@@ -439,10 +744,11 @@ class LocalMavlinkController:
         """
         Ensure the telemetry thread is stopped when the object is deleted.
         """
-        self.run_telemetry_thread.clear()
+        run_telemetry_thread = getattr(self, 'run_telemetry_thread', None)
+        if run_telemetry_thread is not None:
+            run_telemetry_thread.clear()
 
         # Wait for the telemetry thread to stop
-        if self.telemetry_thread.is_alive():
-            self.telemetry_thread.join()
-
-
+        telemetry_thread = getattr(self, 'telemetry_thread', None)
+        if telemetry_thread is not None and telemetry_thread.is_alive():
+            telemetry_thread.join()

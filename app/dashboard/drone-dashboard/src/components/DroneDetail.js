@@ -5,6 +5,7 @@ import { FaMapMarkerAlt, FaWifi, FaClock, FaBatteryFull, FaCompass, FaSatellite,
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import LeafletMapBase from './map/LeafletMapBase';
+import DroneReadinessReport from './DroneReadinessReport';
 import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
@@ -12,6 +13,7 @@ import { getDroneShowStateName } from '../constants/droneStates';
 import { getFriendlyMissionName } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
+import { getDroneReadinessModel } from '../utilities/droneReadiness';
 
 const POLLING_RATE_HZ = 2;
 
@@ -102,8 +104,6 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const friendlyMissionName = getFriendlyMissionName(detailedDrone[FIELD_NAMES.LAST_MISSION]);
 
   const isArmed = detailedDrone[FIELD_NAMES.IS_ARMED] || false;
-  const isReadyToArm = detailedDrone[FIELD_NAMES.IS_READY_TO_ARM] || false;
-
   const batteryStatus = getBatteryStatus(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0);
   const gpsStatus = getGpsStatus(
     detailedDrone[FIELD_NAMES.GPS_FIX_TYPE] || 0,
@@ -111,6 +111,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     detailedDrone[FIELD_NAMES.SATELLITES_VISIBLE] || 0
   );
   const runtimeStatus = getDroneRuntimeStatus(detailedDrone);
+  const readiness = getDroneReadinessModel(detailedDrone, runtimeStatus);
   const connectionStatus = getConnectionStatus(runtimeStatus);
 
   // Calculate uptime
@@ -137,7 +138,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
               {isArmed ? 'ARMED' : 'DISARMED'}
             </div>
             <div className="status-sub">
-              Ready: {isReadyToArm ? 'Yes' : 'No'}
+              {readiness.statusLabel}
             </div>
           </div>
         </div>
@@ -181,6 +182,12 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
         </div>
       </div>
+
+      <DroneReadinessReport
+        drone={detailedDrone}
+        runtimeStatus={runtimeStatus}
+        variant="detail"
+      />
 
       {/* Flight Information */}
       <div className="detail-section">

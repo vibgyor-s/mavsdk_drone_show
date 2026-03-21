@@ -38,6 +38,8 @@ class TestDroneState:
         assert 'battery_voltage' in data
         assert 'is_armed' in data
         assert 'timestamp' in data
+        assert 'readiness_status' in data
+        assert 'readiness_summary' in data
 
         # Verify values
         assert data['pos_id'] == 1

@@ -21,7 +21,7 @@ Usage (new modular approach):
     state = DroneState(drones)
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from src.params import Params
 from src.drone_config.config_loader import ConfigLoader
@@ -338,6 +338,62 @@ class DroneConfig:
     @is_ready_to_arm.setter
     def is_ready_to_arm(self, value: bool):
         self._state.is_ready_to_arm = value
+
+    @property
+    def readiness_status(self) -> str:
+        return self._state.readiness_status
+
+    @readiness_status.setter
+    def readiness_status(self, value: str):
+        self._state.readiness_status = value
+
+    @property
+    def readiness_summary(self) -> str:
+        return self._state.readiness_summary
+
+    @readiness_summary.setter
+    def readiness_summary(self, value: str):
+        self._state.readiness_summary = value
+
+    @property
+    def readiness_checks(self) -> List[Dict[str, Any]]:
+        return self._state.readiness_checks
+
+    @readiness_checks.setter
+    def readiness_checks(self, value: List[Dict[str, Any]]):
+        self._state.readiness_checks = value
+
+    @property
+    def preflight_blockers(self) -> List[Dict[str, Any]]:
+        return self._state.preflight_blockers
+
+    @preflight_blockers.setter
+    def preflight_blockers(self, value: List[Dict[str, Any]]):
+        self._state.preflight_blockers = value
+
+    @property
+    def preflight_warnings(self) -> List[Dict[str, Any]]:
+        return self._state.preflight_warnings
+
+    @preflight_warnings.setter
+    def preflight_warnings(self, value: List[Dict[str, Any]]):
+        self._state.preflight_warnings = value
+
+    @property
+    def status_messages(self) -> List[Dict[str, Any]]:
+        return self._state.status_messages
+
+    @status_messages.setter
+    def status_messages(self, value: List[Dict[str, Any]]):
+        self._state.status_messages = value
+
+    @property
+    def preflight_last_update(self) -> int:
+        return self._state.preflight_last_update
+
+    @preflight_last_update.setter
+    def preflight_last_update(self, value: int):
+        self._state.preflight_last_update = value
 
     @property
     def local_position_ned(self) -> Dict[str, float]:

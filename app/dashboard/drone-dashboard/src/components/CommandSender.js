@@ -5,7 +5,6 @@ import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
-import { sendDroneCommand } from '../services/droneApiService';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRocket, faCog } from '@fortawesome/free-solid-svg-icons';
@@ -14,6 +13,7 @@ import {
   DRONE_ACTION_TYPES,
   getCommandName,
 } from '../constants/droneConstants';
+import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
@@ -56,29 +56,7 @@ const CommandSender = ({ drones }) => {
           commandDataToSend.target_drones = selectedDrones;
         }
 
-        const response = await sendDroneCommand(commandDataToSend);
-
-        if (response && response.success) {
-          // Show categorized feedback based on results
-          const summary = response.results_summary || response.ack_summary || {};
-          const accepted = summary.accepted ?? response.submitted_count ?? 0;
-          const offline = summary.offline || 0;
-          const rejected = summary.rejected || 0;
-          const errors = summary.errors || 0;
-
-          if (offline > 0 && (rejected === 0 && errors === 0)) {
-            // Some accepted, rest offline - show warning (partial success)
-            toast.warning(`Command sent: ${accepted} accepted, ${offline} offline`);
-          } else if (rejected > 0 || errors > 0) {
-            // Has actual problems - show warning
-            toast.warning(`Command partial: ${accepted} accepted, ${rejected} rejected, ${errors} errors`);
-          } else {
-            // All accepted
-            toast.success(`Command sent to ${accepted} drones successfully!`);
-          }
-        } else {
-          toast.error(`Error sending command: ${response.message}`);
-        }
+        await submitCommandWithLifecycleFeedback(commandDataToSend);
       } catch (error) {
         console.error('Error sending command:', error);
         toast.error('Error sending command. Please check console for details.');

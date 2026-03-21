@@ -3,13 +3,13 @@ import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import DroneDetail from './DroneDetail';
 import DroneCriticalCommands from './DroneCriticalCommands';
-import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
-import { Tooltip } from 'react-tooltip';
-import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFlightModeCategory } from '../utilities/flightModeUtils';
+import DroneReadinessReport from './DroneReadinessReport';
+import { getFlightModeTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
+import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -60,12 +60,10 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   const actualFlightMode = flightModeValue === 0 && baseMode === 192 ? 262147 : flightModeValue;
   const flightModeTitle = getFlightModeTitle(actualFlightMode);
   const flightModeCategory = getFlightModeCategory(actualFlightMode);
-  const systemStatusName = getSystemStatusTitle(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
 
   const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
-  const isReadyToArm = drone[FIELD_NAMES.IS_READY_TO_ARM] || false;
-  const isInSafeMode = isSafeMode(actualFlightMode);
-  const isSystemReady = isReady(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
+  const readiness = getDroneReadinessModel(drone, runtimeStatus);
+  const isReadyToArm = readiness.isReady;
 
   const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
   const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
@@ -129,9 +127,15 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
             {isArmed ? 'ARMED' : 'DISARMED'}
           </span>
           <span className={`status-badge ${isReadyToArm ? 'ready' : 'not-ready'}`}>
-            {isReadyToArm ? 'READY' : 'NOT READY'}
+            {isReadyToArm ? 'READY' : readiness.statusLabel.toUpperCase()}
           </span>
         </div>
+
+        <DroneReadinessReport
+          drone={drone}
+          runtimeStatus={runtimeStatus}
+          variant="compact"
+        />
 
         {/* Main Content Grid */}
         <div className="expanded-content-grid">

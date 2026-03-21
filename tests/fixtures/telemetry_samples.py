@@ -93,6 +93,13 @@ def drone_state_idle(hw_id: str = '1', pos_id: int = 1) -> Dict[str, Any]:
         'system_status': MAVState.STANDBY,
         'is_armed': False,
         'is_ready_to_arm': True,
+        'readiness_status': 'ready',
+        'readiness_summary': 'Ready to fly',
+        'readiness_checks': [],
+        'preflight_blockers': [],
+        'preflight_warnings': [],
+        'status_messages': [],
+        'preflight_last_update': int(time.time() * 1000),
         'hdop': 0.8,
         'vdop': 1.2,
         'gps_fix_type': 3,
@@ -187,7 +194,15 @@ def drone_state_low_battery(hw_id: str = '1', pos_id: int = 1) -> Dict[str, Any]
     state = drone_state_idle(hw_id, pos_id)
     state.update({
         'battery_voltage': 10.2,
-        'is_ready_to_arm': False
+        'is_ready_to_arm': False,
+        'readiness_status': 'blocked',
+        'readiness_summary': 'Battery voltage is too low for safe flight preparation.',
+        'preflight_blockers': [{
+            'source': 'telemetry',
+            'severity': 'error',
+            'message': 'Battery voltage is too low for safe flight preparation.',
+            'timestamp': int(time.time() * 1000),
+        }],
     })
     return state
 
@@ -200,7 +215,15 @@ def drone_state_no_gps(hw_id: str = '1', pos_id: int = 1) -> Dict[str, Any]:
         'satellites_visible': 0,
         'hdop': 99.99,
         'vdop': 99.99,
-        'is_ready_to_arm': False
+        'is_ready_to_arm': False,
+        'readiness_status': 'blocked',
+        'readiness_summary': 'GPS fix is below 3D while the current flight mode requires GPS.',
+        'preflight_blockers': [{
+            'source': 'telemetry',
+            'severity': 'error',
+            'message': 'GPS fix is below 3D while the current flight mode requires GPS.',
+            'timestamp': int(time.time() * 1000),
+        }],
     })
     return state
 

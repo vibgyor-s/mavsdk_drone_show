@@ -1,0 +1,210 @@
+@import './DesignTokens.css';
+
+.drone-readiness {
+  background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-sm);
+}
+
+.drone-readiness--compact {
+  margin-bottom: var(--spacing-sm);
+}
+
+.drone-readiness.ready {
+  border-color: rgba(56, 161, 105, 0.35);
+}
+
+.drone-readiness.warning {
+  border-color: rgba(237, 137, 54, 0.35);
+}
+
+.drone-readiness.blocked,
+.drone-readiness.unknown {
+  border-color: rgba(229, 62, 62, 0.35);
+}
+
+.drone-readiness__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.drone-readiness__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.drone-readiness__pill.ready {
+  background: rgba(56, 161, 105, 0.14);
+  color: var(--color-success);
+}
+
+.drone-readiness__pill.warning {
+  background: rgba(237, 137, 54, 0.14);
+  color: var(--color-warning);
+}
+
+.drone-readiness__pill.blocked,
+.drone-readiness__pill.unknown {
+  background: rgba(229, 62, 62, 0.12);
+  color: var(--color-danger);
+}
+
+.drone-readiness__summary {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.drone-readiness__details {
+  margin-top: var(--spacing-sm);
+}
+
+.drone-readiness__details-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.drone-readiness__details-body,
+.drone-readiness__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.drone-readiness__details-body {
+  margin-top: var(--spacing-sm);
+}
+
+.drone-readiness__section h4 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.drone-readiness__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.drone-readiness__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drone-readiness__list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(15, 23, 42, 0.24);
+}
+
+.drone-readiness__message-source {
+  flex-shrink: 0;
+  min-width: 68px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+}
+
+.drone-readiness__message-source.px4 {
+  background: rgba(49, 130, 206, 0.16);
+  color: var(--color-info);
+}
+
+.drone-readiness__message-source.telemetry,
+.drone-readiness__message-source.link {
+  background: rgba(229, 62, 62, 0.12);
+  color: var(--color-danger);
+}
+
+.drone-readiness__message-text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.drone-readiness__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-base);
+  margin-top: var(--spacing-base);
+}
+
+.drone-readiness__checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.drone-readiness__check {
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-sm);
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.drone-readiness__check.ready {
+  border-color: rgba(56, 161, 105, 0.28);
+}
+
+.drone-readiness__check.blocked {
+  border-color: rgba(229, 62, 62, 0.28);
+}
+
+.drone-readiness__check-label {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.drone-readiness__check-state {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.drone-readiness__check-detail {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.drone-readiness--detail {
+  margin-top: var(--spacing-base);
+}

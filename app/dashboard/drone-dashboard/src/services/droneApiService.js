@@ -30,6 +30,17 @@ export const sendDroneCommand = async (commandData) => {
   }
 };
 
+export const getCommandStatus = async (commandId) => {
+  const requestURI = `${getBackendURL()}/command/${commandId}`;
+
+  try {
+    const response = await axios.get(requestURI);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getSwarmClusterStatus = async () => {
   try {
     // Get swarm leaders and status information

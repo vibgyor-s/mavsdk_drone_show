@@ -820,6 +820,8 @@ async def submit_command(request: Request):
                     error_code='E500'  # INTERNAL_ERROR
                 )
 
+        tracked_status = await tracker.get_status(command_id)
+
         # Build results summary for response (simple dict for immediate feedback)
         results_summary = {
             'accepted': results.get('success', 0),
@@ -859,7 +861,11 @@ async def submit_command(request: Request):
             submitted_count=results.get('success', 0),
             message=results.get('result_summary', f"Command {mission_name} sent"),
             timestamp=int(time.time() * 1000),
-            results_summary=results_summary
+            results_summary=results_summary,
+            ack_summary=tracked_status.get('acks') if tracked_status else None,
+            tracking_status=CommandStatus(tracked_status['status']) if tracked_status else None,
+            tracking_phase=CommandPhase(tracked_status['phase']) if tracked_status else None,
+            tracking_outcome=CommandOutcome(tracked_status['outcome']) if tracked_status and tracked_status.get('outcome') else None,
         )
 
     except HTTPException:
@@ -1028,6 +1034,41 @@ async def report_execution_result(report: ExecutionReportRequest):
         command_id=report.command_id,
         command_status=command_status,
         message="Execution result recorded" if success else "Command not found in tracker",
+        timestamp=int(time.time() * 1000)
+    )
+
+
+@app.post("/command/execution-start", response_model=ExecutionStartResponse, tags=["Commands"])
+async def report_execution_start(report: ExecutionStartRequest):
+    """
+    Endpoint for drones to report that command execution has actually started.
+
+    This separates successful ACK/submission from the moment the drone begins
+    acting on the command.
+    """
+    tracker = get_command_tracker()
+
+    success = await tracker.record_execution_start(
+        command_id=report.command_id,
+        hw_id=report.hw_id,
+    )
+
+    if not success:
+        log_system_warning(
+            f"Execution-start report for unknown command {report.command_id} from {report.hw_id}",
+            "command"
+        )
+
+    status = await tracker.get_status(report.command_id)
+    command_status = CommandStatus(status['status']) if status else CommandStatus.FAILED
+    command_phase = CommandPhase(status['phase']) if status else CommandPhase.TERMINAL
+
+    return ExecutionStartResponse(
+        received=success,
+        command_id=report.command_id,
+        command_status=command_status,
+        command_phase=command_phase,
+        message="Execution start recorded" if success else "Command not found in tracker",
         timestamp=int(time.time() * 1000)
     )
 

@@ -289,6 +289,10 @@ class DroneSetup:
                     command_id=command_id,
                 )
                 self.running_processes[process_key] = process_record
+                await self._report_execution_start_to_gcs(
+                    command_id=command_id,
+                    script_name=script_name,
+                )
 
                 # Create a background task that monitors this script's completion
                 asyncio.create_task(self._monitor_script_process(process_record))
@@ -367,6 +371,49 @@ class DroneSetup:
                 duration_ms=int((time.time() - start_time) * 1000)
             )
 
+    async def _report_execution_start_to_gcs(
+        self,
+        command_id: Optional[str],
+        script_name: Optional[str] = None,
+    ):
+        """Report to GCS that execution has actually started."""
+        if not command_id:
+            logger.debug("No command_id available for execution-start report")
+            return
+
+        try:
+            gcs_ip = self.params.GCS_IP
+            gcs_port = self.params.gcs_api_port
+
+            if not isinstance(gcs_ip, str) or not gcs_ip:
+                logger.warning("GCS_IP not configured, cannot report execution start")
+                return
+
+            report_data = {
+                'command_id': command_id,
+                'hw_id': str(self.drone_config.hw_id),
+                'script_name': script_name,
+            }
+
+            url = f"http://{gcs_ip}:{gcs_port}/command/execution-start"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=report_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                    if response.status == 200:
+                        cmd_short = command_id[:8] if len(command_id) >= 8 else command_id
+                        logger.info(f"Execution start reported to GCS for command {cmd_short}...")
+                    else:
+                        logger.warning(
+                            f"Failed to report execution start to GCS: HTTP {response.status}"
+                        )
+
+        except asyncio.TimeoutError:
+            logger.warning("Timeout reporting execution start to GCS")
+        except aiohttp.ClientError as e:
+            logger.warning(f"Error reporting execution start to GCS: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error reporting execution start to GCS: {e}", exc_info=True)
+
     async def _report_execution_to_gcs(
         self,
         command_id: Optional[str],
@@ -422,6 +469,30 @@ class DroneSetup:
             logger.warning(f"Error reporting execution to GCS: {e}")
         except Exception as e:
             logger.error(f"Unexpected error reporting execution to GCS: {e}", exc_info=True)
+
+    async def _fail_pending_command(self, error_message: str) -> tuple:
+        """Reset local mission state and report a terminal failure for the pending command."""
+        command_id = self._detach_current_command_id()
+        self._reset_mission_state(False)
+        await self._report_execution_to_gcs(
+            command_id=command_id,
+            success=False,
+            error_message=error_message,
+        )
+        return (False, error_message)
+
+    async def _complete_pending_command_without_process(self, message: str) -> tuple:
+        """Report a successful command that completed without launching a subprocess."""
+        command_id = self._detach_current_command_id()
+        await self._report_execution_start_to_gcs(command_id=command_id)
+        self._reset_mission_state(True)
+        await self._report_execution_to_gcs(
+            command_id=command_id,
+            success=True,
+            script_output=message[:500],
+            duration_ms=0,
+        )
+        return (True, message)
 
     def _reset_mission_state(self, success: bool):
         """
@@ -659,8 +730,7 @@ class DroneSetup:
         main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
         if not main_offboard_executer:
             logger.error("No 'main_offboard_executer' specified for standard drone show.")
-            self._reset_mission_state(False)
-            return (False, "No executer script specified.")
+            return await self._fail_pending_command("No executer script specified.")
 
         action = self._build_offboard_action(real_trigger_time, Mission.DRONE_SHOW_FROM_CSV.value)
         logger.info(f"Starting Standard Drone Show using '{main_offboard_executer}'.")
@@ -679,13 +749,11 @@ class DroneSetup:
 
         if not main_offboard_executer:
             logger.error("No 'main_offboard_executer' specified for custom drone show.")
-            self._reset_mission_state(False)
-            return (False, "No executer script specified.")
+            return await self._fail_pending_command("No executer script specified.")
 
         if not custom_csv_file_name:
             logger.error("No custom CSV file specified for Custom Drone Show.")
-            self._reset_mission_state(False)
-            return (False, "No custom CSV file specified.")
+            return await self._fail_pending_command("No custom CSV file specified.")
 
         action = self._build_offboard_action(
             real_trigger_time,
@@ -708,13 +776,11 @@ class DroneSetup:
 
         if not main_offboard_executer:
             logger.error("No 'main_offboard_executer' specified for hover test.")
-            self._reset_mission_state(False)
-            return (False, "No executer script specified.")
+            return await self._fail_pending_command("No executer script specified.")
 
         if not hover_test_csv_file_name:
             logger.error("No hover test CSV file specified for Hover Test Drone Show.")
-            self._reset_mission_state(False)
-            return (False, "No hover test CSV file specified.")
+            return await self._fail_pending_command("No hover test CSV file specified.")
 
         action = self._build_offboard_action(
             real_trigger_time,
@@ -737,8 +803,7 @@ class DroneSetup:
             smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
             if not smart_swarm_executer:
                 logger.error("No 'smart_swarm_executer' specified for smart swarm mission.")
-                self._reset_mission_state(False)
-                return (False, "No executer script specified.")
+                return await self._fail_pending_command("No executer script specified.")
 
             follow_mode = int(self.drone_config.swarm.get('follow', 0))
             if follow_mode != 0:
@@ -747,8 +812,9 @@ class DroneSetup:
 
             # If no follow mode, treat as success but no action
             logger.info("Smart Swarm mission did not require follow mode; marking success.")
-            self._reset_mission_state(True)
-            return (True, "Smart Swarm Mission initiated (no follow mode).")
+            return await self._complete_pending_command_without_process(
+                "Smart Swarm Mission initiated (no follow mode)."
+            )
 
         logger.debug("Conditions NOT met for Smart Swarm.")
         return (False, "Conditions not met for Smart Swarm.")
@@ -784,8 +850,7 @@ class DroneSetup:
 
         if not waypoints_file or not os.path.isfile(waypoints_file):
             logger.error(f"QuickScout waypoints file not found: {waypoints_file}")
-            self._reset_mission_state(False)
-            return (False, "Waypoints file not found")
+            return await self._fail_pending_command("Waypoints file not found")
 
         self.drone_config.state = State.MISSION_EXECUTING.value
         self.drone_config.trigger_time = 0
@@ -809,8 +874,7 @@ class DroneSetup:
                 altitude = float(self.drone_config.takeoff_altitude)
             except (AttributeError, ValueError, TypeError) as e:
                 logger.error(f"Invalid takeoff altitude: {e}")
-                self._reset_mission_state(False)
-                return (False, f"Invalid takeoff altitude: {e}")
+                return await self._fail_pending_command(f"Invalid takeoff altitude: {e}")
 
             logger.info(f"Starting Takeoff to altitude: {altitude}m")
             self.drone_config.state = State.MISSION_EXECUTING.value
@@ -912,8 +976,7 @@ class DroneSetup:
         branch_name = getattr(self.drone_config, 'update_branch', None)
         if not branch_name:
             logger.error("Branch name not specified for UPDATE_CODE mission.")
-            self._reset_mission_state(False)
-            return (False, "Branch name not specified.")
+            return await self._fail_pending_command("Branch name not specified.")
 
         action_command = f"--action=update_code --branch={branch_name}"
         return await self._execute_immediate_script_mission(

@@ -69,6 +69,31 @@ class CommandStatus(str, Enum):
     TIMEOUT = "timeout"       # Command timed out waiting for responses
 
 
+class CommandPhase(str, Enum):
+    """
+    Operational phase of a tracked command.
+
+    This separates transport/acknowledgment from actual execution so operator
+    interfaces do not have to infer lifecycle state from legacy status values.
+    """
+    AWAITING_ACK = "awaiting_ack"
+    PENDING_EXECUTION = "pending_execution"
+    IN_PROGRESS = "in_progress"
+    TERMINAL = "terminal"
+
+
+class CommandOutcome(str, Enum):
+    """
+    Terminal outcome of a tracked command.
+    """
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+    SUPERSEDED = "superseded"
+
+
 class CommandErrorCode(str, Enum):
     """
     Standardized error codes for command processing.
@@ -137,7 +162,7 @@ class CommandErrorCode(str, Enum):
             "E200": "Command not valid in current state",
             "E201": "Drone is not armed",
             "E202": "Drone failed pre-arm checks",
-            "E203": "Another mission is already executing",
+            "E203": "Another mission is already active",
             "E204": "GPS fix not acquired",
             "E205": "Home position not set",
             "E300": "Request timed out",

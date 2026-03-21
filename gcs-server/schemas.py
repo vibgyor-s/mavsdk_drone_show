@@ -19,7 +19,7 @@ from enum import Enum
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from enums import CommandStatus
+from enums import CommandOutcome, CommandPhase, CommandStatus
 
 
 # ============================================================================
@@ -164,39 +164,72 @@ class BatteryStatus(BaseModel):
     remaining: Optional[float] = Field(None, ge=0, le=100, description="Battery remaining (%)")
 
 
+class TelemetryReadinessCheck(BaseModel):
+    """Per-check readiness detail surfaced from drone telemetry."""
+    id: str = Field(..., description="Stable readiness check identifier")
+    label: str = Field(..., description="Human-readable check label")
+    ready: bool = Field(..., description="Whether this readiness check is currently passing")
+    detail: str = Field(..., description="Operator-facing detail for this readiness check")
+
+
+class TelemetryReadinessMessage(BaseModel):
+    """Structured readiness/preflight message from telemetry or PX4 STATUSTEXT."""
+    source: str = Field(..., description="Message source such as 'px4', 'telemetry', or 'link'")
+    severity: str = Field(..., description="Normalized severity level")
+    message: str = Field(..., description="Operator-facing status text")
+    timestamp: int = Field(..., ge=0, description="Message timestamp (Unix ms)")
+
+
 class DroneTelemetry(BaseModel):
-    """Complete drone telemetry snapshot"""
-    model_config = ConfigDict(extra='ignore')  # Ignore unknown fields for forward compatibility
+    """Typed snapshot for the unified telemetry payload exposed by the GCS."""
+    model_config = ConfigDict(extra='ignore')
 
-    # Identity
-    pos_id: int = Field(..., ge=0, description="Position ID")
+    pos_id: Any = Field(..., description="Configured position ID")
     hw_id: str = Field(..., description="Hardware ID")
+    detected_pos_id: Any = Field(None, description="Auto-detected position ID, if available")
 
-    # State
-    state: DroneState = Field(..., description="Current drone state")
-    flight_mode: FlightMode = Field(..., description="Current flight mode")
-    armed: bool = Field(..., description="Armed status")
-    in_air: bool = Field(..., description="In air status")
+    state: Any = Field(..., description="Current drone state code")
+    mission: Any = Field(..., description="Current mission code")
+    last_mission: Any = Field(..., description="Last mission code")
+    trigger_time: int = Field(0, description="Mission trigger time (Unix epoch seconds)")
 
-    # Position
-    position_gps: Optional[PositionGPS] = Field(None, description="GPS position")
-    position_ned: Optional[PositionNED] = Field(None, description="NED position")
+    position_lat: float = Field(..., description="Latitude in degrees")
+    position_long: float = Field(..., description="Longitude in degrees")
+    position_alt: float = Field(..., description="Altitude in meters MSL")
+    velocity_north: float = Field(..., description="North velocity (m/s)")
+    velocity_east: float = Field(..., description="East velocity (m/s)")
+    velocity_down: float = Field(..., description="Down velocity (m/s)")
+    yaw: float = Field(..., description="Heading in degrees")
 
-    # Velocity & Attitude
-    velocity_ned: Optional[VelocityNED] = Field(None, description="NED velocity")
-    attitude: Optional[AttitudeEuler] = Field(None, description="Attitude (Euler angles)")
+    battery_voltage: float = Field(..., ge=0, description="Battery voltage (V)")
+    follow_mode: Any = Field(..., description="Current follow mode value")
 
-    # Battery
-    battery: Optional[BatteryStatus] = Field(None, description="Battery status")
-
-    # Health
-    health_ok: bool = Field(..., description="Overall health status")
-    gps_fix: Optional[int] = Field(None, ge=0, le=6, description="GPS fix type (0-6)")
-    num_satellites: Optional[int] = Field(None, ge=0, description="Number of satellites")
-
-    # Timestamps
+    update_time: Any = Field(..., description="Legacy update time field from the drone API")
     timestamp: int = Field(..., description="Telemetry timestamp (Unix ms)")
-    last_heartbeat: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
+
+    flight_mode: Any = Field(..., description="PX4 custom_mode / derived flight mode value")
+    base_mode: Any = Field(..., description="MAVLink base_mode flags")
+    system_status: Any = Field(..., description="PX4 / MAVLink system status")
+    is_armed: bool = Field(..., description="Whether the drone is currently armed")
+    is_ready_to_arm: bool = Field(..., description="Compatibility readiness boolean")
+
+    readiness_status: str = Field("unknown", description="Operator-facing readiness state")
+    readiness_summary: str = Field("Readiness unavailable", description="High-level readiness summary")
+    readiness_checks: List[TelemetryReadinessCheck] = Field(default_factory=list, description="Structured readiness check results")
+    preflight_blockers: List[TelemetryReadinessMessage] = Field(default_factory=list, description="Active readiness blockers")
+    preflight_warnings: List[TelemetryReadinessMessage] = Field(default_factory=list, description="Active readiness warnings")
+    status_messages: List[TelemetryReadinessMessage] = Field(default_factory=list, description="Recent PX4 or telemetry status messages")
+    preflight_last_update: int = Field(0, description="Last readiness update timestamp (Unix ms)")
+
+    hdop: float = Field(..., description="Horizontal dilution of precision")
+    vdop: float = Field(..., description="Vertical dilution of precision")
+    gps_fix_type: int = Field(..., ge=0, le=6, description="GPS fix type (0-6)")
+    satellites_visible: int = Field(..., ge=0, description="Visible satellites")
+
+    ip: str = Field(..., description="Drone IP address")
+    heartbeat_last_seen: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
+    heartbeat_network_info: Dict[str, Any] = Field(default_factory=dict, description="Recent heartbeat network metadata")
+    heartbeat_first_seen: Optional[int] = Field(None, description="First heartbeat timestamp (Unix ms)")
 
 
 class TelemetryResponse(BaseModel):
@@ -604,6 +637,8 @@ class AckSummary(BaseModel):
 class ExecutionSummary(BaseModel):
     """Summary of executions for a command"""
     expected: int = Field(..., ge=0, description="Number of executions expected")
+    started: int = Field(0, ge=0, description="Number of drones that reported execution start")
+    active: int = Field(0, ge=0, description="Number of drones currently executing without a terminal result yet")
     received: int = Field(..., ge=0, description="Number of executions received")
     succeeded: int = Field(..., ge=0, description="Number succeeded")
     failed: int = Field(..., ge=0, description="Number failed")
@@ -618,10 +653,13 @@ class CommandStatusResponse(BaseModel):
     target_drones: List[str] = Field(..., description="Target drone hardware IDs")
     params: Dict[str, Any] = Field(default_factory=dict, description="Command parameters")
     status: CommandStatus = Field(..., description="Current command status")
+    phase: CommandPhase = Field(..., description="Operational phase separating ACK collection from actual execution")
+    outcome: Optional[CommandOutcome] = Field(None, description="Terminal outcome when the command has finished")
 
     # Timing
     created_at: int = Field(..., description="Creation timestamp (Unix ms)")
     submitted_at: Optional[int] = Field(None, description="Submission timestamp (Unix ms)")
+    execution_started_at: Optional[int] = Field(None, description="Timestamp when execution was first confirmed (Unix ms)")
     completed_at: Optional[int] = Field(None, description="Completion timestamp (Unix ms)")
     updated_at: int = Field(..., description="Last update timestamp (Unix ms)")
 
@@ -690,6 +728,9 @@ class SubmitCommandResponse(BaseModel):
 
     # If wait_for_ack=true, these will be populated
     ack_summary: Optional[AckSummary] = Field(None, description="ACK summary if wait_for_ack=true")
+    tracking_status: Optional[CommandStatus] = Field(None, description="Legacy tracker status for this command")
+    tracking_phase: Optional[CommandPhase] = Field(None, description="Operational phase of command tracking")
+    tracking_outcome: Optional[CommandOutcome] = Field(None, description="Terminal tracking outcome once known")
 
     message: str = Field(..., description="Human-readable status message")
     timestamp: int = Field(..., description="Response timestamp (Unix ms)")
@@ -704,6 +745,23 @@ class ExecutionReportRequest(BaseModel):
     exit_code: Optional[int] = Field(None, description="Script exit code")
     script_output: Optional[str] = Field(None, description="Script output/logs (truncated)")
     duration_ms: Optional[int] = Field(None, ge=0, description="Execution duration (ms)")
+
+
+class ExecutionStartRequest(BaseModel):
+    """Request from drone reporting that command execution has actually started."""
+    command_id: str = Field(..., description="Command UUID from GCS")
+    hw_id: str = Field(..., description="Reporting drone's hardware ID")
+    script_name: Optional[str] = Field(None, description="Mission/action script responsible for execution")
+
+
+class ExecutionStartResponse(BaseModel):
+    """Response for execution-start report."""
+    received: bool = Field(..., description="Whether report was recorded")
+    command_id: str = Field(..., description="Command UUID")
+    command_status: CommandStatus = Field(..., description="Updated legacy command status")
+    command_phase: CommandPhase = Field(..., description="Updated command phase")
+    message: str = Field(..., description="Status message")
+    timestamp: int = Field(..., description="Response timestamp (Unix ms)")
 
 
 class ExecutionReportResponse(BaseModel):

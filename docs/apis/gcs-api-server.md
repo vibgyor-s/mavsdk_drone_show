@@ -181,26 +181,75 @@ Get telemetry from all drones (legacy endpoint).
   "1": {
     "pos_id": 0,
     "hw_id": "1",
+    "state": 0,
+    "mission": 0,
+    "last_mission": 0,
     "battery_voltage": 12.6,
-    "Position_Lat": 35.123456,
-    "Position_Long": -120.654321,
-    "armed": false
+    "position_lat": 35.123456,
+    "position_long": -120.654321,
+    "position_alt": 488.5,
+    "is_armed": false,
+    "is_ready_to_arm": true,
+    "readiness_status": "ready",
+    "readiness_summary": "Ready to fly",
+    "preflight_blockers": [],
+    "preflight_warnings": [],
+    "status_messages": [],
+    "heartbeat_last_seen": 1700000000000
   }
 }
 ```
 
 #### `GET /api/telemetry`
-Get telemetry with typed response.
+Get telemetry with the same live payload shape used by the React dashboard.
 
 **Response:**
 ```json
 {
-  "telemetry": {...},
+  "telemetry": {
+    "1": {
+      "pos_id": 0,
+      "hw_id": "1",
+      "state": 0,
+      "mission": 0,
+      "last_mission": 0,
+      "trigger_time": 0,
+      "flight_mode": 65536,
+      "base_mode": 81,
+      "system_status": 4,
+      "is_armed": false,
+      "is_ready_to_arm": true,
+      "readiness_status": "ready",
+      "readiness_summary": "Ready to fly",
+      "readiness_checks": [],
+      "preflight_blockers": [],
+      "preflight_warnings": [],
+      "status_messages": [],
+      "position_lat": 35.123456,
+      "position_long": -120.654321,
+      "position_alt": 488.5,
+      "velocity_north": 0.0,
+      "velocity_east": 0.0,
+      "velocity_down": 0.0,
+      "battery_voltage": 12.6,
+      "hdop": 0.8,
+      "vdop": 1.1,
+      "gps_fix_type": 3,
+      "satellites_visible": 12,
+      "ip": "192.168.1.101",
+      "heartbeat_last_seen": 1700000000000,
+      "heartbeat_network_info": {},
+      "heartbeat_first_seen": 1699999999000,
+      "timestamp": 1700000000000
+    }
+  },
   "total_drones": 10,
   "online_drones": 8,
   "timestamp": 1700000000000
 }
 ```
+
+`readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback.
 
 ---
 
@@ -657,14 +706,15 @@ Explicitly clear all processed data and plots.
 ### Command Execution
 
 #### `POST /submit_command`
-Submit command to drones (asynchronous processing).
+Submit a command to drones and immediately return ACK tracking information.
 
 **Request:**
 ```json
 {
-  "action": "arm",
-  "target_drones": [0, 1, 2],
-  "params": {}
+  "missionType": 10,
+  "triggerTime": 0,
+  "target_drones": ["1", "2"],
+  "takeoff_altitude": 10
 }
 ```
 
@@ -672,10 +722,68 @@ Submit command to drones (asynchronous processing).
 ```json
 {
   "success": true,
-  "message": "Command received and is being processed",
-  "command": "arm",
-  "target_drones": [0, 1, 2],
-  "sent_count": 3
+  "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "status": "submitted",
+  "mission_type": 10,
+  "mission_name": "TAKE_OFF",
+  "target_drones": ["1", "2"],
+  "submitted_count": 2,
+  "results_summary": {
+    "accepted": 2,
+    "offline": 0,
+    "rejected": 0,
+    "errors": 0
+  },
+  "tracking_status": "submitted",
+  "tracking_phase": "pending_execution",
+  "tracking_outcome": null,
+  "message": "2 accepted",
+  "timestamp": 1700000000000
+}
+```
+
+Important semantics:
+- `success=true` means at least one drone accepted the command.
+- `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
+- Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /command/{command_id}` rather than treated as finished at submission time.
+
+#### `GET /command/{command_id}`
+Retrieve the current lifecycle state for a previously submitted command.
+
+**Response:**
+```json
+{
+  "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "mission_type": 10,
+  "mission_name": "TAKE_OFF",
+  "target_drones": ["1", "2"],
+  "status": "executing",
+  "phase": "in_progress",
+  "outcome": null,
+  "acks": {
+    "expected": 2,
+    "received": 2,
+    "accepted": 2,
+    "offline": 0,
+    "rejected": 0,
+    "errors": 0,
+    "details": {}
+  },
+  "executions": {
+    "expected": 2,
+    "started": 1,
+    "active": 1,
+    "received": 0,
+    "succeeded": 0,
+    "failed": 0,
+    "details": {}
+  },
+  "created_at": 1700000000000,
+  "submitted_at": 1700000000100,
+  "execution_started_at": 1700000002000,
+  "completed_at": null,
+  "updated_at": 1700000002000,
+  "error_summary": null
 }
 ```
 

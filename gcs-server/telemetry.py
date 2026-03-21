@@ -265,6 +265,13 @@ def poll_telemetry(drone):
                         'system_status': telemetry_data.get('system_status', 'UNKNOWN'),
                         'is_armed': _get_enhanced_armed_status(telemetry_data),  # Enhanced armed status
                         'is_ready_to_arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
+                        'readiness_status': telemetry_data.get('readiness_status', 'unknown'),
+                        'readiness_summary': telemetry_data.get('readiness_summary', 'Readiness unavailable'),
+                        'readiness_checks': telemetry_data.get('readiness_checks', []),
+                        'preflight_blockers': telemetry_data.get('preflight_blockers', []),
+                        'preflight_warnings': telemetry_data.get('preflight_warnings', []),
+                        'status_messages': telemetry_data.get('status_messages', []),
+                        'preflight_last_update': telemetry_data.get('preflight_last_update', 0),
                         'hdop': telemetry_data.get('hdop', 99.99),
                         'vdop': telemetry_data.get('vdop', 99.99),
                         'gps_fix_type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status

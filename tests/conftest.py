@@ -14,8 +14,8 @@ This module includes:
 
 import pytest
 import asyncio
+import httpx
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
-from fastapi.testclient import TestClient
 from typing import Dict, List, Any
 
 # Configure Python path for all test modules
@@ -105,6 +105,32 @@ from tests.mocks.mavlink_simulator import (
 # ============================================================================
 # Basic Mock Fixtures (Original)
 # ============================================================================
+
+
+class SyncASGITestClient:
+    """
+    Sync wrapper over httpx.AsyncClient for ASGI app tests.
+
+    Starlette TestClient deadlocks in this environment, even for trivial apps.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.base_url = "http://testserver"
+
+    async def _request(self, method: str, url: str, **kwargs):
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(transport=transport, base_url=self.base_url) as client:
+            return await client.request(method, url, **kwargs)
+
+    def request(self, method: str, url: str, **kwargs):
+        return asyncio.run(self._request(method, url, **kwargs))
+
+    def get(self, url: str, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs):
+        return self.request("POST", url, **kwargs)
 
 @pytest.fixture
 def mock_params():
@@ -210,7 +236,7 @@ def api_server(mock_params, mock_drone_config, mock_drone_communicator):
 @pytest.fixture
 def test_client(api_server):
     """Create TestClient for HTTP requests"""
-    return TestClient(api_server.app)
+    return SyncASGITestClient(api_server.app)
 
 
 @pytest.fixture

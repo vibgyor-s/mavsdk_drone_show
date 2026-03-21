@@ -82,8 +82,8 @@ http://drone-ip:7070/openapi.json
   "pos_id": 1,
   "detected_pos_id": 1,
   "state": 0,
-  "mission": "IDLE",
-  "last_mission": "IDLE",
+  "mission": 0,
+  "last_mission": 0,
   "position_lat": 47.397742,
   "position_long": 8.545594,
   "position_alt": 488.5,
@@ -100,6 +100,20 @@ http://drone-ip:7070/openapi.json
   "system_status": 4,
   "is_armed": false,
   "is_ready_to_arm": true,
+  "readiness_status": "ready",
+  "readiness_summary": "Ready to fly",
+  "readiness_checks": [
+    {
+      "id": "px4",
+      "label": "PX4 arming report",
+      "ready": true,
+      "detail": "No active PX4 preflight blockers"
+    }
+  ],
+  "preflight_blockers": [],
+  "preflight_warnings": [],
+  "status_messages": [],
+  "preflight_last_update": 1732270245000,
   "hdop": 0.8,
   "vdop": 1.2,
   "gps_fix_type": 3,
@@ -112,6 +126,11 @@ http://drone-ip:7070/openapi.json
 
 **Recommended For:** Legacy systems, periodic status checks
 
+Readiness fields:
+- `is_ready_to_arm` remains the simple compatibility boolean.
+- `readiness_status` and `readiness_summary` are the operator-facing verdict.
+- `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
+
 ---
 
 ### 2. Send Command
@@ -123,27 +142,36 @@ http://drone-ip:7070/openapi.json
 **Request Body:**
 ```json
 {
-  "missionType": "ARM",
-  "triggerTime": "1732270300"
+  "missionType": "10",
+  "triggerTime": "1732270300",
+  "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "takeoff_altitude": 10
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "message": "Command received"
+  "status": "accepted",
+  "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "hw_id": "1",
+  "pos_id": 1,
+  "current_state": 0,
+  "new_state": 1,
+  "mission_type": 10,
+  "trigger_time": 1732270300,
+  "message": "Command TAKE_OFF accepted for immediate execution",
+  "error_code": null,
+  "error_detail": null,
+  "timestamp": 1732270245000
 }
 ```
 
-**Common Mission Types:**
-- `ARM` - Arm motors
-- `DISARM` - Disarm motors
-- `TAKEOFF` - Takeoff to altitude
-- `LAND` - Land at current position
-- `RTL` - Return to launch
-- `HOLD` - Hold position
-- `MISSION_START` - Start trajectory mission
+The drone API returns structured ACKs for both accepted and rejected commands. A rejected command still uses HTTP 200 and places the reason in `status`, `error_code`, and `error_detail`.
+
+Preferred mission encoding:
+- `missionType` should be the numeric mission code as a string when called by the GCS.
+- The GCS accepts some legacy aliases, but drone-to-GCS traffic should stay on the numeric mission codes for consistency.
 
 ---
 

@@ -80,6 +80,20 @@ class CommandRequest(BaseModel):
     triggerTime: Optional[str] = Field("0", description="Trigger time")
 
 
+class ReadinessCheckResponse(BaseModel):
+    id: str
+    label: str
+    ready: bool
+    detail: str
+
+
+class ReadinessMessageResponse(BaseModel):
+    source: str
+    severity: str
+    message: str
+    timestamp: int
+
+
 class DroneStateResponse(BaseModel):
     """Drone state response"""
     pos_id: Any
@@ -103,6 +117,13 @@ class DroneStateResponse(BaseModel):
     system_status: Any
     is_armed: bool
     is_ready_to_arm: bool
+    readiness_status: str = "unknown"
+    readiness_summary: str = "Readiness unavailable"
+    readiness_checks: List[ReadinessCheckResponse] = Field(default_factory=list)
+    preflight_blockers: List[ReadinessMessageResponse] = Field(default_factory=list)
+    preflight_warnings: List[ReadinessMessageResponse] = Field(default_factory=list)
+    status_messages: List[ReadinessMessageResponse] = Field(default_factory=list)
+    preflight_last_update: int = 0
     hdop: float
     vdop: float
     gps_fix_type: int
@@ -246,6 +267,13 @@ class DroneAPIServer:
                 # Parse mission type for response
                 mission_type = int(command_data['missionType'])
                 trigger_time = int(command_data.get('triggerTime', 0))
+                previous_command_id = getattr(self.drone_config, 'current_command_id', None)
+                superseded_pending_command = (
+                    current_state == State.MISSION_READY.value
+                    and previous_command_id
+                    and previous_command_id != command_id
+                    and mission_type in self._allowed_override_missions()
+                )
 
                 # Check state preconditions
                 state_check = self._check_state_preconditions(mission_type)
@@ -263,6 +291,12 @@ class DroneAPIServer:
                         error_code=state_check['error_code'],
                         error_detail=state_check.get('detail'),
                         timestamp=timestamp
+                    )
+
+                if superseded_pending_command:
+                    await self._report_pending_command_superseded(
+                        command_id=previous_command_id,
+                        override_mission_type=mission_type,
                     )
 
                 # Store command_id for execution tracking
@@ -287,7 +321,11 @@ class DroneAPIServer:
                     new_state=State.MISSION_READY.value,
                     mission_type=mission_type,
                     trigger_time=trigger_time,
-                    message=f"Command {mission_name} accepted, waiting for trigger",
+                    message=self._build_acceptance_message(
+                        mission_name=mission_name,
+                        trigger_time=trigger_time,
+                        superseded_pending_command=superseded_pending_command,
+                    ),
                     timestamp=timestamp
                 )
 
@@ -807,34 +845,107 @@ class DroneAPIServer:
         if mission_type == Mission.KILL_TERMINATE.value:
             return {'valid': True, 'message': 'Emergency command always allowed'}
 
-        # Check if already executing
-        if current_state == State.MISSION_EXECUTING.value:
-            # Only allow emergency and override commands during execution
-            allowed_during_execution = [
-                Mission.KILL_TERMINATE.value,
-                Mission.LAND.value,
-                Mission.HOLD.value,
-                Mission.RETURN_RTL.value
-            ]
-            if mission_type not in allowed_during_execution:
+        if current_state in {State.MISSION_READY.value, State.MISSION_EXECUTING.value}:
+            allowed_during_active_mission = self._allowed_override_missions()
+            if mission_type not in allowed_during_active_mission:
+                state_name = "MISSION_EXECUTING" if current_state == State.MISSION_EXECUTING.value else "MISSION_READY"
+                detail_suffix = "pending trigger" if current_state == State.MISSION_READY.value else "currently executing"
                 return {
                     'valid': False,
-                    'message': 'Cannot start new mission while another is executing',
+                    'message': 'Cannot accept a new command while another command is active',
                     'error_code': CommandErrorCode.ALREADY_EXECUTING.value,
-                    'detail': f'Current state: MISSION_EXECUTING, mission: {self.drone_config.mission}'
+                    'detail': f'Current state: {state_name}, mission: {self.drone_config.mission} ({detail_suffix})'
                 }
 
         # For takeoff, check if ready to arm
         if mission_type == Mission.TAKE_OFF.value:
             if not self.drone_config.is_ready_to_arm:
+                raw_summary = getattr(self.drone_config, 'readiness_summary', '')
+                readiness_summary = raw_summary.strip() if isinstance(raw_summary, str) else ''
+                raw_blockers = getattr(self.drone_config, 'preflight_blockers', [])
+                blockers = raw_blockers if isinstance(raw_blockers, list) else []
+                if blockers:
+                    detail = " | ".join(
+                        str(blocker.get('message', '')).strip()
+                        for blocker in blockers[:3]
+                        if str(blocker.get('message', '')).strip()
+                    )
+                else:
+                    detail = readiness_summary
+                if not detail:
+                    detail = 'Check live readiness report for current PX4 preflight blockers.'
                 return {
                     'valid': False,
                     'message': 'Drone is not ready to arm (pre-flight checks not passed)',
                     'error_code': CommandErrorCode.NOT_READY_TO_ARM.value,
-                    'detail': 'Check GPS fix, battery level, and sensor health'
+                    'detail': detail
                 }
 
         return {'valid': True, 'message': 'State preconditions met'}
+
+    @staticmethod
+    def _allowed_override_missions() -> set[int]:
+        """Commands that are allowed to replace a queued or executing mission."""
+        return {
+            Mission.KILL_TERMINATE.value,
+            Mission.LAND.value,
+            Mission.HOLD.value,
+            Mission.RETURN_RTL.value,
+        }
+
+    def _build_acceptance_message(
+        self,
+        mission_name: str,
+        trigger_time: int,
+        superseded_pending_command: bool = False,
+    ) -> str:
+        """Build a precise operator-facing ACK message."""
+        now_s = int(time.time())
+        if trigger_time > now_s:
+            message = f"Command {mission_name} accepted and queued for trigger at {trigger_time}"
+        else:
+            message = f"Command {mission_name} accepted for immediate execution"
+
+        if superseded_pending_command:
+            return f"{message}; previous pending command was superseded"
+
+        return message
+
+    async def _report_pending_command_superseded(
+        self,
+        command_id: str,
+        override_mission_type: int,
+    ) -> None:
+        """Report that a queued command was replaced before execution started."""
+        if not command_id:
+            return
+
+        gcs_ip = self.params.GCS_IP
+        if not isinstance(gcs_ip, str) or not gcs_ip:
+            logger.warning("GCS_IP not configured, cannot report superseded pending command")
+            return
+
+        try:
+            try:
+                mission_name = Mission(override_mission_type).name
+            except ValueError:
+                mission_name = f"MISSION_{override_mission_type}"
+
+            payload = {
+                'command_id': command_id,
+                'hw_id': str(self.drone_config.hw_id),
+                'success': False,
+                'error_message': f"Superseded by override command {mission_name} before execution started",
+                'duration_ms': 0,
+            }
+            url = f"http://{gcs_ip}:{self.params.gcs_api_port}/command/execution-result"
+            response = await asyncio.to_thread(requests.post, url, json=payload, timeout=5)
+            if response.status_code == 200:
+                logger.info(f"Reported superseded pending command {command_id[:8]}...")
+            else:
+                logger.warning(f"Failed to report superseded pending command: HTTP {response.status_code}")
+        except requests.RequestException as e:
+            logger.warning(f"Failed to report superseded pending command: {e}")
 
     # ========================================================================
     # Helper Methods (preserved from Flask version)

@@ -349,6 +349,13 @@ class DroneCommunicator:
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
+            "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),
+            "readiness_summary": str(getattr(self.drone_config, 'readiness_summary', 'Readiness unavailable')),
+            "readiness_checks": list(getattr(self.drone_config, 'readiness_checks', []) or []),
+            "preflight_blockers": list(getattr(self.drone_config, 'preflight_blockers', []) or []),
+            "preflight_warnings": list(getattr(self.drone_config, 'preflight_warnings', []) or []),
+            "status_messages": list(getattr(self.drone_config, 'status_messages', []) or []),
+            "preflight_last_update": safe_int(getattr(self.drone_config, 'preflight_last_update', 0)),
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
             "vdop": safe_float(self.drone_config.vdop),  # Vertical dilution of precision
             "gps_fix_type": safe_int(getattr(self.drone_config, 'gps_fix_type', 0)),  # GPS fix status

@@ -41,7 +41,7 @@ signal.signal = _safe_signal
 
 # Path configuration is handled by conftest.py
 
-from fastapi.testclient import TestClient
+from tests.conftest import SyncASGITestClient
 
 
 # Mock the background services before importing the app
@@ -77,39 +77,106 @@ def mock_config():
 
 @pytest.fixture
 def mock_telemetry_data():
-    """Mock telemetry data for all drones - matches DroneTelemetry schema"""
+    """Mock telemetry data for all drones - matches the live unified telemetry payload."""
     return {
         '1': {
             'pos_id': 0,
             'hw_id': '1',
             'state': 'idle',
-            'flight_mode': 'MANUAL',
-            'armed': False,
-            'in_air': False,
-            'health_ok': True,
+            'mission': 0,
+            'last_mission': 0,
+            'trigger_time': 0,
+            'flight_mode': 65536,
+            'base_mode': 81,
+            'system_status': 4,
+            'is_armed': False,
+            'is_ready_to_arm': True,
+            'readiness_status': 'ready',
+            'readiness_summary': 'Ready to fly',
+            'readiness_checks': [
+                {
+                    'id': 'px4',
+                    'label': 'PX4 arming report',
+                    'ready': True,
+                    'detail': 'No active PX4 preflight blockers',
+                }
+            ],
+            'preflight_blockers': [],
+            'preflight_warnings': [],
+            'status_messages': [],
+            'preflight_last_update': 1700000000000,
             'battery_voltage': 12.6,
             'position_lat': 35.123456,
             'position_long': -120.654321,
             'position_alt': 488.5,
+            'velocity_north': 0.0,
+            'velocity_east': 0.0,
+            'velocity_down': 0.0,
+            'yaw': 180.0,
+            'follow_mode': 0,
+            'update_time': '2026-03-21 12:00:00',
+            'hdop': 0.8,
+            'vdop': 1.1,
             'gps_fix_type': 3,
             'satellites_visible': 12,
-            'timestamp': 1700000000000
+            'ip': '192.168.1.101',
+            'heartbeat_last_seen': 1700000000000,
+            'heartbeat_network_info': {},
+            'heartbeat_first_seen': 1699999999000,
+            'timestamp': 1700000000000,
         },
         '2': {
             'pos_id': 1,
             'hw_id': '2',
             'state': 'idle',
-            'flight_mode': 'MANUAL',
-            'armed': False,
-            'in_air': False,
-            'health_ok': True,
+            'mission': 0,
+            'last_mission': 0,
+            'trigger_time': 0,
+            'flight_mode': 65536,
+            'base_mode': 81,
+            'system_status': 4,
+            'is_armed': False,
+            'is_ready_to_arm': False,
+            'readiness_status': 'blocked',
+            'readiness_summary': 'Preflight Fail: ekf2 missing data',
+            'readiness_checks': [
+                {
+                    'id': 'px4',
+                    'label': 'PX4 arming report',
+                    'ready': False,
+                    'detail': '1 active PX4 preflight blocker(s)',
+                }
+            ],
+            'preflight_blockers': [
+                {
+                    'source': 'px4',
+                    'severity': 'error',
+                    'message': 'Preflight Fail: ekf2 missing data',
+                    'timestamp': 1700000000000,
+                }
+            ],
+            'preflight_warnings': [],
+            'status_messages': [],
+            'preflight_last_update': 1700000000000,
             'battery_voltage': 12.4,
             'position_lat': 35.123457,
             'position_long': -120.654322,
             'position_alt': 488.6,
+            'velocity_north': 0.0,
+            'velocity_east': 0.0,
+            'velocity_down': 0.0,
+            'yaw': 180.0,
+            'follow_mode': 0,
+            'update_time': '2026-03-21 12:00:00',
+            'hdop': 1.2,
+            'vdop': 1.5,
             'gps_fix_type': 3,
             'satellites_visible': 10,
-            'timestamp': 1700000000000
+            'ip': '192.168.1.102',
+            'heartbeat_last_seen': 1700000000000,
+            'heartbeat_network_info': {},
+            'heartbeat_first_seen': 1699999999000,
+            'timestamp': 1700000000000,
         }
     }
 
@@ -132,7 +199,7 @@ def test_client(mock_config, mock_telemetry_data):
     with patch('app_fastapi.load_config', return_value=mock_config):
         with patch('app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
             from app_fastapi import app
-            client = TestClient(app)
+            client = SyncASGITestClient(app)
             yield client
 
 
@@ -231,6 +298,8 @@ class TestTelemetryEndpoints:
         assert 'telemetry' in data
         assert 'total_drones' in data
         assert 'online_drones' in data
+        assert data['telemetry']['1']['readiness_status'] == 'ready'
+        assert data['telemetry']['2']['preflight_blockers'][0]['message'] == 'Preflight Fail: ekf2 missing data'
 
 
 # ============================================================================
@@ -513,6 +582,7 @@ class TestCommandEndpoints:
         assert 'mission_name' in data
         assert 'target_drones' in data
         assert 'submitted_count' in data
+        assert data['tracking_phase'] == 'pending_execution'
 
 
 # ============================================================================

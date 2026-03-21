@@ -12,7 +12,7 @@ This document defines the official field naming convention for all drone telemet
 
 ---
 
-## Official Field Names (28 total)
+## Official Field Names (36+ total)
 
 ### Identity
 - `hw_id` - Hardware ID (string)
@@ -35,6 +35,13 @@ This document defines the official field naming convention for all drone telemet
 - `system_status` - MAVLink system status code
 - `is_armed` - Armed status (boolean)
 - `is_ready_to_arm` - Pre-arm check status (boolean)
+- `readiness_status` - Operator-facing readiness state (`ready`, `blocked`, `warning`, `unknown`)
+- `readiness_summary` - Short readiness summary for cards and detail panes
+- `readiness_checks` - Structured readiness check list
+- `preflight_blockers` - Active blocking preflight issues
+- `preflight_warnings` - Active non-blocking readiness warnings
+- `status_messages` - Recent PX4 or telemetry status text
+- `preflight_last_update` - Last readiness update timestamp (Unix ms)
 
 ### Mission State
 - `state` - Drone show state code
@@ -56,6 +63,8 @@ This document defines the official field naming convention for all drone telemet
 - `timestamp` - Telemetry timestamp (Unix ms)
 - `update_time` - Last update time (Unix seconds)
 - `heartbeat_last_seen` - Last heartbeat (Unix ms)
+- `heartbeat_first_seen` - First heartbeat seen by the GCS (Unix ms)
+- `heartbeat_network_info` - Network metadata reported in heartbeat payloads
 
 ---
 

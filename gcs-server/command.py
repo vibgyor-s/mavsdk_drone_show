@@ -334,7 +334,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
                 error_count += 1
                 _log_drone_command_result(drone_id, command_type, False, error_msg)
     
-    # Calculate execution time
+    # Calculate submission/dispatch time
     execution_time = time.time() - start_time
     # failed_count only includes actual failures (rejected/errors), not offline
     failed_count = rejected_count + error_count
@@ -359,32 +359,32 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
     if success_count == len(drones):
         # Perfect success
         _log_command_event(
-            f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
+            f"Command '{command_type}' dispatch summary: {result_summary} in {execution_time:.2f}s",
             "INFO"
         )
     elif offline_count == len(drones):
         # All drones offline - informational, not an error
         _log_command_event(
-            f"Command '{command_type}': {result_summary} (no reachable drones) in {execution_time:.2f}s",
+            f"Command '{command_type}' dispatch summary: {result_summary} (no reachable drones) in {execution_time:.2f}s",
             "INFO"
         )
     elif success_count > 0 and error_count == 0 and rejected_count == 0:
         # Some accepted, rest offline - informational
         _log_command_event(
-            f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
+            f"Command '{command_type}' dispatch summary: {result_summary} in {execution_time:.2f}s",
             "INFO"
         )
     elif error_count > 0 or rejected_count > 0:
         # Actual errors or rejections - warning/error level
         log_level = "ERROR" if success_count == 0 else "WARNING"
         _log_command_event(
-            f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
+            f"Command '{command_type}' dispatch summary: {result_summary} in {execution_time:.2f}s",
             log_level
         )
     else:
         # Fallback
         _log_command_event(
-            f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
+            f"Command '{command_type}' dispatch summary: {result_summary} in {execution_time:.2f}s",
             "INFO"
         )
     
