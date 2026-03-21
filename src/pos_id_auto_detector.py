@@ -137,21 +137,29 @@ class PosIDAutoDetector:
 
         self.logger.info(f"Closest pos_id detected: {best_pos_id} with distance {min_distance:.2f} meters.")
 
+        previous_detected_pos_id = self.drone_config.detected_pos_id
+
         # Check if the distance is within the maximum allowed deviation
         if min_distance > self.params.max_deviation:
             best_pos_id = 0  # Indicate failure
-            self.logger.warning(
-                f"Minimum distance {min_distance:.2f} exceeds max_deviation "
-                f"{self.params.max_deviation}. Setting detected_pos_id to 0."
-            )
+            if previous_detected_pos_id:
+                self.logger.warning(
+                    f"Lost confident pos_id detection; minimum distance {min_distance:.2f} "
+                    f"exceeds max_deviation {self.params.max_deviation}. "
+                    f"Clearing detected_pos_id from {previous_detected_pos_id} to 0."
+                )
+            else:
+                self.logger.info(
+                    f"PosID detection waiting for stable position; minimum distance "
+                    f"{min_distance:.2f} exceeds max_deviation {self.params.max_deviation}."
+                )
 
         # Update detected_pos_id
-        previous_detected_pos_id = self.drone_config.detected_pos_id
         self.drone_config.detected_pos_id = best_pos_id
         self.logger.debug(f"Updated detected_pos_id from {previous_detected_pos_id} to {best_pos_id}.")
 
-        # Compare with actual pos_id and warn if different
-        if best_pos_id != self.drone_config.pos_id:
+        # Warn only on confident, non-zero mismatches.
+        if best_pos_id and best_pos_id != self.drone_config.pos_id:
             self.logger.warning(
                 f"Detected pos_id ({best_pos_id}) does not match configured pos_id "
                 f"({self.drone_config.pos_id})."
