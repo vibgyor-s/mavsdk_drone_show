@@ -97,14 +97,16 @@ describe('missionConfigFields', () => {
 
   test('rejects duplicate and reserved additional field keys', () => {
     const validation = validateMissionCustomFields([
-      { id: 'a', key: 'callsign', type: CUSTOM_FIELD_TYPES.TEXT, value: 'A' },
-      { id: 'b', key: 'Call Sign', type: CUSTOM_FIELD_TYPES.TEXT, value: 'B' },
+      { id: 'a', key: 'my_field', type: CUSTOM_FIELD_TYPES.TEXT, value: 'A' },
+      { id: 'b', key: 'My Field', type: CUSTOM_FIELD_TYPES.TEXT, value: 'B' },
       { id: 'c', key: 'hw_id', type: CUSTOM_FIELD_TYPES.TEXT, value: 'bad' },
     ]);
 
     expect(validation.isValid).toBe(false);
+    // 'my_field' and 'My Field' both normalize to 'my_field' — duplicate
     expect(validation.errorsById.a.key).toMatch(/unique/i);
     expect(validation.errorsById.b.key).toMatch(/unique/i);
+    // 'hw_id' is a reserved core field
     expect(validation.errorsById.c.key).toMatch(/reserved/i);
   });
 });
