@@ -27,6 +27,12 @@ import SidebarMenu from './components/SidebarMenu';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
+// External styles and toast
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import 'leaflet/dist/leaflet.css';
+import './App.css';
+
 // Lazy loaded — heavy visualization pages (three.js, plotly, cytoscape, mapbox)
 const Detail = lazy(() => import('./components/DroneDetail'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
@@ -38,14 +44,6 @@ const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
 const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
 const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
-
-// Import external styles
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import 'leaflet/dist/leaflet.css';
-
-// Import main app styles (should come after design tokens)
-import './App.css';
 
 /**
  * Main Application Component
