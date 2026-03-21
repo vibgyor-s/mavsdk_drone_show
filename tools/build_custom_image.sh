@@ -211,6 +211,13 @@ build_custom_image() {
     # Step 2: Update repository inside container
     log_info "Step 2/4: Updating repository configuration..."
 
+    local fallback_repo_url=""
+    if fallback_repo_url=$(github_https_fallback_url "$repo_url"); then
+        :
+    else
+        fallback_repo_url=""
+    fi
+
     local git_commands
     git_commands=$(cat << EOF
 set -e
@@ -226,10 +233,6 @@ git remote -v
 git branch -a
 echo "Updating remote URL to: ${repo_url}"
 git remote set-url origin "${repo_url}"
-fallback_repo_url=""
-if [[ "${repo_url}" =~ ^git@github\.com:(.+)$ ]]; then
-    fallback_repo_url="https://github.com/${BASH_REMATCH[1]}"
-fi
 echo "Fetching from repository..."
 if ! git fetch origin "${branch}"; then
     if [[ -n "${fallback_repo_url}" && "${fallback_repo_url}" != "${repo_url}" ]]; then
