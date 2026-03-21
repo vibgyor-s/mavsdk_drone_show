@@ -55,7 +55,7 @@ from typing import Any, Dict, List, Optional
 
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from enums import CommandStatus
+from enums import CommandStatus, Mission
 from mds_logging import get_logger
 
 logger = get_logger("command_tracker")
@@ -134,7 +134,7 @@ class CommandTracker:
         self,
         max_commands: int = 1000,
         default_timeout_ms: int = 60000,
-        mission_enum: Optional[type] = None
+        mission_enum: Optional[type] = Mission
     ):
         """
         Initialize command tracker.

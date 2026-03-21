@@ -113,6 +113,9 @@ def create_mock_drone_config():
     drone_config.hw_id = '1'
     drone_config.is_armed = False
     drone_config.is_ready_to_arm = True
+    drone_config.current_command_id = None
+    drone_config.auto_global_origin = None
+    drone_config.use_global_setpoints = None
     return drone_config
 
 
@@ -495,11 +498,45 @@ class TestScriptExecution:
             result = await setup.execute_mission_script('actions.py', '--action=takeoff')
 
         assert result[0] is True
-        assert setup.running_processes['actions.py'] is fallback_process
+        assert len(setup.running_processes) == 1
+        process_record = next(iter(setup.running_processes.values()))
+        assert process_record.script_name == 'actions.py'
+        assert process_record.process is fallback_process
         mock_popen.assert_called_once()
         mock_logger.warning.assert_any_call(
             "Async subprocess execution is unavailable. Falling back to subprocess.Popen for 'actions.py'."
         )
+
+    @pytest.mark.asyncio
+    async def test_execute_mission_script_captures_command_id_in_process_record(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "cmd-123"
+
+        setup = DroneSetup(params, drone_config)
+        process = Mock()
+        process.pid = 4321
+        process.returncode = None
+
+        def fake_create_task(coro):
+            coro.close()
+            return Mock()
+
+        with patch('src.drone_setup.os.path.isfile', return_value=True), \
+             patch('src.drone_setup.asyncio.create_subprocess_exec', AsyncMock(return_value=process)), \
+             patch('src.drone_setup.asyncio.create_task', side_effect=fake_create_task):
+            result = await setup.execute_mission_script('actions.py', '--action=hold')
+
+        assert result == (True, "Started mission script 'actions.py' asynchronously.")
+        assert drone_config.current_command_id is None
+        assert len(setup.running_processes) == 1
+        process_record = next(iter(setup.running_processes.values()))
+        assert process_record.command_id == "cmd-123"
+        assert process_record.process_key.endswith("cmd-123")
+        assert process_record.script_name == "actions.py"
 
 
 @pytest.mark.unit
@@ -509,21 +546,23 @@ class TestActionMissionHandlerRouting:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("handler_name", "expected_script", "expected_action"),
+        ("handler_name", "expected_mission", "expected_script", "expected_action", "interrupts_running"),
         [
-            ("_execute_land", "actions.py", "--action=land"),
-            ("_execute_return_rtl", "actions.py", "--action=return_rtl"),
-            ("_execute_hold", "actions.py", "--action=hold"),
-            ("_execute_kill_terminate", "actions.py", "--action=kill_terminate"),
-            ("_execute_test", "actions.py", "--action=test"),
-            ("_execute_reboot_fc", "actions.py", "--action=reboot_fc"),
-            ("_execute_reboot_sys", "actions.py", "--action=reboot_sys"),
-            ("_execute_init_sysid", "actions.py", "--action=init_sysid"),
-            ("_execute_test_led", "test_led_controller.py", "--action=start"),
-            ("_execute_swarm_trajectory", "swarm_trajectory_mission.py", ""),
+            ("_execute_land", "Land Mission", "actions.py", "--action=land", True),
+            ("_execute_return_rtl", "Return RTL Mission", "actions.py", "--action=return_rtl", True),
+            ("_execute_hold", "Hold Position Mission", "actions.py", "--action=hold", True),
+            ("_execute_kill_terminate", "Kill and Terminate Mission", "actions.py", "--action=kill_terminate", True),
+            ("_execute_test", "Test Mission", "actions.py", "--action=test", False),
+            ("_execute_reboot_fc", "Flight Control Reboot Mission", "actions.py", "--action=reboot_fc", False),
+            ("_execute_reboot_sys", "System Reboot Mission", "actions.py", "--action=reboot_sys", False),
+            ("_execute_init_sysid", "Init SysID Mission", "actions.py", "--action=init_sysid", False),
+            ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", False),
+            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", False),
         ],
     )
-    async def test_handlers_use_execute_mission_script(self, handler_name, expected_script, expected_action):
+    async def test_handlers_use_execute_immediate_launcher(
+        self, handler_name, expected_mission, expected_script, expected_action, interrupts_running
+    ):
         from src.drone_setup import DroneSetup
 
         params = Mock()
@@ -532,11 +571,15 @@ class TestActionMissionHandlerRouting:
 
         setup = DroneSetup(params, drone_config)
 
-        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+        with patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute:
             result = await getattr(setup, handler_name)()
 
         assert result == (True, "started")
-        mock_execute.assert_awaited_once_with(expected_script, expected_action)
+        expected_args = (expected_mission, expected_script, expected_action, None, None)
+        if interrupts_running:
+            mock_execute.assert_awaited_once_with(*expected_args, interrupt_running=True)
+        else:
+            mock_execute.assert_awaited_once_with(*expected_args)
 
     @pytest.mark.asyncio
     async def test_update_code_handler_uses_execute_mission_script(self):
@@ -549,11 +592,17 @@ class TestActionMissionHandlerRouting:
 
         setup = DroneSetup(params, drone_config)
 
-        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+        with patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute:
             result = await setup._execute_update_code()
 
         assert result == (True, "started")
-        mock_execute.assert_awaited_once_with("actions.py", "--action=update_code --branch=main-candidate")
+        mock_execute.assert_awaited_once_with(
+            "Update Code Mission with branch 'main-candidate'",
+            "actions.py",
+            "--action=update_code --branch=main-candidate",
+            None,
+            None,
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -573,11 +622,77 @@ class TestActionMissionHandlerRouting:
 
         setup = DroneSetup(params, drone_config)
 
-        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+        with patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute:
             result = await setup._execute_apply_common_params()
 
         assert result == (True, "started")
-        mock_execute.assert_awaited_once_with("actions.py", expected_action)
+        expected_mission = "Apply Common Params Mission with reboot" if reboot_after else "Apply Common Params Mission"
+        mock_execute.assert_awaited_once_with(
+            expected_mission,
+            "actions.py",
+            expected_action,
+            None,
+            None,
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("handler_name", "interrupts_running"),
+        [
+            ("_execute_land", True),
+            ("_execute_return_rtl", True),
+            ("_execute_hold", True),
+            ("_execute_kill_terminate", True),
+            ("_execute_test", False),
+            ("_execute_reboot_fc", False),
+            ("_execute_reboot_sys", False),
+            ("_execute_test_led", False),
+            ("_execute_swarm_trajectory", False),
+            ("_execute_init_sysid", False),
+        ],
+    )
+    async def test_immediate_handlers_transition_to_executing_once(self, handler_name, interrupts_running):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.trigger_time = 25
+
+        setup = DroneSetup(params, drone_config)
+        setup.terminate_all_running_processes = AsyncMock()
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+            result = await getattr(setup, handler_name)(current_time=100, earlier_trigger_time=0)
+
+        assert result == (True, "started")
+        assert drone_config.state == State.MISSION_EXECUTING.value
+        assert drone_config.trigger_time == 0
+        if interrupts_running:
+            setup.terminate_all_running_processes.assert_not_awaited()
+        else:
+            setup.terminate_all_running_processes.assert_not_awaited()
+        mock_execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_override_actions_interrupt_running_processes(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.trigger_time = 10
+
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["mission.py:cmd-1"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock()
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))):
+            await setup._execute_land(current_time=100, earlier_trigger_time=0)
+
+        setup.terminate_all_running_processes.assert_awaited_once()
 
 
 # ============================================================================
@@ -830,29 +945,34 @@ class TestMissionProcessMonitoring:
     @pytest.mark.asyncio
     async def test_monitor_script_process_uses_stdout_when_stderr_empty(self):
         """Test child stdout is surfaced when a mission script fails without stderr"""
-        from src.drone_setup import DroneSetup
+        from src.drone_setup import DroneSetup, RunningMissionProcess
 
         params = Mock()
         params.trigger_sooner_seconds = 4
-        drone_config = Mock()
-        drone_config.trigger_time = 0
-        drone_config.mission = 0
+        drone_config = create_mock_drone_config()
 
         setup = DroneSetup(params, drone_config)
         process = Mock()
         process.communicate = AsyncMock(return_value=(b"mavsdk_server executable not found.\n", b""))
         process.returncode = 1
-        setup.running_processes["actions.py"] = process
+        process_record = RunningMissionProcess(
+            process_key="actions.py:cmd-123",
+            script_name="actions.py",
+            process=process,
+            command_id="cmd-123",
+        )
+        setup.running_processes[process_record.process_key] = process_record
         setup._reset_mission_state = Mock()
         setup._report_execution_to_gcs = AsyncMock()
 
         with patch('src.drone_setup.logger') as mock_logger:
-            await setup._monitor_script_process("actions.py", process)
+            await setup._monitor_script_process(process_record)
 
         setup._reset_mission_state.assert_called_once_with(success=False)
         setup._report_execution_to_gcs.assert_awaited_once()
         report_kwargs = setup._report_execution_to_gcs.await_args.kwargs
 
+        assert report_kwargs["command_id"] == "cmd-123"
         assert report_kwargs["error_message"] == "mavsdk_server executable not found."
         assert report_kwargs["script_output"] == "mavsdk_server executable not found."
         mock_logger.error.assert_any_call(

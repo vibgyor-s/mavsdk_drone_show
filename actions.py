@@ -374,6 +374,60 @@ async def wait_for_drone_connection(drone, timeout=10):
             return False
         await asyncio.sleep(0.5)
 
+
+async def wait_for_telemetry_condition(stream_factory, predicate, description, timeout=20):
+    """
+    Wait until a MAVSDK telemetry stream satisfies a predicate.
+
+    This keeps action completion aligned with actual vehicle state changes
+    instead of treating MAVSDK RPC acceptance as the terminal success signal.
+    """
+    deadline = time.monotonic() + timeout
+    async for sample in stream_factory():
+        if predicate(sample):
+            logger.info(f"{description} confirmed.")
+            return sample
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Timed out waiting for {description}")
+
+
+async def wait_until_armed_state(drone, expected: bool, timeout=15):
+    state_label = "armed" if expected else "disarmed"
+    return await wait_for_telemetry_condition(
+        drone.telemetry.armed,
+        lambda armed: armed is expected,
+        f"vehicle to become {state_label}",
+        timeout=timeout,
+    )
+
+
+async def wait_until_landed_state(drone, expected_states, description, timeout=20):
+    expected_states = set(expected_states)
+    return await wait_for_telemetry_condition(
+        drone.telemetry.landed_state,
+        lambda state: state in expected_states,
+        description,
+        timeout=timeout,
+    )
+
+
+async def wait_until_flight_mode(drone, expected_mode, timeout=15):
+    return await wait_for_telemetry_condition(
+        drone.telemetry.flight_mode,
+        lambda mode: mode == expected_mode,
+        f"flight mode {expected_mode.name}",
+        timeout=timeout,
+    )
+
+
+async def wait_until_relative_altitude(drone, minimum_relative_altitude_m: float, timeout=30):
+    return await wait_for_telemetry_condition(
+        drone.telemetry.position,
+        lambda position: position.relative_altitude_m >= minimum_relative_altitude_m,
+        f"relative altitude >= {minimum_relative_altitude_m:.1f}m",
+        timeout=timeout,
+    )
+
 async def safe_action(func, *args, **kwargs):
     """
     Wraps an action function with exception handling.
@@ -536,13 +590,23 @@ async def takeoff(drone, altitude):
 
     # Try arming
     try:
+        target_altitude = float(altitude)
         led_controller.set_color(255, 255, 0)  # Yellow: starting
         await asyncio.sleep(0.5)
-        await drone.action.set_takeoff_altitude(float(altitude))
+        await drone.action.set_takeoff_altitude(target_altitude)
         await drone.action.arm()
+        await wait_until_armed_state(drone, True, timeout=10)
         led_controller.set_color(255, 255, 255)  # White: armed
         await asyncio.sleep(0.5)
         await drone.action.takeoff()
+        await wait_until_landed_state(
+            drone,
+            {telemetry.LandedState.TAKING_OFF, telemetry.LandedState.IN_AIR},
+            "takeoff state transition",
+            timeout=15,
+        )
+        minimum_altitude = max(1.5, min(target_altitude - 0.5, target_altitude * 0.8))
+        await wait_until_relative_altitude(drone, minimum_altitude, timeout=30)
     except ActionError as e:
         logger.error(f"Failed to take off: {e}")
         raise
@@ -569,6 +633,7 @@ async def land(drone):
 
     try:
         await drone.action.hold()
+        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
         await asyncio.sleep(1)
 
         # Indicate landing in progress (blue pulses)
@@ -579,6 +644,13 @@ async def land(drone):
             await asyncio.sleep(0.5)
 
         await drone.action.land()
+        await wait_until_landed_state(
+            drone,
+            {telemetry.LandedState.LANDING, telemetry.LandedState.ON_GROUND},
+            "landing state transition",
+            timeout=15,
+        )
+        await wait_until_armed_state(drone, False, timeout=45)
 
         for _ in range(3):
             led_controller.set_color(0, 255, 0)
@@ -604,6 +676,7 @@ async def return_rtl(drone):
 
     try:
         await drone.action.hold()
+        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
         await asyncio.sleep(1)
 
         for _ in range(3):
@@ -613,6 +686,7 @@ async def return_rtl(drone):
             await asyncio.sleep(0.5)
 
         await drone.action.return_to_launch()
+        await wait_until_flight_mode(drone, telemetry.FlightMode.RETURN_TO_LAUNCH, timeout=15)
 
         for _ in range(3):
             led_controller.set_color(0, 255, 0)
@@ -641,7 +715,7 @@ async def kill_terminate(drone):
 
     try:
         await drone.action.terminate()
-        await asyncio.sleep(1)
+        await wait_until_armed_state(drone, False, timeout=10)
         for _ in range(3):
             led_controller.set_color(0, 255, 0)
             await asyncio.sleep(0.2)
@@ -667,6 +741,7 @@ async def hold(drone):
     await asyncio.sleep(0.5)
     try:
         await drone.action.hold()
+        await wait_until_flight_mode(drone, telemetry.FlightMode.HOLD, timeout=10)
         led_controller.set_color(0, 0, 255)
         await asyncio.sleep(1)
         led_controller.turn_off()

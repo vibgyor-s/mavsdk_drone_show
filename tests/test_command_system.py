@@ -117,6 +117,7 @@ class TestCommandTracker:
         status = await tracker.get_status(command_id)
         assert status is not None
         assert status['mission_type'] == 10
+        assert status['mission_name'] == 'TAKE_OFF'
         assert status['target_drones'] == ['1', '2', '3']
         assert status['status'] == 'created'
         assert status['acks']['expected'] == 3
