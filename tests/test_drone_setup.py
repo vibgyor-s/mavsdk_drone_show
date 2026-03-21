@@ -502,6 +502,84 @@ class TestScriptExecution:
         )
 
 
+@pytest.mark.unit
+@pytest.mark.mission
+class TestActionMissionHandlerRouting:
+    """Representative action and script handlers should all use the shared launcher."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("handler_name", "expected_script", "expected_action"),
+        [
+            ("_execute_land", "actions.py", "--action=land"),
+            ("_execute_return_rtl", "actions.py", "--action=return_rtl"),
+            ("_execute_hold", "actions.py", "--action=hold"),
+            ("_execute_kill_terminate", "actions.py", "--action=kill_terminate"),
+            ("_execute_test", "actions.py", "--action=test"),
+            ("_execute_reboot_fc", "actions.py", "--action=reboot_fc"),
+            ("_execute_reboot_sys", "actions.py", "--action=reboot_sys"),
+            ("_execute_init_sysid", "actions.py", "--action=init_sysid"),
+            ("_execute_test_led", "test_led_controller.py", "--action=start"),
+            ("_execute_swarm_trajectory", "swarm_trajectory_mission.py", ""),
+        ],
+    )
+    async def test_handlers_use_execute_mission_script(self, handler_name, expected_script, expected_action):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+
+        setup = DroneSetup(params, drone_config)
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+            result = await getattr(setup, handler_name)()
+
+        assert result == (True, "started")
+        mock_execute.assert_awaited_once_with(expected_script, expected_action)
+
+    @pytest.mark.asyncio
+    async def test_update_code_handler_uses_execute_mission_script(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.update_branch = "main-candidate"
+
+        setup = DroneSetup(params, drone_config)
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+            result = await setup._execute_update_code()
+
+        assert result == (True, "started")
+        mock_execute.assert_awaited_once_with("actions.py", "--action=update_code --branch=main-candidate")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("reboot_after", "expected_action"),
+        [
+            (False, "--action=apply_common_params"),
+            (True, "--action=apply_common_params --reboot_after"),
+        ],
+    )
+    async def test_apply_common_params_handler_uses_execute_mission_script(self, reboot_after, expected_action):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.reboot_after_params = reboot_after
+
+        setup = DroneSetup(params, drone_config)
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+            result = await setup._execute_apply_common_params()
+
+        assert result == (True, "started")
+        mock_execute.assert_awaited_once_with("actions.py", expected_action)
+
+
 # ============================================================================
 # Test: Trigger Time Calculation
 # ============================================================================

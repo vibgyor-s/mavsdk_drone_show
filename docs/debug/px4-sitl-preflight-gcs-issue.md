@@ -7,6 +7,7 @@
 - `mavlink-router` being up does not satisfy the PX4 GCS-link requirement by itself. A real MAVLink GCS client still has to send heartbeats back toward PX4.
 - The earlier `param set` vs `param set-default` theory was misleading. In the same generated `rcS`, `COM_RC_IN_MODE` is set with `param set ... 4` before a later `param set-default COM_RC_IN_MODE 1`, and runtime still keeps `COM_RC_IN_MODE=4`.
 - The generated `build/.../rcS` mutation is not a reliable fix point for this warning. A clean A/B repro on the live VPS container kept the warning with the rcS block present, but removed it when PX4 was launched with `PX4_PARAM_NAV_DLL_ACT=0` and `PX4_PARAM_COM_DL_LOSS_T=0`.
+- Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is **not** a valid end-to-end MDS startup test. That bypasses `multiple_sitl/startup_sitl.sh`, so it skips the MDS `PX4_PARAM_*` launch overrides and runtime `mavsdk_server` checks.
 
 ## Confirmed Root Cause
 

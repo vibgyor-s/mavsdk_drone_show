@@ -17,12 +17,48 @@ from typing import List, Dict, Any, Tuple, Iterable
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
-from enums import CommandResultCategory
+from enums import CommandResultCategory, Mission
 
 # Unified logging system
 from mds_logging.server import get_logger
 
 logger = get_logger("command")
+
+_MISSION_NAME_ALIASES = {
+    "TAKEOFF": Mission.TAKE_OFF,
+    "TAKE_OFF": Mission.TAKE_OFF,
+    "LAND": Mission.LAND,
+    "HOLD": Mission.HOLD,
+    "RTL": Mission.RETURN_RTL,
+    "RETURN_RTL": Mission.RETURN_RTL,
+    "RETURNRTL": Mission.RETURN_RTL,
+    "KILL": Mission.KILL_TERMINATE,
+    "TERMINATE": Mission.KILL_TERMINATE,
+    "KILL_TERMINATE": Mission.KILL_TERMINATE,
+    "TEST": Mission.TEST,
+    "REBOOT_FC": Mission.REBOOT_FC,
+    "REBOOT_SYS": Mission.REBOOT_SYS,
+    "TEST_LED": Mission.TEST_LED,
+    "UPDATE": Mission.UPDATE_CODE,
+    "UPDATE_CODE": Mission.UPDATE_CODE,
+    "INIT_SYSID": Mission.INIT_SYSID,
+    "APPLY_COMMON_PARAMS": Mission.APPLY_COMMON_PARAMS,
+    "DRONE_SHOW": Mission.DRONE_SHOW_FROM_CSV,
+    "DRONE_SHOW_FROM_CSV": Mission.DRONE_SHOW_FROM_CSV,
+    "CUSTOM_CSV_DRONE_SHOW": Mission.CUSTOM_CSV_DRONE_SHOW,
+    "SMART_SWARM": Mission.SMART_SWARM,
+    "SWARM_TRAJECTORY": Mission.SWARM_TRAJECTORY,
+    "QUICKSCOUT": Mission.QUICKSCOUT,
+    "HOVER_TEST": Mission.HOVER_TEST,
+}
+
+_CRITICAL_MISSIONS = {
+    Mission.TAKE_OFF,
+    Mission.LAND,
+    Mission.HOLD,
+    Mission.RETURN_RTL,
+    Mission.KILL_TERMINATE,
+}
 
 def normalize_drone_id(drone_id: Any) -> str:
     """Normalize hardware/position identifiers to strings for consistent routing."""
@@ -32,6 +68,46 @@ def normalize_drone_id(drone_id: Any) -> str:
 def normalize_drone_ids(drone_ids: Iterable[Any]) -> List[str]:
     """Normalize a collection of drone identifiers to strings."""
     return [normalize_drone_id(drone_id) for drone_id in drone_ids]
+
+
+def resolve_mission_type(mission_type: Any) -> Mission | None:
+    """Resolve mission codes and legacy mission names to a Mission enum."""
+    if isinstance(mission_type, Mission):
+        return mission_type
+
+    if isinstance(mission_type, int):
+        return Mission._value2member_map_.get(mission_type)
+
+    if isinstance(mission_type, str):
+        normalized = mission_type.strip()
+        if not normalized:
+            return None
+
+        try:
+            return Mission._value2member_map_.get(int(normalized))
+        except ValueError:
+            pass
+
+        normalized_name = normalized.upper().replace("-", "_").replace(" ", "_")
+        return _MISSION_NAME_ALIASES.get(normalized_name) or Mission.__members__.get(normalized_name)
+
+    return None
+
+
+def normalize_mission_type(mission_type: Any) -> Tuple[str, str, Mission | None]:
+    """Return a drone-API-safe mission value plus a stable log label."""
+    mission = resolve_mission_type(mission_type)
+    if mission is not None:
+        return str(mission.value), f"{mission.name} ({mission.value})", mission
+
+    normalized = str(mission_type).strip() if mission_type is not None else "UNKNOWN"
+    normalized = normalized or "UNKNOWN"
+    return normalized, normalized, None
+
+
+def is_critical_mission(mission: Mission | None) -> bool:
+    """Identify commands worth always logging at INFO/WARNING on first attempt."""
+    return mission in _CRITICAL_MISSIONS
 
 
 def _log_command_event(message: str, level: str = "INFO", drone_id: Any | None = None) -> None:
@@ -113,7 +189,8 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     """
     drone_id = normalize_drone_id(drone['hw_id'])
     drone_ip = drone['ip'] 
-    command_type = command_data.get('missionType', 'UNKNOWN')
+    raw_command_type = command_data.get('missionType', 'UNKNOWN')
+    normalized_mission_type, command_type, mission = normalize_mission_type(raw_command_type)
     
     attempt = 0
     backoff_factor = 1
@@ -123,7 +200,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     # Ensure missionType is string for drone API compatibility
     command_payload = command_data.copy()
     if 'missionType' in command_payload:
-        command_payload['missionType'] = str(command_payload['missionType'])
+        command_payload['missionType'] = normalized_mission_type
 
     while attempt < retries:
         try:
@@ -143,7 +220,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                         True,
                         f"recovered after {attempt} failure(s)"
                     )
-                elif command_type in ['TAKEOFF', 'LAND', 'RTL', 'ARM', 'DISARM']:  # Critical commands
+                elif is_critical_mission(mission):
                     _log_drone_command_result(drone_id, command_type, True)
                 # Don't log routine successful commands to reduce noise
 
@@ -160,7 +237,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
             if attempt < retries:
                 wait_time = backoff_factor * (2 ** (attempt - 1))
                 # Only log retry attempts for critical commands or on last attempt
-                if command_type in ['TAKEOFF', 'LAND', 'RTL', 'EMERGENCY'] or attempt == retries:
+                if is_critical_mission(mission) or attempt == retries:
                     _log_command_event(
                         f"Retry {attempt}/{retries} for {command_type} in {wait_time}s due to {e.__class__.__name__}",
                         "WARNING",
@@ -197,7 +274,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
             'failed': 0, 'total': 0, 'result_summary': 'no drones', 'results': {}
         }
     
-    command_type = command_data.get('missionType', 'UNKNOWN')
+    _, command_type, _ = normalize_mission_type(command_data.get('missionType', 'UNKNOWN'))
     
     # Log command initiation for swarm operations
     _log_command_event(
@@ -420,6 +497,9 @@ def validate_command_data(command_data: Dict[str, Any]) -> Tuple[bool, str]:
     mission_type = command_data.get('missionType')
     if not isinstance(mission_type, (int, str)):
         return False, "missionType must be an integer or string"
+
+    if resolve_mission_type(mission_type) is None:
+        return False, "missionType must be a valid mission code or supported mission name"
     
     # Additional validation can be added here for specific command types
     
@@ -499,7 +579,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Test drone command system')
     add_log_arguments(parser)
-    parser.add_argument('--command', required=True, help='Command to send (e.g., ARM, TAKEOFF, LAND)')
+    parser.add_argument(
+        '--command',
+        required=True,
+        help='Command to send (for example 10, LAND, TAKEOFF, RTL, HOLD)',
+    )
     parser.add_argument('--drones', nargs='*', help='Specific drone IDs to target')
     args = parser.parse_args()
 

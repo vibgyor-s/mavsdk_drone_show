@@ -304,6 +304,15 @@ class TestCommandTracker:
 class TestGcsCommandDistribution:
     """Test GCS command fan-out behavior with mixed ID types and ACK payloads."""
 
+    def test_validate_command_data_accepts_supported_legacy_mission_names(self):
+        """Legacy CLI-style mission names should normalize cleanly."""
+        from command import validate_command_data
+
+        is_valid, error = validate_command_data({'missionType': 'LAND', 'triggerTime': '0'})
+
+        assert is_valid is True
+        assert error == ""
+
     def test_send_command_to_drone_respects_rejected_ack_body(self):
         """HTTP 200 with status=rejected must not be treated as accepted."""
         from command import send_command_to_drone
@@ -325,6 +334,26 @@ class TestGcsCommandDistribution:
         assert success is False
         assert category == 'rejected'
         assert 'E202' in error
+
+    def test_send_command_to_drone_normalizes_legacy_mission_names_to_numeric_payload(self):
+        """Drone API payloads must use numeric mission codes even for legacy aliases."""
+        from command import send_command_to_drone
+        from src.enums import Mission
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {'missionType': 'RTL', 'triggerTime': '0'}
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'status': 'accepted'}
+
+        with patch('command.requests.post', return_value=mock_response) as mock_post:
+            success, error, category = send_command_to_drone(drone, command_data, retries=1)
+
+        assert success is True
+        assert error == ""
+        assert category == 'accepted'
+        assert mock_post.call_args.kwargs['json']['missionType'] == str(Mission.RETURN_RTL.value)
 
     def test_send_commands_to_all_normalizes_rejected_drone_ids(self):
         """Rejected/error logging should not crash when config uses integer hw_id values."""
