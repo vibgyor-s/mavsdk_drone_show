@@ -83,7 +83,6 @@ VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.json"
 PX4_DIR="${MDS_PX4_DIR:-$HOME/PX4-Autopilot}"
 PX4_RCS_PATH="$PX4_DIR/build/px4_sitl_default/etc/init.d-posix/rcS"
-PX4_RCS_CONFIGURER="$BASE_DIR/multiple_sitl/configure_px4_sitl_rcs.py"
 PX4_BUILD_PREP_LOG="$BASE_DIR/logs/px4_build_prepare.log"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
@@ -130,7 +129,7 @@ GIT_BRANCH="$DEFAULT_GIT_BRANCH"
 # Verbose Mode Flag
 VERBOSE_MODE=false
 ACTIVE_SITL_PARAM_OVERRIDES=()
-CONFIGURE_PX4_RCS_ARGS=()
+PX4_PARAM_ENV_VARS=()
 SIMULATION_ENV_VARS=()
 SIMULATION_COMMAND=()
 
@@ -377,7 +376,7 @@ trim_whitespace() {
 
 build_sitl_param_overrides() {
     ACTIVE_SITL_PARAM_OVERRIDES=()
-    CONFIGURE_PX4_RCS_ARGS=()
+    PX4_PARAM_ENV_VARS=()
 
     if [ -n "${MDS_SITL_PARAM_OVERRIDES:-}" ]; then
         case "${MDS_SITL_PARAM_OVERRIDES,,}" in
@@ -403,9 +402,11 @@ build_sitl_param_overrides() {
         ACTIVE_SITL_PARAM_OVERRIDES=("${DEFAULT_SITL_PARAM_OVERRIDES[@]}")
     fi
 
-    local override
+    local override name value
     for override in "${ACTIVE_SITL_PARAM_OVERRIDES[@]}"; do
-        CONFIGURE_PX4_RCS_ARGS+=(--param "$override")
+        name="${override%%=*}"
+        value="${override#*=}"
+        PX4_PARAM_ENV_VARS+=("PX4_PARAM_${name}=${value}")
     done
 }
 
@@ -744,23 +745,18 @@ prepare_px4_build_artifacts() {
     fi
 }
 
-# Apply MAV_SYS_ID and SITL-only PX4 parameter overrides through a single
-# managed rcS block so repeated launches remain idempotent and easy to audit.
+# Prepare SITL-only PX4 parameter overrides using the native PX4_PARAM_* env
+# mechanism. PX4 applies these after the airframe defaults load, which is more
+# reliable than mutating the generated build rcS file.
 configure_px4_sitl_rcs() {
-    log_message "Configuring PX4 SITL rcS overrides..."
+    log_message "Preparing PX4 SITL parameter overrides..."
 
     build_sitl_param_overrides
 
-    if [ ! -f "$PX4_RCS_CONFIGURER" ]; then
-        log_message "ERROR: PX4 SITL rcS configurator not found: $PX4_RCS_CONFIGURER"
-        exit 1
-    fi
-
-    if python3 "$PX4_RCS_CONFIGURER" --hwid "$HWID" --rcs "$PX4_RCS_PATH" "${CONFIGURE_PX4_RCS_ARGS[@]}"; then
-        log_message "PX4 SITL rcS overrides configured successfully."
+    if [ ${#PX4_PARAM_ENV_VARS[@]} -eq 0 ]; then
+        log_message "No PX4 SITL parameter overrides requested."
     else
-        log_message "ERROR: Failed to configure PX4 SITL rcS overrides."
-        exit 1
+        log_message "Using PX4_PARAM_* environment overrides at launch time."
     fi
 }
 
@@ -876,6 +872,9 @@ determine_simulation_command() {
         "QT_QPA_PLATFORM=$QT_QPA_PLATFORM_VALUE"
         "GZ_PARTITION=$GZ_PARTITION_VALUE"
     )
+    if [ ${#PX4_PARAM_ENV_VARS[@]} -gt 0 ]; then
+        SIMULATION_ENV_VARS+=("${PX4_PARAM_ENV_VARS[@]}")
+    fi
     SIMULATION_COMMAND=(make px4_sitl "$PX4_GZ_TARGET")
 
     log_message "Simulation Runtime: PX4 Gazebo Harmonic (${PX4_GZ_TARGET}) in headless mode"
@@ -973,7 +972,7 @@ setup_python_env
 # Clean up any stale simulator processes before launching a fresh instance.
 cleanup_stale_simulation_processes
 
-# Ensure PX4 build artifacts exist and then inject the managed rcS override block.
+# Ensure PX4 build artifacts exist and prepare PX4 launch-time parameter overrides.
 prepare_px4_build_artifacts
 configure_px4_sitl_rcs
 

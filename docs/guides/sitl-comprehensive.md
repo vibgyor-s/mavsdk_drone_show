@@ -277,7 +277,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which starts headless PX4 `gz_x500`, applies the SITL PX4 parameter override block, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
+    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Manage the MDS SITL PX4 rcS override block.
+Manage the legacy MDS SITL PX4 rcS override block.
 
-This keeps all SITL-only PX4 runtime overrides in one idempotent block inside
-the generated `build/px4_sitl_default/etc/init.d-posix/rcS` file so startup
-scripts can safely re-apply overrides without piling up duplicate lines.
+The active Docker SITL launch path now prefers PX4's native `PX4_PARAM_*`
+environment-variable overrides. This helper is kept for compatibility with
+older tooling that still patches the generated `build/.../rcS` file directly.
 """
 
 from __future__ import annotations

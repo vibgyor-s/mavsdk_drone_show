@@ -1,0 +1,201 @@
+# PX4 SITL Preflight Issue: "No connection to the GCS"
+
+## Verified Findings (2026-03-21)
+
+- The coordinator's `HeartbeatSender` is **not** a MAVLink heartbeat sender. It sends HTTP POST requests to the GCS API (`src/heartbeat_sender.py`), so it cannot clear PX4's `gcs_connection_lost` flag.
+- Current PX4 `main` in the affected container (`53bec94205`, March 21, 2026) clears `gcs_connection_lost` only when Commander receives telemetry with `heartbeat_type_gcs`, which comes from incoming MAVLink `HEARTBEAT` messages of type `MAV_TYPE_GCS`.
+- `mavlink-router` being up does not satisfy the PX4 GCS-link requirement by itself. A real MAVLink GCS client still has to send heartbeats back toward PX4.
+- The earlier `param set` vs `param set-default` theory was misleading. In the same generated `rcS`, `COM_RC_IN_MODE` is set with `param set ... 4` before a later `param set-default COM_RC_IN_MODE 1`, and runtime still keeps `COM_RC_IN_MODE=4`.
+- The generated `build/.../rcS` mutation is not a reliable fix point for this warning. A clean A/B repro on the live VPS container kept the warning with the rcS block present, but removed it when PX4 was launched with `PX4_PARAM_NAV_DLL_ACT=0` and `PX4_PARAM_COM_DL_LOSS_T=0`.
+
+## Confirmed Root Cause
+
+There were two separate problems:
+
+1. The system assumed the coordinator's application heartbeat meant PX4 had a GCS connection. It does not. PX4 only cares about MAVLink `HEARTBEAT` traffic from a `MAV_TYPE_GCS` endpoint.
+2. The repository was applying SITL parameter overrides by editing the generated build `rcS`. In practice, the trustworthy fix path is PX4's native `PX4_PARAM_*` launch-time override mechanism, which applies after the airframe defaults are loaded.
+
+## Problem Statement
+
+When running PX4 SITL with Gazebo Harmonic (`make px4_sitl gz_x500`) inside Docker
+containers, the health and arming checks persistently warn:
+
+```
+WARN [health_and_arming_checks] Preflight Fail: No connection to the GCS
+```
+
+This warning appears even after `mavlink-router` is running and the coordinator is
+healthy. The application was exchanging HTTP heartbeats with the GCS API, but that
+traffic does **not** satisfy PX4 Commander's MAVLink GCS-link requirement. The WARN
+level (not INFO) suggests `NAV_DLL_ACT > 0` at runtime, which **blocks arming**.
+
+## Current System State (Working Except This Issue)
+
+- **PX4**: Latest main branch (commit `53bec94205`), built with `gz_x500` target
+- **Gazebo**: Harmonic 8.11.0 (gz-harmonic meta-package)
+- **Container OS**: Ubuntu 22.04
+- **mavlink-router**: v3, routing on `0.0.0.0:14550`
+- **Coordinator**: Running, HTTP heartbeats to the GCS API working
+- **Telemetry**: Drone position/velocity data routed out correctly
+
+## Historical Attempts
+
+### Approach 1: rcS Override Block (via `configure_px4_sitl_rcs.py`)
+
+Our script `multiple_sitl/configure_px4_sitl_rcs.py` injects a managed block into the
+BUILD rcS at `build/px4_sitl_default/etc/init.d-posix/rcS`:
+
+```bash
+# BEGIN MDS SITL OVERRIDES
+param set MAV_SYS_ID 1
+param set COM_RC_IN_MODE 4
+param set NAV_RCL_ACT 0
+param set NAV_DLL_ACT 0
+param set COM_DL_LOSS_T 0
+param set CBRK_SUPPLY_CHK 894281
+param set SDLOG_MODE -1
+# END MDS SITL OVERRIDES
+```
+
+**Result**: Block is present in the build rcS. Other params apply correctly
+(`COM_RC_IN_MODE: 3 -> 4`, `CBRK_SUPPLY_CHK: 0 -> 894281`). But the
+`WARN [health_and_arming_checks] Preflight Fail: No connection to the GCS`
+persists, indicating `NAV_DLL_ACT` is not effectively 0 at the time the check runs.
+
+### Approach 2: Source ROMFS Modification
+
+Also tried modifying the source ROMFS rcS and the airframe defaults directly.
+**Reverted** — modifying PX4 upstream source files is not maintainable across
+`git pull` updates.
+
+## Root Cause Analysis
+
+### PX4 Source Code (the check)
+
+File: `src/modules/commander/HealthAndArmingChecks/checks/rcAndDataLinkCheck.cpp`
+
+```cpp
+// GCS connection
+reporter.failsafeFlags().gcs_connection_lost = context.status().gcs_connection_lost;
+
+if (reporter.failsafeFlags().gcs_connection_lost) {
+    bool gcs_connection_required = _param_nav_dll_act.get() > 0;
+    NavModes affected_modes = gcs_connection_required ? NavModes::All : NavModes::None;
+    events::LogLevel log_level = gcs_connection_required ? events::Log::Error : events::Log::Info;
+
+    reporter.armingCheckFailure(affected_modes, health_component_t::communication_links,
+                                events::ID("check_rc_dl_no_dllink"),
+                                log_level, "No connection to the ground control station");
+
+    if (gcs_connection_required && reporter.mavlink_log_pub()) {
+        mavlink_log_warning(reporter.mavlink_log_pub(), "Preflight Fail: No connection to the GCS");
+    }
+}
+```
+
+Key logic:
+- If `NAV_DLL_ACT > 0` → GCS required → WARN level → **blocks arming**
+- If `NAV_DLL_ACT == 0` → GCS not required → INFO level → does NOT block arming
+
+### The gz_x500 Airframe Default
+
+File: `ROMFS/px4fmu_common/init.d-posix/airframes/4001_gz_x500`
+
+```bash
+param set-default NAV_DLL_ACT 2   # RTL on data link loss
+```
+
+### rcS Execution Order
+
+```
+Line 126: param reset_all SYS_AUTOSTART SYS_PARAM_VER CAL_* ...  # Wipes all non-excluded params
+Line 127: set AUTOCNF yes
+
+Line 131: param set MAV_SYS_ID $((px4_instance+1))
+
+Line 133: # BEGIN MDS SITL OVERRIDES
+Line 136: param set NAV_DLL_ACT 0          # Our override
+Line 140: # END MDS SITL OVERRIDES
+
+Line 142: if [ $AUTOCNF = yes ]
+Line 143:     param set SYS_AUTOSTART $SYS_AUTOSTART
+
+Line 232: . "$autostart_file"              # Sources 4001_gz_x500
+          # → param set-default NAV_DLL_ACT 2
+```
+
+### Historical Hypothesis (Disproven)
+
+`param set` should override `param set-default`. After `param reset_all` wipes
+everything, our `param set NAV_DLL_ACT 0` explicitly sets the value. The
+airframe's subsequent `param set-default NAV_DLL_ACT 2` should NOT override it
+because `param set-default` only applies when no explicit value exists.
+
+This turned out **not** to explain the live behavior. The WARN output uses
+`mavlink_log_warning` which only fires when `_param_nav_dll_act.get() > 0`, but
+the reliable fix was to use PX4's launch-time `PX4_PARAM_*` override path rather
+than editing the generated build `rcS`.
+
+At the time, the working theories were:
+
+1. `param set` after `param reset_all` does NOT properly mark the param as "user-set",
+   so `param set-default` overrides it later
+2. There's a second `param reset_all` or similar operation happening after our block
+3. The `SYS_AUTOCONFIG=1` auto-configuration cycle has side effects we don't understand
+4. `param set-default` in the current PX4 version has different semantics than expected
+
+## Investigation Checklist Used
+
+1. **Verify the actual runtime value** of `NAV_DLL_ACT`:
+   - Connect to PX4 shell (`pxh>`) and run `param show NAV_DLL_ACT`
+   - Or via MAVLink: `PARAM_REQUEST_READ` for `NAV_DLL_ACT`
+
+2. **Test `param set` vs `param set-default` semantics** after `param reset_all`:
+   - In pxh: `param reset_all && param set NAV_DLL_ACT 0 && param show NAV_DLL_ACT`
+   - Then: `param set-default NAV_DLL_ACT 2 && param show NAV_DLL_ACT`
+   - Does the value stay 0 or change to 2?
+
+3. **Consider alternative approaches**:
+   - Move overrides to AFTER the airframe loads (e.g., in a `4001_gz_x500.post` file)
+   - Use `param set` instead of `param set-default` in the airframe itself (but this
+     modifies upstream)
+   - Find a PX4-standard mechanism for user overrides that runs after airframe init
+   - Use environment variable `PX4_SIM_OVERRIDES` or similar if it exists
+
+4. **Check if there's a circuit breaker** for the GCS preflight check specifically
+   (like `CBRK_SUPPLY_CHK` for power supply check)
+
+5. **Check if `gcs_connection_lost` in `context.status()` is the actual issue** —
+   maybe the flag stays true despite mavlink-router being connected because the
+   MAVLink heartbeat hasn't been received by Commander yet
+
+## File References
+
+| File | Purpose |
+|------|---------|
+| `multiple_sitl/startup_sitl.sh` | Main SITL startup script (lines 725-765, 870-898) |
+| `multiple_sitl/configure_px4_sitl_rcs.py` | Legacy rcS mutation helper retained for compatibility |
+| `multiple_sitl/create_dockers.sh` | Creates Docker containers from template |
+| `PX4: src/modules/commander/HealthAndArmingChecks/checks/rcAndDataLinkCheck.cpp` | The preflight check |
+| `PX4: src/modules/commander/Commander.cpp` | Sets `gcs_connection_lost` flag |
+| `PX4: ROMFS/px4fmu_common/init.d-posix/airframes/4001_gz_x500` | Airframe defaults |
+| `PX4: ROMFS/px4fmu_common/init.d-posix/rcS` | Main startup script |
+
+## Environment Details
+
+- **Remote server**: `root@204.168.181.45`
+- **Docker image**: `drone-template:latest`
+- **Container**: Created via `bash multiple_sitl/create_dockers.sh 1`
+- **startup_sitl.sh** runs inside container at `/tmp/mds_startup_sitl.sh`
+- **PX4 path inside container**: `/root/PX4-Autopilot/`
+- **MDS path inside container**: `/root/mavsdk_drone_show/`
+- **Build rcS**: `/root/PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS`
+
+## Success Criteria
+
+1. PX4 SITL starts without `WARN` level "No connection to GCS" (INFO is acceptable)
+2. OR: The drone can arm despite the warning (meaning `NAV_DLL_ACT` is effectively 0)
+3. Solution must NOT modify PX4 upstream source files (must survive `git pull`)
+4. Solution must be applied cleanly via `startup_sitl.sh` without modifying PX4 upstream source files
+5. Solution must be configurable (not hardcoded) — see `DEFAULT_SITL_PARAM_OVERRIDES`
+   in `startup_sitl.sh` line 104

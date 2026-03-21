@@ -45,7 +45,7 @@ EOF
 export MDS_PX4_GZ_TARGET="gz_x500"
 export MDS_QT_QPA_PLATFORM="offscreen"
 export MDS_GZ_PARTITION_PREFIX="px4_sim"
-export MDS_SITL_PARAM_OVERRIDES="COM_RC_IN_MODE=4,NAV_DLL_ACT=0,CBRK_SUPPLY_CHK=894281,SDLOG_MODE=-1"
+export MDS_SITL_PARAM_OVERRIDES="COM_RC_IN_MODE=4,NAV_RCL_ACT=0,NAV_DLL_ACT=0,COM_DL_LOSS_T=0,CBRK_SUPPLY_CHK=894281,SDLOG_MODE=-1"
 
 # Optional debugging / routing controls
 export MDS_SITL_TRACE=0
@@ -56,7 +56,8 @@ export MDS_PX4_GCS_PORT=14550
 Notes:
 - `startup_sitl.sh` always runs headless PX4 Gazebo Harmonic in Docker SITL.
 - If `MDS_GZ_PARTITION` is unset, startup derives a unique Gazebo partition per drone from `MDS_GZ_PARTITION_PREFIX` and `hw_id`.
-- Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 override block.
+- SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.
+- Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
 
 ### Step 2: Build Custom Docker Image (If Needed)
