@@ -30,8 +30,10 @@ Examples:
 
 Notes:
   - The exported tar keeps Docker tags inside the image metadata.
+  - Official public archives should keep a stable filename; versioning belongs in Docker tags.
   - Official releases should include both the stable release tag and latest.
   - If --commit-tag is set, that tag is exported too for traceability.
+  - When compression is enabled, the generated .7z is verified with '7z t'.
 EOF
 }
 
@@ -133,6 +135,8 @@ if [[ "$COMPRESS" == true ]]; then
     rm -f "$archive_path"
     log "  7z output  : ${archive_path}"
     7z a "$archive_path" "$tar_path" >/dev/null
+    log "  7z verify  : ${archive_path}"
+    7z t "$archive_path" >/dev/null
 fi
 
 log "Done."

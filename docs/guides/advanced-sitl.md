@@ -10,6 +10,7 @@ This guide is for advanced users who want to use their own forked repository or 
 > - Ability to maintain forked repositories
 > - `p7zip-full` for working with the distributed `.7z` image archives
 > - `pv` if you want progress output while exporting large Docker images
+> - Official `MEGAcmd` if you plan to upload authenticated MEGA artifacts for your own distribution workflow
 
 > **⚠️ Important Warning:**
 > Using custom repositories disconnects you from automatic MDS updates. You'll need to manually sync your fork with upstream changes.
@@ -274,6 +275,9 @@ docker save mycompany-mds-sitl:v5-custom mycompany-mds-sitl:latest | pv > mycomp
 
 # Optional: compress the tar afterwards for storage or sharing
 7z a mycompany-mds-sitl-image.7z mycompany-mds-sitl-image.tar
+
+# Verify the compressed archive before uploading or sharing it
+7z t mycompany-mds-sitl-image.7z
 ```
 
 For repeatable official-style packaging, prefer the helper script:
@@ -281,6 +285,10 @@ For repeatable official-style packaging, prefer the helper script:
 ```bash
 bash tools/package_sitl_image.sh --image-repo mycompany-mds-sitl --version-tag v5-custom
 ```
+
+That helper keeps a stable archive basename, exports the Docker tags inside the tar, and verifies the generated `.7z` automatically.
+
+If you publish archives for other users, keep one stable archive filename and let Docker tags carry the actual release version.
 
 ### Step 5: Use Your Custom Image for Real SITL Operations
 

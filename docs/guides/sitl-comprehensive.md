@@ -87,7 +87,7 @@ ssh root@your_server_ip
 
 ### Package and Software Installation
 
-First, install the base packages required for the SITL workflow, including the Mega downloader and `7z` extraction tools used for the distributed Docker image:
+First, install the base packages required for the SITL workflow, including the public-link Mega downloader and `7z` tools used for the distributed Docker image:
 
 ```bash
 sudo apt update
@@ -96,12 +96,19 @@ sudo apt install -y python3 python3-venv python3-pip tmux lsof git megatools p7z
 
 #### Downloading the Official SITL Docker Image
 
-The current SITL image is **not** published in GitHub Releases yet. For now, download the compressed archive from Mega, extract it locally, then load the resulting tar into Docker.
+The current SITL image is **not** published in GitHub Releases yet. For now, download the compressed archive from Mega, validate it, extract it locally, then load the resulting tar into Docker.
+
+The public archive keeps one stable filename:
+- `mavsdk-drone-show-sitl-image.7z`
+
+Do **not** look for version numbers in the filename. Release versioning lives in the Docker tags restored by `docker load`.
 
 ```bash
 cd ~
 # Public Mega download; large archives may take several minutes to complete.
-megadl 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE'
+megadl 'https://mega.nz/#!WaAhzb7B!RA202MoFHqaWYeothG801TLj7IaWEYTX3rVPT_D9IPk'
+# Validate the archive before extracting it.
+7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
 7z x mavsdk-drone-show-sitl-image.7z
 ```
@@ -111,12 +118,14 @@ After extraction you should have:
 - `mavsdk-drone-show-sitl-image.tar` - Docker image tar produced by `7z`
 
 > **Notes**
-> - `megadl` comes from the `megatools` package and works with this public link without logging in.
+> - `megadl` comes from the `megatools` package and is intended here only for unauthenticated public-link downloads.
 > - If Mega free-tier throttling or temporary limits block the public download, retry with the official MEGAcmd client after signing in:
 >   ```bash
 >   mega-login 'you@example.com' 'your-password'
->   mega-get 'https://mega.nz/file/TTwX3AoI#9J3pNR4r8rqGdHSHL77-yfSXlWfwl34xjRFwNqGj7lE' .
+>   mega-get 'https://mega.nz/#!WaAhzb7B!RA202MoFHqaWYeothG801TLj7IaWEYTX3rVPT_D9IPk' .
 >   ```
+> - For authenticated MEGA account operations, prefer the official MEGAcmd client over third-party tools.
+> - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
 > - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
 
 ### Docker Installation
@@ -144,7 +153,7 @@ You should see the current official tags, including:
 - `mavsdk-drone-show-sitl:latest`
 - `mavsdk-drone-show-sitl:v5`
 
-> **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive.
+> **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.
 
 #### Image Features and Components
 
