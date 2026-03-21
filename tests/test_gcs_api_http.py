@@ -77,11 +77,11 @@ def mock_config():
 
 @pytest.fixture
 def mock_telemetry_data():
-    """Mock telemetry data for all drones - matches the live unified telemetry payload."""
+    """Mock telemetry data for all drones - mirrors live storage with int keys and ids."""
     return {
-        '1': {
+        1: {
             'pos_id': 0,
-            'hw_id': '1',
+            'hw_id': 1,
             'state': 'idle',
             'mission': 0,
             'last_mission': 0,
@@ -125,9 +125,9 @@ def mock_telemetry_data():
             'heartbeat_first_seen': 1699999999000,
             'timestamp': 1700000000000,
         },
-        '2': {
+        2: {
             'pos_id': 1,
-            'hw_id': '2',
+            'hw_id': 2,
             'state': 'idle',
             'mission': 0,
             'last_mission': 0,

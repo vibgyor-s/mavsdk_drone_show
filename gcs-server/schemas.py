@@ -231,6 +231,12 @@ class DroneTelemetry(BaseModel):
     heartbeat_network_info: Dict[str, Any] = Field(default_factory=dict, description="Recent heartbeat network metadata")
     heartbeat_first_seen: Optional[int] = Field(None, description="First heartbeat timestamp (Unix ms)")
 
+    @field_validator('hw_id', mode='before')
+    @classmethod
+    def normalize_hw_id(cls, value: Any) -> str:
+        """Normalize numeric hw_id values into the string form used by the GCS API."""
+        return str(value)
+
 
 class TelemetryResponse(BaseModel):
     """Response for GET /telemetry"""
@@ -238,6 +244,14 @@ class TelemetryResponse(BaseModel):
     total_drones: int = Field(..., ge=0, description="Total drones")
     online_drones: int = Field(..., ge=0, description="Online drones")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+
+    @field_validator('telemetry', mode='before')
+    @classmethod
+    def normalize_telemetry_keys(cls, value: Any) -> Any:
+        """Ensure telemetry maps always expose string keys on the API boundary."""
+        if isinstance(value, dict):
+            return {str(key): payload for key, payload in value.items()}
+        return value
 
 
 # ============================================================================
@@ -575,6 +589,14 @@ class TelemetryStreamMessage(WebSocketMessage):
     """WebSocket telemetry stream message"""
     type: str = Field(default="telemetry", description="Message type")
     data: Dict[str, DroneTelemetry] = Field(..., description="Telemetry data by pos_id")
+
+    @field_validator('data', mode='before')
+    @classmethod
+    def normalize_data_keys(cls, value: Any) -> Any:
+        """Keep WebSocket telemetry keying consistent with the HTTP telemetry API."""
+        if isinstance(value, dict):
+            return {str(key): payload for key, payload in value.items()}
+        return value
 
 
 class GitStatusStreamMessage(WebSocketMessage):
