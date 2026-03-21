@@ -93,6 +93,9 @@
   "jest": {
     "transformIgnorePatterns": [
       "node_modules/(?!(axios|react-leaflet|@react-leaflet/core)/)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "\\.(css)$": "<rootDir>/src/__mocks__/styleMock.js"
+    }
   }
 }
