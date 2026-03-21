@@ -8,6 +8,7 @@ without overwhelming terminal output during large swarm operations.
 
 import os
 import sys
+import logging
 import requests
 import time
 from requests.exceptions import Timeout, ConnectionError
@@ -19,9 +20,9 @@ from params import Params
 from enums import CommandResultCategory
 
 # Unified logging system
-from mds_logging.server import (
-    get_logger, log_drone_command, log_system_error, log_system_warning,
-)
+from mds_logging.server import get_logger
+
+logger = get_logger("command")
 
 def normalize_drone_id(drone_id: Any) -> str:
     """Normalize hardware/position identifiers to strings for consistent routing."""
@@ -31,6 +32,23 @@ def normalize_drone_id(drone_id: Any) -> str:
 def normalize_drone_ids(drone_ids: Iterable[Any]) -> List[str]:
     """Normalize a collection of drone identifiers to strings."""
     return [normalize_drone_id(drone_id) for drone_id in drone_ids]
+
+
+def _log_command_event(message: str, level: str = "INFO", drone_id: Any | None = None) -> None:
+    """Emit command logs through the standard MDS logger interface."""
+    log_level = getattr(logging, level.upper(), logging.INFO)
+    extra = {"mds_drone_id": normalize_drone_id(drone_id)} if drone_id is not None else None
+    logger.log(log_level, message, extra=extra)
+
+
+def _log_drone_command_result(drone_id: Any, command_type: Any, success: bool, detail: str = "") -> None:
+    """Log a normalized per-drone command outcome."""
+    status = "accepted" if success else "failed"
+    message = f"{command_type}: {status}"
+    if detail:
+        message = f"{message} - {detail}"
+    level = "INFO" if success else "ERROR"
+    _log_command_event(message, level, drone_id=drone_id)
 
 
 def _summarize_ack_error(payload: Dict[str, Any]) -> str:
@@ -119,13 +137,14 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
             if success:
                 # Success - log only for important commands or first success after failures
                 if attempt > 0:  # Recovery from previous failures
-                    log_drone_command(
-                        drone_id, 
-                        f"{command_type} (recovered after {attempt} failures)", 
-                        True
+                    _log_drone_command_result(
+                        drone_id,
+                        command_type,
+                        True,
+                        f"recovered after {attempt} failure(s)"
                     )
                 elif command_type in ['TAKEOFF', 'LAND', 'RTL', 'ARM', 'DISARM']:  # Critical commands
-                    log_drone_command(drone_id, command_type, True)
+                    _log_drone_command_result(drone_id, command_type, True)
                 # Don't log routine successful commands to reduce noise
 
                 return True, "", CommandResultCategory.ACCEPTED.value
@@ -142,10 +161,10 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
                 wait_time = backoff_factor * (2 ** (attempt - 1))
                 # Only log retry attempts for critical commands or on last attempt
                 if command_type in ['TAKEOFF', 'LAND', 'RTL', 'EMERGENCY'] or attempt == retries:
-                    get_logger().log_drone_event(
-                        drone_id, "command", 
+                    _log_command_event(
                         f"Retry {attempt}/{retries} for {command_type} in {wait_time}s due to {e.__class__.__name__}",
-                        "WARNING"
+                        "WARNING",
+                        drone_id=drone_id,
                     )
                 time.sleep(wait_time)
                 continue
@@ -159,7 +178,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     # Command failed after all retries
     # Only log as error for actual errors, not offline drones
     if last_category != CommandResultCategory.OFFLINE.value:
-        log_drone_command(drone_id, command_type, False, last_error)
+        _log_drone_command_result(drone_id, command_type, False, last_error)
     # Offline drones are logged at DEBUG level (not worth cluttering logs)
 
     return False, last_error, last_category
@@ -172,19 +191,18 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
         Dict with success/failure counts and details
     """
     if not drones:
-        log_system_warning("No drones provided for command execution", "command")
+        _log_command_event("No drones provided for command execution", "WARNING")
         return {
             'success': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'failed': 0, 'total': 0, 'result_summary': 'no drones', 'results': {}
         }
     
     command_type = command_data.get('missionType', 'UNKNOWN')
-    logger = get_logger()
     
     # Log command initiation for swarm operations
-    logger.log_system_event(
+    _log_command_event(
         f"Sending '{command_type}' command to {len(drones)} drones",
-        "INFO", "command"
+        "INFO"
     )
     
     start_time = time.time()
@@ -235,7 +253,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
                     'drone_ip': drone['ip']
                 }
                 error_count += 1
-                log_drone_command(drone_id, command_type, False, error_msg)
+                _log_drone_command_result(drone_id, command_type, False, error_msg)
     
     # Calculate execution time
     execution_time = time.time() - start_time
@@ -261,34 +279,34 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
 
     if success_count == len(drones):
         # Perfect success
-        logger.log_system_event(
+        _log_command_event(
             f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
-            "INFO", "command"
+            "INFO"
         )
     elif offline_count == len(drones):
         # All drones offline - informational, not an error
-        logger.log_system_event(
+        _log_command_event(
             f"Command '{command_type}': {result_summary} (no reachable drones) in {execution_time:.2f}s",
-            "INFO", "command"
+            "INFO"
         )
     elif success_count > 0 and error_count == 0 and rejected_count == 0:
         # Some accepted, rest offline - informational
-        logger.log_system_event(
+        _log_command_event(
             f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
-            "INFO", "command"
+            "INFO"
         )
     elif error_count > 0 or rejected_count > 0:
         # Actual errors or rejections - warning/error level
         log_level = "ERROR" if success_count == 0 else "WARNING"
-        logger.log_system_event(
+        _log_command_event(
             f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
-            log_level, "command"
+            log_level
         )
     else:
         # Fallback
-        logger.log_system_event(
+        _log_command_event(
             f"Command '{command_type}' completed: {result_summary} in {execution_time:.2f}s",
-            "INFO", "command"
+            "INFO"
         )
     
     # Log details of failures by category
@@ -314,9 +332,9 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
         for key, drone_list in category_groups.items():
             category, error_type = key.split(':', 1)
             log_level = "ERROR" if category == CommandResultCategory.ERROR.value else "WARNING"
-            logger.log_system_event(
+            _log_command_event(
                 f"Command '{command_type}' {category} ({error_type}) on drones: {', '.join(drone_list[:10])}{'...' if len(drone_list) > 10 else ''}",
-                log_level, "command"
+                log_level
             )
     
     return {
@@ -350,7 +368,7 @@ def send_commands_to_selected(drones: List[Dict[str, str]], command_data: Dict[s
     target_drone_ids = normalize_drone_ids(target_drone_ids) if target_drone_ids else []
 
     if not target_drone_ids:
-        log_system_warning("No target drones specified for selective command", "command")
+        _log_command_event("No target drones specified for selective command", "WARNING")
         return {
             'success': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'failed': 0, 'total': 0, 'result_summary': 'no targets', 'results': {}
@@ -366,13 +384,13 @@ def send_commands_to_selected(drones: List[Dict[str, str]], command_data: Dict[s
         found_ids = normalize_drone_ids(drone.get('hw_id') for drone in target_drones)
         missing_ids = set(target_drone_ids) - set(found_ids)
         
-        log_system_warning(
+        _log_command_event(
             f"Some target drones not found in configuration: {', '.join(missing_ids)}",
-            "command"
+            "WARNING"
         )
     
     if not target_drones:
-        log_system_error("No valid target drones found for selective command", "command")
+        _log_command_event("No valid target drones found for selective command", "ERROR")
         return {
             'success': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
             'failed': 0, 'total': 0, 'result_summary': 'no valid targets', 'results': {}
@@ -420,12 +438,10 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
     Returns:
         Dict with execution results and status
     """
-    logger = get_logger()
-    
     # Validate command data
     is_valid, error_msg = validate_command_data(command_data)
     if not is_valid:
-        log_system_error(f"Invalid command data: {error_msg}", "command")
+        _log_command_event(f"Invalid command data: {error_msg}", "ERROR")
         return {
             'status': 'error',
             'message': f"Invalid command data: {error_msg}",
@@ -434,7 +450,7 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
     
     # Validate drone list
     if not drones:
-        log_system_error("No drones available for command execution", "command")
+        _log_command_event("No drones available for command execution", "ERROR")
         return {
             'status': 'error', 
             'message': "No drones available",
@@ -467,7 +483,7 @@ def execute_drone_command(drones: List[Dict[str, str]], command_data: Dict[str, 
         
     except Exception as e:
         error_msg = f"Unexpected error during command execution: {str(e)}"
-        log_system_error(error_msg, "command")
+        _log_command_event(error_msg, "ERROR")
         return {
             'status': 'error',
             'message': error_msg,

@@ -83,10 +83,10 @@ class TestCommandErrorCode:
 class TestGcsLoggingImports:
     """Ensure GCS modules resolve the server-side logging implementation."""
 
-    def test_command_module_uses_gcs_logging_wrapper(self):
+    def test_command_module_uses_server_logging_wrapper(self):
         from command import get_logger
 
-        assert get_logger.__module__ == 'gcs_logging'
+        assert get_logger.__module__ == 'mds_logging.server'
 
 
 # ============================================================================
