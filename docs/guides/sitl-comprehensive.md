@@ -131,18 +131,18 @@ Load the extracted image into Docker:
 
 ```bash
 # Large image imports may take several minutes.
-docker load < drone-template-v4.tar
+docker load < drone-template-v5.tar
 ```
 
-This should output something like: `Loaded image: drone-template:v4.0`
+This should output something like: `Loaded image: drone-template:v5`
 
 Tag it as `latest` so the drone creation scripts can find it:
 
 ```bash
-docker tag drone-template:v4.0 drone-template:latest
+docker tag drone-template:v5 drone-template:latest
 ```
 
-> **Important:** Replace `v4.0` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required.
+> **Important:** Replace `v5` with whatever version tag `docker load` reported. The `create_dockers.sh` script uses `drone-template:latest` by default, so this tag is required. The current validated shared image is tagged as both `drone-template:v5` and `drone-template:latest`.
 
 #### Image Features and Components
 

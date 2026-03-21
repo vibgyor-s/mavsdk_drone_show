@@ -255,10 +255,10 @@ git pull origin your-branch
 exit
 
 # Commit container to new image version
-docker commit -m "Updated custom drone image" my-drone-dev drone-template:v4.0
+docker commit -m "Updated custom drone image" my-drone-dev drone-template:v5-custom
 
 # Tag as latest (optional)
-docker tag drone-template:v4.0 drone-template:latest
+docker tag drone-template:v5-custom drone-template:latest
 ```
 
 ### Step 4: Export Container (Optional)
@@ -270,17 +270,17 @@ sudo apt install -y p7zip-full pv
 cd ~
 
 # Export to tar file for backup/distribution
-docker save drone-template:v4.0 | pv > drone-template-v4.tar
+docker save drone-template:v5-custom | pv > drone-template-v5-custom.tar
 
 # Optional: compress the tar afterwards for storage or sharing
-7z a drone-template-v4.7z drone-template-v4.tar
+7z a drone-template-v5-custom.7z drone-template-v5-custom.tar
 ```
 
 ### Step 5: Use Your Custom Image for Real SITL Operations
 
 ```bash
 # Set your custom image for future SITL deployments
-export MDS_DOCKER_IMAGE="drone-template:v4.0"
+export MDS_DOCKER_IMAGE="drone-template:v5-custom"
 
 # NOW use create_dockers.sh for actual SITL drone operations
 # (This will properly generate hwid and configure each drone)
@@ -299,12 +299,14 @@ git pull
 
 # Exit and commit new version
 exit
-docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v4.1
-docker tag drone-template:v4.1 drone-template:latest
+docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v5-custom-2
+docker tag drone-template:v5-custom-2 drone-template:latest
 
 # Clean up old containers
 docker rm my-drone-dev my-drone-dev-v2
 ```
+
+> **Current official release tag:** the validated shared SITL image is published as `drone-template:v5` and also tagged as `drone-template:latest`.
 
 > **💡 Pro Tip:** This workflow is for customizing Docker images only. For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.
 
