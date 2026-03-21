@@ -1,11 +1,11 @@
 // src/components/ErrorBoundary.test.js
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
 
-// Mock the logService to prevent actual API calls
+// Mock the logService — must mock before ErrorBoundary loads it
 jest.mock('../services/logService', () => ({
-  reportFrontendError: jest.fn(() => Promise.resolve({ status: 'received' })),
+  reportFrontendError: jest.fn().mockResolvedValue({ status: 'received' }),
 }));
 
 const ThrowError = () => {
@@ -16,6 +16,10 @@ describe('ErrorBoundary', () => {
   const originalError = console.error;
   beforeAll(() => { console.error = jest.fn(); });
   afterAll(() => { console.error = originalError; });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
   test('renders children when no error', () => {
     render(
