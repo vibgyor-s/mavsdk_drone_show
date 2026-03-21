@@ -1,62 +1,47 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 
-// Mock visualization libraries that require browser APIs unavailable in JSDOM.
-// react-cytoscapejs and mapbox-gl are mapped to empty mocks via moduleNameMapper
-// in package.json because their ESM exports prevent jest.mock from resolving them.
-jest.mock('react-map-gl', () => ({
-  __esModule: true,
-  default: function MockMap({ children }) { return <div data-testid="map">{children}</div>; },
-  Marker: function MockMarker() { return null; },
-  NavigationControl: function MockNav() { return null; },
-  Source: function MockSource() { return null; },
-  Layer: function MockLayer() { return null; },
-}));
-jest.mock('react-plotly.js', () => {
-  return function MockPlot() { return <div data-testid="plotly" />; };
-});
-jest.mock('react-leaflet', () => ({
-  MapContainer: function MockMapContainer({ children }) { return <div>{children}</div>; },
-  TileLayer: function MockTileLayer() { return null; },
-  Marker: function MockMarker() { return null; },
-  Popup: function MockPopup() { return null; },
-  Polyline: function MockPolyline() { return null; },
-  useMap: jest.fn(() => ({ setView: jest.fn(), fitBounds: jest.fn() })),
-}));
-jest.mock('@react-three/drei', () => ({
-  OrbitControls: function MockOrbit() { return null; },
-  Line: function MockLine() { return null; },
-  Text: function MockText() { return null; },
-}));
-jest.mock('react-three-fiber', () => ({
-  Canvas: function MockCanvas({ children }) { return <div>{children}</div>; },
-  useFrame: jest.fn(),
-  useThree: jest.fn(() => ({ camera: {}, gl: {} })),
-}));
-jest.mock('@mapbox/mapbox-gl-draw', () => jest.fn());
+// Mock all page-level components to avoid pulling in heavy visualization
+// dependencies (leaflet, mapbox, cytoscape, plotly, three.js, geodesy)
+// that use ESM and browser APIs incompatible with JSDOM.
+jest.mock('./pages/Overview', () => () => <div data-testid="overview" />);
+jest.mock('./pages/SwarmDesign', () => () => <div data-testid="swarm-design" />);
+jest.mock('./pages/MissionConfig', () => () => <div data-testid="mission-config" />);
+jest.mock('./pages/DroneShowDesign', () => () => <div data-testid="drone-show-design" />);
+jest.mock('./pages/CustomShowPage', () => () => <div data-testid="custom-show" />);
+jest.mock('./pages/GlobeView', () => () => <div data-testid="globe-view" />);
+jest.mock('./pages/ManageDroneShow', () => () => <div data-testid="manage-drone-show" />);
+jest.mock('./pages/SwarmTrajectory', () => () => <div data-testid="swarm-trajectory" />);
+jest.mock('./pages/TrajectoryPlanning', () => () => <div data-testid="trajectory-planning" />);
+jest.mock('./pages/QuickScoutPage', () => () => <div data-testid="quickscout" />);
+jest.mock('./pages/LogViewer', () => () => <div data-testid="log-viewer" />);
+jest.mock('./components/DroneDetail', () => () => <div data-testid="drone-detail" />);
+jest.mock('./components/SidebarMenu', () => ({ collapsed, onToggle }) => (
+  <nav data-testid="sidebar" data-collapsed={collapsed} />
+));
+jest.mock('./components/SyncWarningBanner', () => () => null);
+jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>);
 
-// Mock services that make HTTP calls
+// Mock services
 jest.mock('./services/logService', () => ({
   reportFrontendError: jest.fn().mockResolvedValue({ status: 'received' }),
-  getSources: jest.fn().mockResolvedValue({ components: {} }),
-  getHealth: jest.fn().mockResolvedValue({ status: 'healthy' }),
-  fetchLogs: jest.fn().mockResolvedValue({ entries: [], total: 0 }),
-}));
-jest.mock('axios', () => ({
-  get: jest.fn().mockResolvedValue({ data: [] }),
-  post: jest.fn().mockResolvedValue({ data: {} }),
-  create: jest.fn(() => ({
-    get: jest.fn().mockResolvedValue({ data: [] }),
-    post: jest.fn().mockResolvedValue({ data: {} }),
-    interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
-  })),
 }));
 
 import App from './App';
 
 describe('App', () => {
   test('renders without crashing', () => {
+    const { container } = render(<App />);
+    expect(container.querySelector('.app-container')).toBeInTheDocument();
+  });
+
+  test('renders sidebar navigation', () => {
     render(<App />);
-    expect(document.querySelector('.app-container')).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="sidebar"]')).toBeInTheDocument();
+  });
+
+  test('renders default route (Overview)', () => {
+    render(<App />);
+    expect(document.querySelector('[data-testid="overview"]')).toBeInTheDocument();
   });
 });
