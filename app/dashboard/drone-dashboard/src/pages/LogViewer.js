@@ -33,6 +33,7 @@ import {
 } from '../utilities/logViewerUtils';
 
 import LogViewerToolbar from '../components/logs/LogViewerToolbar';
+import LogActiveFilters from '../components/logs/LogActiveFilters';
 import LogHealthBar from '../components/logs/LogHealthBar';
 import LogTable from '../components/logs/LogTable';
 import LogSourceTree from '../components/logs/LogSourceTree';
@@ -50,6 +51,26 @@ const normalizeDroneOption = (drone) => {
     hw_id: hwId,
     label: `Drone #${hwId}`,
   };
+};
+
+const formatRangeValue = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 };
 
 const LogViewer = () => {
@@ -228,16 +249,19 @@ const LogViewer = () => {
     setTimeEnd('');
   }, []);
 
-  const handleClear = useCallback(() => {
-    if (!selectedSession) {
-      clear();
-    }
-    setSearchQuery('');
+  const handleClearEntries = useCallback(() => {
+    clear();
+  }, [clear]);
+
+  const clearAllFilters = useCallback(() => {
+    setLevel(mode === MODES.OPS ? OPS_DEFAULT_LEVEL : DEV_DEFAULT_LEVEL);
     setComponent(null);
+    setSearchQuery('');
+    setSeverityFocus(null);
     setTimeStart('');
     setTimeEnd('');
-    setSeverityFocus(null);
-  }, [clear, selectedSession]);
+    setLiveWindow('all');
+  }, [mode]);
 
   const liveWindowDuration = useMemo(() => (
     LIVE_TIME_WINDOWS.find((window) => window.value === liveWindow)?.durationMs ?? null
@@ -272,6 +296,113 @@ const LogViewer = () => {
   ), [fleet, onlineDroneIds]);
 
   const scopeLabel = scopeDroneId != null ? `Drone #${scopeDroneId}` : 'GCS';
+  const defaultLevel = mode === MODES.OPS ? OPS_DEFAULT_LEVEL : DEV_DEFAULT_LEVEL;
+
+  const activeFilters = useMemo(() => {
+    const filters = [];
+
+    if (level !== defaultLevel) {
+      filters.push({
+        key: 'level',
+        label: level ? `Level: ${level}+` : 'Level: All Levels',
+        onRemove: () => setLevel(defaultLevel),
+      });
+    }
+
+    if (component) {
+      filters.push({
+        key: 'component',
+        label: `Component: ${component}`,
+        onRemove: () => setComponent(null),
+      });
+    }
+
+    if (severityFocus === 'warnings') {
+      filters.push({
+        key: 'severity',
+        label: 'Warnings Only',
+        onRemove: () => setSeverityFocus(null),
+      });
+    }
+
+    if (severityFocus === 'errors') {
+      filters.push({
+        key: 'severity',
+        label: 'Errors Only',
+        onRemove: () => setSeverityFocus(null),
+      });
+    }
+
+    if (searchQuery) {
+      filters.push({
+        key: 'search',
+        label: `Search: ${searchQuery}`,
+        onRemove: () => setSearchQuery(''),
+      });
+    }
+
+    if (!selectedSession && liveWindow !== 'all') {
+      const windowLabel = LIVE_TIME_WINDOWS.find((window) => window.value === liveWindow)?.label || liveWindow;
+      filters.push({
+        key: 'liveWindow',
+        label: `Window: ${windowLabel}`,
+        onRemove: () => setLiveWindow('all'),
+      });
+    }
+
+    if (selectedSession && timeStart) {
+      filters.push({
+        key: 'timeStart',
+        label: `From: ${formatRangeValue(timeStart)}`,
+        onRemove: () => setTimeStart(''),
+      });
+    }
+
+    if (selectedSession && timeEnd) {
+      filters.push({
+        key: 'timeEnd',
+        label: `To: ${formatRangeValue(timeEnd)}`,
+        onRemove: () => setTimeEnd(''),
+      });
+    }
+
+    return filters;
+  }, [component, defaultLevel, level, liveWindow, searchQuery, selectedSession, severityFocus, timeEnd, timeStart]);
+
+  const emptyState = useMemo(() => {
+    if (displayedEntries.length > 0) {
+      return {
+        title: '',
+        detail: '',
+      };
+    }
+
+    if (activeFilters.length > 0 && componentScopedEntries.length === 0) {
+      return {
+        title: 'No logs match the current filters',
+        detail: 'Clear one or more filters to widen the view.',
+      };
+    }
+
+    if (selectedSession) {
+      return {
+        title: 'No logs in this session view',
+        detail: 'This session has no entries for the current scope or level selection.',
+      };
+    }
+
+    if (scopeDroneId != null) {
+      return {
+        title: `Waiting for live logs from Drone #${scopeDroneId}`,
+        detail: 'If the drone is online but stays quiet, check that the drone-side service is running and producing logs.',
+      };
+    }
+
+    return {
+      title: 'Waiting for live GCS logs',
+      detail: 'The viewer is connected. New log entries will appear here as events are emitted.',
+    };
+  }, [activeFilters.length, componentScopedEntries.length, displayedEntries.length, scopeDroneId, selectedSession]);
 
   return (
     <div className={`log-viewer-page ${isDark ? 'dark' : 'light'}`}>
@@ -293,7 +424,7 @@ const LogViewer = () => {
           await fetchSessions(true);
           setShowExport(true);
         }}
-        onClear={handleClear}
+        onClear={handleClearEntries}
         scopeDroneId={scopeDroneId}
         scopeOptions={fleet}
         onScopeChange={setScopeDroneId}
@@ -326,7 +457,13 @@ const LogViewer = () => {
         ) : (
           <span className="log-context-note">Live stream view</span>
         )}
+        <span className="log-context-note">Session timestamps shown in UTC</span>
       </div>
+
+      <LogActiveFilters
+        filters={activeFilters}
+        onClearAll={clearAllFilters}
+      />
 
       <div style={{ display: 'flex', flex: 1, gap: 'var(--spacing-sm)', overflow: 'hidden' }}>
         {mode === MODES.DEV && (
@@ -343,6 +480,10 @@ const LogViewer = () => {
           entries={displayedEntries}
           autoScroll={!selectedSession}
           searchQuery={searchQuery}
+          emptyStateTitle={emptyState.title}
+          emptyStateDetail={emptyState.detail}
+          onClearFilters={clearAllFilters}
+          canClearFilters={activeFilters.length > 0}
         />
       </div>
 

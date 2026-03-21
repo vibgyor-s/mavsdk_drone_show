@@ -162,6 +162,69 @@
   flex-wrap: wrap;
 }
 
+.log-active-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+}
+
+.log-active-filters-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.log-active-filters-list {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.log-filter-chip,
+.log-clear-filters-button,
+.log-empty-state-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition: var(--transition-fast);
+}
+
+.log-filter-chip {
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+}
+
+.log-clear-filters-button,
+.log-empty-state-action {
+  padding: 5px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.log-filter-chip:hover,
+.log-clear-filters-button:hover,
+.log-empty-state-action:hover {
+  background: var(--color-bg-quaternary);
+  border-color: var(--color-primary-border);
+}
+
 .log-context-pill {
   display: inline-flex;
   align-items: center;
@@ -429,10 +492,25 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  height: 100%;
+  min-height: 240px;
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
   gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.log-empty-state-title {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.log-empty-state-detail {
+  max-width: 540px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 /* === ERROR BOUNDARY === */
@@ -494,5 +572,13 @@
 
   .log-health-button {
     justify-content: space-between;
+  }
+
+  .log-active-filters {
+    align-items: stretch;
+  }
+
+  .log-active-filters-list {
+    width: 100%;
   }
 }

@@ -23,7 +23,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - Operations mode: WARNING+ filter, health bar, live event feed, clean UI
   - Developer mode: all log levels, component tree, search, session selector, export
   - Explicit `GCS` vs `Drone #N` scope switch for live streams and historical sessions
-  - Human-readable session labels, clickable error/warning drill-down, and time-window focus controls
+  - Human-readable session labels with explicit UTC note, clickable error/warning drill-down, and time-window focus controls
+  - Active filter chips, one-click `Clear All Filters`, and explanatory empty states to reduce operator confusion
   - MUI DataGrid virtual scroll for 100K+ log rows
   - Real-time SSE streaming via `useLogStream` hook with 200ms batching and 5000-line ring buffer
   - Historical session browsing with filtering and client-side pagination

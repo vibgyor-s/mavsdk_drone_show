@@ -71,7 +71,15 @@ const columns = [
   },
 ];
 
-const LogTable = ({ entries, autoScroll = true, searchQuery = '' }) => {
+const LogTable = ({
+  entries,
+  autoScroll = true,
+  searchQuery = '',
+  emptyStateTitle = 'No log entries',
+  emptyStateDetail = '',
+  onClearFilters = null,
+  canClearFilters = false,
+}) => {
   const { isDark } = useTheme();
   const [selectedRow, setSelectedRow] = useState(null);
   const gridRef = useGridApiRef();
@@ -94,6 +102,14 @@ const LogTable = ({ entries, autoScroll = true, searchQuery = '' }) => {
     });
   }, [entries, searchQuery]);
 
+  const resolvedEmptyStateTitle = searchQuery
+    ? 'No logs match the current search'
+    : emptyStateTitle;
+
+  const resolvedEmptyStateDetail = searchQuery
+    ? 'Adjust or clear the search text to widen the view.'
+    : emptyStateDetail;
+
   // Auto-scroll to latest entry
   useEffect(() => {
     if (autoScroll && filtered.length > 0 && gridRef.current) {
@@ -115,45 +131,65 @@ const LogTable = ({ entries, autoScroll = true, searchQuery = '' }) => {
 
   return (
     <div className="log-table-container">
-      <DataGrid
-        apiRef={gridRef}
-        rows={filtered}
-        columns={columns}
-        getRowId={getRowId}
-        density="compact"
-        rowHeight={28}
-        columnHeaderHeight={36}
-        disableColumnMenu
-        disableRowSelectionOnClick
-        getRowClassName={getRowClassName}
-        onRowClick={(params) => setSelectedRow(
-          selectedRow === params.row._id ? null : params.row._id
-        )}
-        hideFooter={filtered.length <= 100}
-        pageSizeOptions={[100, 500, 1000]}
-        initialState={{
-          pagination: { paginationModel: { pageSize: 100 } },
-        }}
-        sx={{
-          border: 'none',
-          '& .MuiDataGrid-cell': {
-            color: isDark ? '#ffffff' : '#1a1d21',
-          },
-          '& .MuiDataGrid-columnHeader': {
-            color: isDark ? '#a2a5b9' : '#4a5568',
-          },
-          '& .MuiDataGrid-footerContainer': {
-            color: isDark ? '#a2a5b9' : '#4a5568',
-          },
-          '& .MuiDataGrid-virtualScroller': {
-            backgroundColor: 'transparent',
-          },
-        }}
-        localeText={{
-          noRowsLabel: searchQuery ? 'No log entries matching search' : 'No log entries',
-        }}
-      />
-      {selectedEntry && <LogRowDetail entry={selectedEntry} />}
+      {filtered.length === 0 ? (
+        <div className="log-empty-state" role="status" aria-live="polite">
+          <div className="log-empty-state-title">{resolvedEmptyStateTitle}</div>
+          {resolvedEmptyStateDetail ? (
+            <div className="log-empty-state-detail">{resolvedEmptyStateDetail}</div>
+          ) : null}
+          {canClearFilters && onClearFilters ? (
+            <button
+              type="button"
+              className="log-empty-state-action"
+              onClick={onClearFilters}
+            >
+              Clear Filters
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <DataGrid
+            apiRef={gridRef}
+            rows={filtered}
+            columns={columns}
+            getRowId={getRowId}
+            density="compact"
+            rowHeight={28}
+            columnHeaderHeight={36}
+            disableColumnMenu
+            disableRowSelectionOnClick
+            getRowClassName={getRowClassName}
+            onRowClick={(params) => setSelectedRow(
+              selectedRow === params.row._id ? null : params.row._id
+            )}
+            hideFooter={filtered.length <= 100}
+            pageSizeOptions={[100, 500, 1000]}
+            initialState={{
+              pagination: { paginationModel: { pageSize: 100 } },
+            }}
+            sx={{
+              border: 'none',
+              '& .MuiDataGrid-cell': {
+                color: isDark ? '#ffffff' : '#1a1d21',
+              },
+              '& .MuiDataGrid-columnHeader': {
+                color: isDark ? '#a2a5b9' : '#4a5568',
+              },
+              '& .MuiDataGrid-footerContainer': {
+                color: isDark ? '#a2a5b9' : '#4a5568',
+              },
+              '& .MuiDataGrid-virtualScroller': {
+                backgroundColor: 'transparent',
+              },
+            }}
+            localeText={{
+              noRowsLabel: searchQuery ? 'No log entries matching search' : 'No log entries',
+            }}
+          />
+          {selectedEntry && <LogRowDetail entry={selectedEntry} />}
+        </>
+      )}
     </div>
   );
 };

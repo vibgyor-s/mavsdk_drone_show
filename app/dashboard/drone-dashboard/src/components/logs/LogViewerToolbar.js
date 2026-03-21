@@ -166,10 +166,12 @@ const LogViewerToolbar = ({
         </button>
       )}
 
-      {/* Clear */}
-      <button type="button" onClick={onClear} title="Clear log entries">
-        <FaTrash size={12} />
-      </button>
+      {/* Clear live buffer */}
+      {!selectedSession && (
+        <button type="button" onClick={onClear} title="Clear live buffer">
+          <FaTrash size={12} />
+        </button>
+      )}
 
       {/* Export (Developer mode only) */}
       {mode === MODES.DEV && (

@@ -272,11 +272,20 @@ Navigate to `/logs` in the dashboard sidebar (under "System" section).
 - Component source tree for filtering
 - Full-text search across log messages
 - Scope switcher for `GCS` vs `Drone #N` live and historical browsing
-- Human-readable session labels in UTC
+- Human-readable session labels in UTC, clearly marked as UTC
 - Session selector for historical log browsing
 - Time focus controls: relative live windows, absolute start/end range for historical sessions
+- Active filter chips with one-click removal and a `Clear All Filters` action
 - MUI DataGrid with virtual scroll for large datasets
 - Export to JSONL or ZIP
+
+### Empty States
+
+The Log Viewer explains why the table is empty instead of silently showing a blank grid:
+- waiting for live GCS logs
+- waiting for live drone logs
+- no entries in the selected session view
+- no logs matching the current search or filter set
 
 ### Real-Time Streaming
 

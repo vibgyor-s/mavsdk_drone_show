@@ -70,4 +70,9 @@ describe('LogViewerToolbar', () => {
     expect(screen.getByLabelText('Filter logs from time')).toBeInTheDocument();
     expect(screen.getByLabelText('Filter logs to time')).toBeInTheDocument();
   });
+
+  test('hides live buffer clear button for historical sessions', () => {
+    render(<LogViewerToolbar {...defaultProps} selectedSession="s_20260320_072832" />);
+    expect(screen.queryByTitle('Clear live buffer')).not.toBeInTheDocument();
+  });
 });
