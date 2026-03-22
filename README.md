@@ -97,6 +97,7 @@ Map-heavy features such as trajectory planning and QuickScout require a Mapbox t
   </tr>
 </table>
 
+- **Project history and walkthrough playlist:** [YouTube playlist](https://www.youtube.com/watch?v=dg5jyhV15S8&list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk&pp=sAgC)
 - **MDS 5 walkthrough:** coming soon, to be linked here when published
 
 ## Documentation

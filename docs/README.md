@@ -33,6 +33,10 @@ Start here to get your first drone show simulation running:
 
 3. **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** - Use this if you need a validated custom image, package, or redistribution workflow
 
+### Project Videos
+
+- **[Project history and walkthrough playlist](https://www.youtube.com/watch?v=dg5jyhV15S8&list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk&pp=sAgC)** - long-form project history, walkthroughs, and evolving demos
+
 ### Choose Your Path
 
 | I want to... | Start with... |
