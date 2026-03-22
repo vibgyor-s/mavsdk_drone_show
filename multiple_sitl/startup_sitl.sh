@@ -590,9 +590,9 @@ launch_with_log_policy() {
     if [ ! -f "$LOG_POLICY_RUNNER" ]; then
         log_message "WARNING: Log policy runner not found at $LOG_POLICY_RUNNER. Falling back to direct file redirection."
         if [ "$SITL_FILE_LOG_MODE" = "discard" ]; then
-            "$@" >/dev/null 2>&1 &
+            "$@" </dev/null >/dev/null 2>&1 &
         else
-            "$@" &> "$log_file" &
+            "$@" </dev/null &> "$log_file" &
         fi
         echo $!
         return 0
@@ -604,7 +604,7 @@ launch_with_log_policy() {
         --max-bytes "$SITL_FILE_LOG_MAX_BYTES" \
         --backup-count "$SITL_FILE_LOG_BACKUP_COUNT" \
         -- \
-        "$@" &
+        "$@" </dev/null >/dev/null 2>&1 &
     echo $!
 }
 
