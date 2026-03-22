@@ -28,10 +28,15 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, directory: str, **kwargs):
         super().__init__(*args, directory=directory, **kwargs)
 
-    def do_GET(self) -> None:
+    def send_head(self):
         if self._should_fallback_to_index():
+            original_path = self.path
             self.path = "/index.html"
-        super().do_GET()
+            try:
+                return super().send_head()
+            finally:
+                self.path = original_path
+        return super().send_head()
 
     def _should_fallback_to_index(self) -> bool:
         request_path = urlsplit(self.path).path
