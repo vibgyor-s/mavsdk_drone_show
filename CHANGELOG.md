@@ -55,6 +55,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - CLI flags unified: `--debug` replaced with `--verbose`/`--debug`/`--quiet`
 - `multiple_sitl/startup_sitl.sh` now keeps runtime repo sync via `git fetch/reset`, only reinstalls Python requirements when `requirements.txt` changes, and bounds container-side file logs by default
 - Docker SITL image prep now preserves the real PX4 git/submodule metadata, records PX4 provenance in image metadata files, and makes the startup repo auto-sync behavior explicit as mutable latest-on-boot mode
+- Docker SITL launcher now persists wrapper-level startup diagnostics, strips repetitive PX4 shell prompt noise from `sitl_simulation.log`, and waits for PX4/router/coordinator readiness before reporting success
 - `tools/build_custom_image.sh` now produces flattened custom images instead of layering more state through `docker commit`
 - SITL image preparation/build docs now pin PX4 plus baked `mavsdk_server` inside the image, pass `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` through the image-build path, and use updated MAVSDK release asset naming for current releases
 

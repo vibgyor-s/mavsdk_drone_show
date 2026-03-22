@@ -52,6 +52,10 @@ export MDS_SITL_REQUIREMENTS_SYNC=true
 export MDS_SITL_FILE_LOG_MODE="bounded"
 export MDS_SITL_FILE_LOG_MAX_BYTES=$((5 * 1024 * 1024))
 export MDS_SITL_FILE_LOG_BACKUP_COUNT=1
+export MDS_SITL_STRIP_PXH_PROMPTS=true
+export MDS_SITL_WAIT_FOR_READY=true
+export MDS_SITL_READY_TIMEOUT_SECONDS=60
+export MDS_SITL_READY_POLL_INTERVAL_SECONDS=2
 
 # Optional debugging / routing controls
 export MDS_SITL_TRACE=0
@@ -71,9 +75,12 @@ Notes:
 - For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.
 - Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
 - Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
+- Raw PX4 `pxh>` shell prompt noise is stripped from `sitl_simulation.log` by default so bounded logs stay readable.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
 - If you want to override the MAVSDK server binary at runtime, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`. For large fleets, bake that override into the image instead of downloading on every container start.
 - The image now keeps the real PX4 git checkout and submodule metadata intact. Image prep also writes PX4 provenance files into the repo root so you can audit what PX4 revision was baked into a release.
+- `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. Startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.
+- For large validated fleets, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub at once.
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.
 
 ### Step 2: Build Custom Docker Image (If Needed)

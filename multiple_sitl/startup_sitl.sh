@@ -107,6 +107,7 @@ DEFAULT_SITL_REQUIREMENTS_SYNC="true"
 DEFAULT_SITL_FILE_LOG_MODE="bounded"
 DEFAULT_SITL_FILE_LOG_MAX_BYTES=$((5 * 1024 * 1024))
 DEFAULT_SITL_FILE_LOG_BACKUP_COUNT=1
+DEFAULT_SITL_STRIP_PXH_PROMPTS="true"
 DEFAULT_SITL_PARAM_OVERRIDES=(
     "COM_RC_IN_MODE=4"
     "NAV_RCL_ACT=0"
@@ -129,6 +130,7 @@ SITL_REQUIREMENTS_SYNC="${MDS_SITL_REQUIREMENTS_SYNC:-$DEFAULT_SITL_REQUIREMENTS
 SITL_FILE_LOG_MODE="${MDS_SITL_FILE_LOG_MODE:-$DEFAULT_SITL_FILE_LOG_MODE}"
 SITL_FILE_LOG_MAX_BYTES="${MDS_SITL_FILE_LOG_MAX_BYTES:-$DEFAULT_SITL_FILE_LOG_MAX_BYTES}"
 SITL_FILE_LOG_BACKUP_COUNT="${MDS_SITL_FILE_LOG_BACKUP_COUNT:-$DEFAULT_SITL_FILE_LOG_BACKUP_COUNT}"
+SITL_STRIP_PXH_PROMPTS="${MDS_SITL_STRIP_PXH_PROMPTS:-$DEFAULT_SITL_STRIP_PXH_PROMPTS}"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 LOG_POLICY_RUNNER="$BASE_DIR/tools/run_with_log_policy.py"
 IMAGE_BUILD_METADATA_FILE="$BASE_DIR/.mds_sitl_image_build.env"
@@ -396,6 +398,14 @@ validate_runtime_configuration() {
         log_message "ERROR: MDS_SITL_FILE_LOG_BACKUP_COUNT must be zero or greater (got '$SITL_FILE_LOG_BACKUP_COUNT')."
         exit 1
     fi
+
+    case "$SITL_STRIP_PXH_PROMPTS" in
+        true|false) ;;
+        *)
+            log_message "ERROR: MDS_SITL_STRIP_PXH_PROMPTS must be 'true' or 'false' (got '$SITL_STRIP_PXH_PROMPTS')."
+            exit 1
+            ;;
+    esac
 }
 
 log_px4_source_state() {
@@ -503,6 +513,7 @@ log_startup_configuration() {
     log_message "  File Log Mode: $SITL_FILE_LOG_MODE"
     log_message "  File Log Max Bytes: $SITL_FILE_LOG_MAX_BYTES"
     log_message "  File Log Backup Count: $SITL_FILE_LOG_BACKUP_COUNT"
+    log_message "  Strip PX4 Prompt Noise: $SITL_STRIP_PXH_PROMPTS"
     log_message "  Verbose Mode: $VERBOSE_MODE"
     log_px4_source_state
 }
@@ -590,6 +601,7 @@ describe_log_policy_target() {
 launch_with_log_policy() {
     local log_file="$1"
     shift
+    local extra_runner_args=()
 
     if [ ! -f "$LOG_POLICY_RUNNER" ]; then
         log_message "WARNING: Log policy runner not found at $LOG_POLICY_RUNNER. Falling back to direct file redirection."
@@ -602,11 +614,16 @@ launch_with_log_policy() {
         return 0
     fi
 
+    if [ "$SITL_STRIP_PXH_PROMPTS" = "true" ] && [ "$log_file" = "$BASE_DIR/logs/sitl_simulation.log" ]; then
+        extra_runner_args+=(--strip-pxh-prompts)
+    fi
+
     python3 "$LOG_POLICY_RUNNER" \
         --mode "$SITL_FILE_LOG_MODE" \
         --log-file "$log_file" \
         --max-bytes "$SITL_FILE_LOG_MAX_BYTES" \
         --backup-count "$SITL_FILE_LOG_BACKUP_COUNT" \
+        "${extra_runner_args[@]}" \
         -- \
         "$@" </dev/null >/dev/null 2>&1 &
     LAUNCH_WITH_LOG_POLICY_LAST_PID="$!"

@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Append to the primary log file instead of truncating it",
     )
     parser.add_argument(
+        "--strip-pxh-prompts",
+        action="store_true",
+        help="Drop repeated PX4 shell prompt control sequences from the log stream",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="Command to execute after '--'",
@@ -174,6 +179,8 @@ def run_child(args: argparse.Namespace) -> int:
                 chunk = child.stdout.read(65536)
                 if not chunk:
                     break
+                if args.strip_pxh_prompts:
+                    chunk = chunk.replace(b"\x1b[2K\rpxh> ", b"")
                 log_writer.write(chunk)
         return child.wait()
     finally:

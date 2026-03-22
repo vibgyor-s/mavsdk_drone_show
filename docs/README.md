@@ -94,6 +94,10 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |
 | `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |
 | `MDS_SITL_FILE_LOG_MODE` | Runtime file log retention (`bounded`, `full`, `discard`) | `bounded` |
+| `MDS_SITL_STRIP_PXH_PROMPTS` | Remove repetitive PX4 shell prompt noise from SITL logs | `true` |
+| `MDS_SITL_WAIT_FOR_READY` | Wait for PX4, router, and coordinator before reporting container success | `true` |
+| `MDS_SITL_READY_TIMEOUT_SECONDS` | Readiness timeout per launch batch | `60` |
+| `MDS_SITL_READY_POLL_INTERVAL_SECONDS` | Readiness polling interval | `2` |
 | `MDS_MAVSDK_VERSION` | Runtime or image-build MAVSDK server version override | unset |
 | `MDS_MAVSDK_URL` | Runtime or image-build MAVSDK server URL override | unset |
 

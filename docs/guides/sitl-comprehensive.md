@@ -156,6 +156,8 @@ You should see the current official tags, including:
 > **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.
 >
 > **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).
+>
+> **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image and `MDS_SITL_GIT_SYNC=false` so startup does not fan out into one remote git fetch per container.
 
 #### Image Features and Components
 
@@ -180,10 +182,11 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents
 > - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
-> - runtime file logs are bounded by default so containers stay small, and those logs disappear when the container is removed
+> - runtime file logs are bounded by default so containers stay small, repeated PX4 `pxh>` prompt noise is stripped from the raw SITL log, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path
+> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; startup-wrapper diagnostics are written to `logs/startup_sitl.log`
 
 #### Need Custom Repository or Advanced Configuration?
 

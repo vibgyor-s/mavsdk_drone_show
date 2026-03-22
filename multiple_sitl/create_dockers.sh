@@ -145,6 +145,9 @@ print_launcher_configuration() {
     echo "  Startup Script : ${STARTUP_SCRIPT_HOST}"
     echo "  Container Repo : /root/mavsdk_drone_show"
     echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
+    echo "  Wait For Ready : ${WAIT_FOR_READY}"
+    echo "  Ready Timeout  : ${READY_TIMEOUT_SECONDS}s"
+    echo "  Ready Poll     : ${READY_POLL_INTERVAL_SECONDS}s"
 
     local forwarded_names=()
     local env_name
