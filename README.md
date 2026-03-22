@@ -71,9 +71,32 @@ Map-heavy features such as trajectory planning and QuickScout require a Mapbox t
 
 ## Videos
 
-- [MDS 3 Complete Feature Showcase](https://www.youtube.com/watch?v=mta2ARQKWRQ)
-- [100-Drone SITL Test](https://www.youtube.com/watch?v=VsNs3kFKEvU)
-- [Smart Swarm Demo](https://youtu.be/qRXE3LTd40c)
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=mta2ARQKWRQ">
+        <img src="https://img.youtube.com/vi/mta2ARQKWRQ/mqdefault.jpg" alt="MDS 3 Complete Feature Showcase" width="220">
+      </a>
+      <br>
+      <a href="https://www.youtube.com/watch?v=mta2ARQKWRQ">Feature Showcase</a>
+    </td>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=VsNs3kFKEvU">
+        <img src="https://img.youtube.com/vi/VsNs3kFKEvU/mqdefault.jpg" alt="100-Drone SITL Test" width="220">
+      </a>
+      <br>
+      <a href="https://www.youtube.com/watch?v=VsNs3kFKEvU">100-Drone SITL</a>
+    </td>
+    <td align="center">
+      <a href="https://youtu.be/qRXE3LTd40c">
+        <img src="https://img.youtube.com/vi/qRXE3LTd40c/mqdefault.jpg" alt="Smart Swarm Demo" width="220">
+      </a>
+      <br>
+      <a href="https://youtu.be/qRXE3LTd40c">Smart Swarm Demo</a>
+    </td>
+  </tr>
+</table>
+
 - **MDS 5 walkthrough:** coming soon, to be linked here when published
 
 ## Documentation
