@@ -124,6 +124,11 @@ MODE="${GCS_ENV:-$MODE}"
 BACKEND="${GCS_BACKEND:-$BACKEND}"
 PORT="${GCS_PORT:-$PORT}"
 
+if [[ "$BACKEND" == "uvicorn" || "$BACKEND" == "gunicorn" ]]; then
+    log_warn "Legacy GCS_BACKEND=$BACKEND detected. Mapping to fastapi."
+    BACKEND="fastapi"
+fi
+
 # ===========================================
 # VALIDATION
 # ===========================================
