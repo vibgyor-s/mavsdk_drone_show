@@ -159,7 +159,7 @@ configure_gcs_env() {
 
 # GCS Server Settings
 GCS_PORT=5000
-GCS_BACKEND=uvicorn
+GCS_BACKEND=fastapi
 
 # Repository Settings
 MDS_REPO_URL=${repo_url}

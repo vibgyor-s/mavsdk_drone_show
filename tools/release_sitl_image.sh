@@ -48,6 +48,8 @@ Result:
   - Preserves the real PX4 git/submodule metadata and writes PX4 provenance into image metadata files
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you want to
     pin the baked mavsdk_server binary for this release
+  - Export MDS_SITL_KEEP_ARM_TOOLCHAIN=true before running only if you
+    intentionally need the PX4 ARM firmware toolchain preserved in the image
 EOF
 }
 
@@ -118,6 +120,9 @@ fi
 if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
     log "Using MAVSDK URL override: ${MDS_MAVSDK_URL}"
 fi
+if [[ -n "${MDS_SITL_KEEP_ARM_TOOLCHAIN:-}" ]]; then
+    log "Preserving PX4 ARM toolchain: ${MDS_SITL_KEEP_ARM_TOOLCHAIN}"
+fi
 docker run --name "$TEMP_CONTAINER" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
 
 log "Preparing runtime filesystem inside temporary container..."
@@ -139,10 +144,12 @@ docker_sitl_flatten_container \
     "LABEL mds.sitl.image.prepared_from=${BASE_IMAGE}"
 
 docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:latest"
+docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:${MDS_COMMIT}"
 
 log "Resulting tags:"
 log "  ${TARGET_IMAGE}"
 log "  ${IMAGE_REPO}:latest"
+log "  ${IMAGE_REPO}:${MDS_COMMIT}"
 log "  commit=${MDS_COMMIT}"
 
 if [[ "$PACKAGE_IMAGE" == true ]]; then

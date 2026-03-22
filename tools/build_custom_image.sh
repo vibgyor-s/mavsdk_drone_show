@@ -36,6 +36,8 @@ Notes:
     a clean image.
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you need
     the image to bake in a specific MAVSDK server binary.
+  - Export MDS_SITL_KEEP_ARM_TOOLCHAIN=true before running only if your
+    custom image intentionally needs the PX4 ARM firmware toolchain preserved.
   - The resulting image keeps the MDS repo as a shallow git checkout so each
     SITL container can fetch/reset to the latest branch state on startup.
   - PX4 stays pinned in the image with its real git/submodule metadata intact.
@@ -84,6 +86,9 @@ main() {
     fi
     if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
         log_info "MAVSDK URL : ${MDS_MAVSDK_URL}"
+    fi
+    if [[ -n "${MDS_SITL_KEEP_ARM_TOOLCHAIN:-}" ]]; then
+        log_info "Keep ARM   : ${MDS_SITL_KEEP_ARM_TOOLCHAIN}"
     fi
 
     docker run --name "$temp_container" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null

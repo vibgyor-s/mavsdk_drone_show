@@ -576,8 +576,13 @@ handle_real_mode_file() {
 
 update_repository() {
     if [[ -n "$BRANCH_NAME" && -f "$UPDATE_SCRIPT_PATH" ]]; then
+        local update_args=("-b" "$BRANCH_NAME")
         log_info "Updating repository to branch: $BRANCH_NAME"
-        REPO_DIR="$PROJECT_ROOT" bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
+        if [[ -n "${MDS_REPO_URL:-}" ]]; then
+            update_args+=("--repo-url" "$MDS_REPO_URL")
+            log_info "Using configured repository URL: $MDS_REPO_URL"
+        fi
+        REPO_DIR="$PROJECT_ROOT" bash "$UPDATE_SCRIPT_PATH" "${update_args[@]}"
         if [[ $? -eq 0 ]]; then
             refresh_project_metadata
             log_success "Repository updated successfully."

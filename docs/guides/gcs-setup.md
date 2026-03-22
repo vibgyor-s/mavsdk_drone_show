@@ -209,7 +209,7 @@ sudo ./tools/mds_gcs_init.sh --skip-firewall
 ```bash
 # MDS GCS Configuration
 GCS_PORT=5000
-GCS_BACKEND=uvicorn
+GCS_BACKEND=fastapi
 
 # Repository Settings
 MDS_REPO_URL=git@github.com:alireza787b/mavsdk_drone_show.git
@@ -227,19 +227,26 @@ VENV_PATH=~/mavsdk_drone_show/venv
 
 ## Firewall Ports
 
-The following ports are configured by the initialization script:
+### Ports Opened By `mds_gcs_init.sh`
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 22 | TCP | SSH access |
-| 5000 | TCP | GCS API Server (FastAPI/Flask) |
+| 5000 | TCP | GCS API Server (FastAPI) |
 | 3030 | TCP | React Dashboard |
 | 14550 | UDP | GCS MAVLink (from drones) |
-| 24550 | UDP | Additional MAVLink (multi-GCS) |
-| 34550 | UDP | Additional MAVLink (multi-GCS) |
-| 14540 | UDP | MAVSDK SDK (for SITL) |
-| 12550 | UDP | Local MAVLink telemetry |
-| 14569 | UDP | mavlink2rest API |
+
+### Optional Or Local-Only Ports
+
+These are not opened by default anymore. Add them manually only when your workflow actually needs them:
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 24550 | UDP | Remote GCS / QGroundControl via router or VPN |
+| 34550 | UDP | Legacy server-side router listen port |
+| 14540 | UDP | Local MAVSDK SDK endpoint |
+| 12550 | UDP | Local telemetry endpoint |
+| 14569 | UDP | Optional local `mavlink2rest` target |
 
 ### Manual Firewall Configuration
 
@@ -251,9 +258,17 @@ sudo ufw allow 22/tcp
 sudo ufw allow 5000/tcp
 sudo ufw allow 3030/tcp
 sudo ufw allow 14550/udp
-sudo ufw allow 14540/udp
-sudo ufw allow 14569/udp
 sudo ufw enable
+```
+
+If you intentionally use multi-GCS/QGroundControl or custom local consumers, open the extra UDP ports explicitly:
+
+```bash
+sudo ufw allow 24550/udp
+sudo ufw allow 34550/udp
+sudo ufw allow 14540/udp
+sudo ufw allow 12550/udp
+sudo ufw allow 14569/udp
 ```
 
 ---

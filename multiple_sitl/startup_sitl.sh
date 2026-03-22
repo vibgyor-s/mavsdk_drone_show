@@ -923,7 +923,10 @@ run_mavlink_router() {
     # Export GCS_IP for mavlink router (reads from params via Python)
     # Falls back to Docker gateway if params not available
     cd "$BASE_DIR"
-    export GCS_IP=$(python3 -c "from src.params import Params; print(Params.GCS_IP)" 2>/dev/null || echo "172.18.0.1")
+    export GCS_IP=$(python3 -c "from src.params import Params; print(Params.GCS_IP)" 2>/dev/null || ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')
+    if [ -z "${GCS_IP:-}" ]; then
+        export GCS_IP="172.18.0.1"
+    fi
     log_message "GCS IP for MAVLink routing: $GCS_IP"
 
     # Check if mavlink-routerd is installed

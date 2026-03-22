@@ -157,7 +157,7 @@ You should see the current official tags, including:
 >
 > **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).
 >
-> **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image and `MDS_SITL_GIT_SYNC=false` so startup does not fan out into one remote git fetch per container.
+> **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false` so startup does not fan out into one remote git fetch or Python re-sync per container.
 
 #### Image Features and Components
 
@@ -187,7 +187,8 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path
-> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process so docker restart / host reboot recovery is correct, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`
+> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process with Docker restart policy `unless-stopped` by default, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`
+> - the default launcher now uses the image-baked `startup_sitl.sh` for reproducible release behavior; set `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override
 
 #### Need Custom Repository or Advanced Configuration?
 
@@ -237,7 +238,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Install Node.js (Node.js 20 LTS recommended via [nvm](https://nodejs.org/en/download/package-manager); Node.js 22 also works but usually needs more build memory), then:
+Install Node.js (Node.js 22 LTS recommended via [nvm](https://nodejs.org/en/download/package-manager); Node.js 20 is still tolerated if you need it), then:
 
 ```bash
 cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
@@ -415,11 +416,12 @@ When your drones are being managed by a GCS on the server, the MAVLink data pack
 Before we proceed with the MAVLink routing, we first need to ensure MAVLink Router is installed on the server. Follow these steps to install MAVLink Router:
 
 ```bash
-cd ~/mavsdk_drone_show
-sudo bash tools/mavlink-router-install.sh
+git clone https://github.com/alireza787b/mavlink-anywhere
+cd mavlink-anywhere
+sudo ./install_mavlink_router.sh
 ```
 
-This script will handle the installation process for MAVLink Router. Once completed, you can proceed with configuring the router.
+This installs the current recommended MAVLink Router helper. For the complete routing model and current port expectations, see [MAVLink Routing Setup](mavlink-routing-setup.md).
 
 ##### Understanding the Command
 

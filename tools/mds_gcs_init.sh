@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Script
 # =============================================================================
-# Version: 4.4.0
+# Version: Reads from VERSION file
 # Description: Enterprise GCS (Ground Control Station) initialization script
 #              Configures VPS/Ubuntu systems for MDS GCS operation
 # Author: MDS Team
@@ -93,8 +93,8 @@ export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 # =============================================================================
 
 show_help() {
-    cat << 'EOF'
-MDS GCS Initialization Script v4.4.0
+    cat << EOF
+MDS GCS Initialization Script v${GCS_VERSION}
 
 USAGE:
     sudo ./mds_gcs_init.sh [OPTIONS]
@@ -163,7 +163,7 @@ EXAMPLES:
 PHASES:
     1. prereqs      - System validation, base packages
     2. python       - Python 3.11+ installation
-    3. nodejs       - Node.js 20.x LTS installation
+    3. nodejs       - Node.js 22.x LTS installation
     4. repository   - Clone/update repository with SSH key
     5. firewall     - UFW with GCS ports
     6. python_env   - venv + requirements.txt
@@ -446,7 +446,7 @@ run_mode() {
     echo ""
 
     # Check for startup script
-    local startup_script="${install_dir}/tools/linux_dashboard_start.sh"
+    local startup_script="${install_dir}/app/linux_dashboard_start.sh"
 
     if [[ ! -f "$startup_script" ]]; then
         log_error "Startup script not found: $startup_script"
@@ -458,10 +458,10 @@ run_mode() {
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
     echo ""
     echo -e "  ${WHITE}1.${NC} Start with tmux (recommended)"
-    echo -e "     ${GREEN}${startup_script} --tmux${NC}"
+    echo -e "     ${GREEN}${startup_script}${NC}"
     echo ""
     echo -e "  ${WHITE}2.${NC} Start in foreground"
-    echo -e "     ${GREEN}${startup_script}${NC}"
+    echo -e "     ${GREEN}${startup_script} -n${NC}"
     echo ""
     echo -e "  ${WHITE}3.${NC} Start in background"
     echo -e "     ${GREEN}${startup_script} &${NC}"
@@ -471,7 +471,7 @@ run_mode() {
 
     if [[ "${NON_INTERACTIVE}" != "true" ]]; then
         if confirm "Start GCS now with tmux?" "y"; then
-            exec "$startup_script" --tmux
+            exec "$startup_script"
         fi
     fi
 

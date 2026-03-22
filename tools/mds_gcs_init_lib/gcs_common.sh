@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS GCS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.4.0
+# Version: Reads from VERSION file
 # Description: GCS-specific constants and utilities (extends mds_init_lib/common.sh)
 # Author: MDS Team
 # =============================================================================
@@ -31,7 +31,12 @@ fi
 # GCS-SPECIFIC CONSTANTS (Override base constants)
 # =============================================================================
 
-readonly GCS_VERSION="4.4.0"
+GCS_REPO_ROOT="$(cd "${GCS_SCRIPT_DIR}/../.." && pwd)"
+if [[ -f "${GCS_REPO_ROOT}/VERSION" ]]; then
+    readonly GCS_VERSION="$(tr -d '[:space:]' < "${GCS_REPO_ROOT}/VERSION")"
+else
+    readonly GCS_VERSION="5.0"
+fi
 readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
 readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
 readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
@@ -55,11 +60,6 @@ declare -A GCS_PORTS=(
     ["5000/tcp"]="GCS API Server (FastAPI)"
     ["3030/tcp"]="React Dashboard"
     ["14550/udp"]="GCS MAVLink (from drones)"
-    ["24550/udp"]="Additional MAVLink (multi-GCS)"
-    ["34550/udp"]="Additional MAVLink (multi-GCS)"
-    ["14540/udp"]="MAVSDK SDK (for SITL)"
-    ["12550/udp"]="Local MAVLink telemetry"
-    ["14569/udp"]="mavlink2rest API"
 )
 
 # Python requirements - critical packages to verify

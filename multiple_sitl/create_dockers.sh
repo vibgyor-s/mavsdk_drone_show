@@ -97,8 +97,11 @@ STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
 HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$HOME/.local/share/mavsdk_drone_show/sitl_runtime}"
 RUNTIME_FILES_CONTAINER="/tmp/mds_runtime"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
+STARTUP_SCRIPT_IMAGE="${HWID_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
 STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
+USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-false}"
+DOCKER_RESTART_POLICY="${MDS_SITL_DOCKER_RESTART_POLICY:-unless-stopped}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
 CREATED_CONTAINERS=()
@@ -144,10 +147,15 @@ print_launcher_configuration() {
     echo "Launcher Configuration:"
     echo "  Docker Image   : ${TEMPLATE_IMAGE}"
     echo "  Repo Root      : ${REPO_ROOT}"
-    echo "  Startup Script : ${STARTUP_SCRIPT_HOST}"
+    if [[ "${USE_HOST_STARTUP_SCRIPT}" == "true" ]]; then
+        echo "  Startup Script : host override (${STARTUP_SCRIPT_HOST})"
+    else
+        echo "  Startup Script : image-baked (${STARTUP_SCRIPT_IMAGE})"
+    fi
     echo "  Container Repo : /root/mavsdk_drone_show"
     echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
     echo "  Runtime Files  : ${HOST_RUNTIME_ROOT}"
+    echo "  Restart Policy : ${DOCKER_RESTART_POLICY}"
     echo "  Wait For Ready : ${WAIT_FOR_READY}"
     echo "  Ready Timeout  : ${READY_TIMEOUT_SECONDS}s"
     echo "  Ready Poll     : ${READY_POLL_INTERVAL_SECONDS}s"
@@ -186,15 +194,34 @@ validate_launcher_configuration() {
         printf "Error: MDS_SITL_READY_POLL_INTERVAL_SECONDS must be a positive integer.\n" >&2
         exit 1
     fi
+
+    case "$USE_HOST_STARTUP_SCRIPT" in
+        true|false) ;;
+        *)
+            printf "Error: MDS_SITL_USE_HOST_STARTUP_SCRIPT must be 'true' or 'false'.\n" >&2
+            exit 1
+            ;;
+    esac
+
+    if [[ -z "$DOCKER_RESTART_POLICY" ]]; then
+        printf "Error: MDS_SITL_DOCKER_RESTART_POLICY must not be empty.\n" >&2
+        exit 1
+    fi
 }
 
 print_scale_guidance() {
     local num_instances="$1"
     local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
+    local effective_requirements_sync="${MDS_SITL_REQUIREMENTS_SYNC:-true}"
 
     if (( num_instances >= 10 )) && [[ "$effective_git_sync" == "true" ]]; then
         printf "Warning: launching %d containers with MDS_SITL_GIT_SYNC=true will trigger %d runtime git fetch/reset operations.\n" "$num_instances" "$num_instances" >&2
         printf "For validated large-fleet runs, prefer a rebuilt image plus MDS_SITL_GIT_SYNC=false.\n" >&2
+    fi
+
+    if (( num_instances >= 10 )) && [[ "$effective_requirements_sync" == "true" ]]; then
+        printf "Notice: if requirements.txt changes, MDS_SITL_REQUIREMENTS_SYNC=true can also trigger one pip sync per container at boot.\n" >&2
+        printf "For validated large-fleet runs, usually keep MDS_SITL_REQUIREMENTS_SYNC=false after baking the approved venv into the image.\n" >&2
     fi
 }
 
@@ -299,6 +326,12 @@ setup_docker_network() {
         echo "Creating Docker network '${DOCKER_NETWORK_NAME}' with subnet '${CUSTOM_SUBNET}'..."
         docker network create --subnet="$CUSTOM_SUBNET" "$DOCKER_NETWORK_NAME"
     else
+        local existing_subnet
+        existing_subnet=$(docker network inspect "$DOCKER_NETWORK_NAME" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+        if [[ "$existing_subnet" != "$CUSTOM_SUBNET" ]]; then
+            printf "Error: Docker network '%s' already exists with subnet '%s' (requested '%s').\n" "$DOCKER_NETWORK_NAME" "$existing_subnet" "$CUSTOM_SUBNET" >&2
+            exit 1
+        fi
         echo "Docker network '${DOCKER_NETWORK_NAME}' already exists. Using existing network."
     fi
 
@@ -321,8 +354,10 @@ create_instance() {
     local container_name="drone-$drone_id"
     local runtime_dir
     local hwid_file
+    local startup_script_container
     local startup_bootstrap
     local detached_command
+    local docker_run_args=()
 
     printf "\nCreating container '%s'...\n" "$container_name"
 
@@ -354,7 +389,22 @@ create_instance() {
         return 1
     fi
 
-    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && cp '$RUNTIME_FILES_CONTAINER'/*.hwID '$HWID_CONTAINER_DIR/' && exec bash '$STARTUP_SCRIPT_CONTAINER'"
+    startup_script_container="$STARTUP_SCRIPT_IMAGE"
+    docker_run_args=(
+        --name "$container_name"
+        --network "$DOCKER_NETWORK_NAME"
+        --ip "$IP_ADDRESS"
+        --restart "$DOCKER_RESTART_POLICY"
+        "${DOCKER_ENV_ARGS[@]}"
+        -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro"
+    )
+
+    if [[ "${USE_HOST_STARTUP_SCRIPT}" == "true" ]]; then
+        startup_script_container="$STARTUP_SCRIPT_CONTAINER"
+        docker_run_args+=(-v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro")
+    fi
+
+    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && cp '$RUNTIME_FILES_CONTAINER'/*.hwID '$HWID_CONTAINER_DIR/' && exec bash '$startup_script_container'"
     detached_command="${startup_bootstrap} >> '$STARTUP_LOG_CONTAINER' 2>&1"
 
     # If verbose mode is enabled, run attached mode for debugging purposes
@@ -362,18 +412,10 @@ create_instance() {
         printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
         printf "To exit the attached mode, press CTRL+C.\n"
         if [[ -t 0 && -t 1 ]]; then
-            docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
-                "${DOCKER_ENV_ARGS[@]}" \
-                -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
-                -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
-                -it "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
+            docker run "${docker_run_args[@]}" -it "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
         else
             printf "No interactive TTY detected. Falling back to non-TTY verbose mode.\n"
-            docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
-                "${DOCKER_ENV_ARGS[@]}" \
-                -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
-                -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
-                -i "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
+            docker run "${docker_run_args[@]}" -i "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
         fi
         return 0
     fi
@@ -381,11 +423,7 @@ create_instance() {
     # Run the startup SITL script as the container's main process so restart
     # semantics remain correct after host reboots or docker restarts.
     printf "Starting container '%s' with startup_sitl.sh as PID 1...\n" "$container_name"
-    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
-        "${DOCKER_ENV_ARGS[@]}" \
-        -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
-        -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
-        -d "$TEMPLATE_IMAGE" bash -lc "$detached_command" >/dev/null; then
+    if ! docker run "${docker_run_args[@]}" -d "$TEMPLATE_IMAGE" bash -lc "$detached_command" >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
         rm -rf "$runtime_dir"
         return 1
@@ -408,9 +446,11 @@ create_instance() {
 instance_is_ready() {
     local container_name="$1"
     docker exec "$container_name" bash -lc '
-        pgrep -f "/root/PX4-Autopilot/build/px4_sitl_default/bin/px4" >/dev/null &&
+        px4_dir="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
+        base_dir="${MDS_BASE_DIR:-/root/mavsdk_drone_show}"
+        pgrep -f "${px4_dir}/build/px4_sitl_default/bin/px4" >/dev/null &&
         pgrep -x mavlink-routerd >/dev/null &&
-        pgrep -f "/root/mavsdk_drone_show/coordinator.py" >/dev/null
+        pgrep -f "${base_dir}/coordinator.py" >/dev/null
     ' >/dev/null 2>&1
 }
 
@@ -613,8 +653,8 @@ EOF
     echo
 }
 
-# Ensure the startup script exists
-if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
+# Ensure the startup script exists when host override mode is enabled
+if [[ "${USE_HOST_STARTUP_SCRIPT}" == "true" ]] && [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
     printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT_HOST" >&2
     exit 1
 fi

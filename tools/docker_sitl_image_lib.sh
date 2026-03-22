@@ -54,6 +54,10 @@ docker_sitl_run_prepare_script() {
         docker_exec_args+=(-e "MDS_MAVSDK_URL=${MDS_MAVSDK_URL}")
     fi
 
+    if [[ -n "${MDS_SITL_KEEP_ARM_TOOLCHAIN:-}" ]]; then
+        docker_exec_args+=(-e "MDS_SITL_KEEP_ARM_TOOLCHAIN=${MDS_SITL_KEEP_ARM_TOOLCHAIN}")
+    fi
+
     docker_exec_args+=("$container_name" bash /tmp/mds_sitl_image_prepare.sh)
     "${docker_exec_args[@]}"
 }
