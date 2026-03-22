@@ -66,6 +66,7 @@ Notes:
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
 - `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch and hard-resets the worktree to that latest remote state.
+- Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 is intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
 - Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
 - Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.

@@ -26,6 +26,27 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
+retry_cmd() {
+    local attempts="$1"
+    shift
+    local delay=2
+    local try=1
+
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+
+        if [ "$try" -ge "$attempts" ]; then
+            return 1
+        fi
+
+        sleep "$delay"
+        try=$((try + 1))
+        delay=$((delay * 2))
+    done
+}
+
 github_https_fallback_url() {
     local repo_url="$1"
     if [[ "$repo_url" =~ ^git@github\.com:(.+)$ ]]; then
@@ -59,10 +80,10 @@ fresh_clone_mds_repo() {
     clone_dir="$clone_parent/repo"
 
     log "Cloning ${REPO_URL}@${BRANCH} as a shallow working tree..."
-    if ! git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$clone_dir"; then
+    if ! retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$clone_dir"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$REPO_URL" ]; then
             log "Primary clone failed. Retrying with HTTPS fallback: $fallback_repo_url"
-            git clone --depth 1 --branch "$BRANCH" "$fallback_repo_url" "$clone_dir"
+            retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$fallback_repo_url" "$clone_dir"
         else
             fail "Unable to clone ${REPO_URL}@${BRANCH}"
         fi

@@ -176,6 +176,7 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
 > - the image keeps one prebuilt PX4 SITL build tree, a compact PX4 runtime git snapshot for `make`-based startup checks, and one prebuilt Python venv; old release layer history is flattened out during packaging
 > - each container still fetches and hard-resets to the latest configured MDS branch on startup
+> - PX4 itself is pinned inside the image and is updated only through a validated image rebuild; it is not auto-pulled during container startup
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
 > - runtime file logs are bounded by default so containers stay small, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
