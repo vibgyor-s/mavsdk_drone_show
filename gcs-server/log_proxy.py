@@ -7,7 +7,6 @@ Reference: docs/guides/logging-system.md
 """
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Optional
 
@@ -83,14 +82,14 @@ async def fetch_drone_session_content(
         return None
 
 
-async def stream_drone_logs(
+def stream_drone_logs(
     drone_ip: str,
     drone_id: int,
     level: str | None = None,
     component: str | None = None,
     source: str | None = None,
 ):
-    """Async generator that proxies SSE from a drone. Yields SSE data lines."""
+    """Proxy SSE from a drone as a synchronous iterator for StreamingResponse."""
     params: dict = {}
     if level:
         params["level"] = level
@@ -99,20 +98,19 @@ async def stream_drone_logs(
     if source:
         params["source"] = source
     try:
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream(
+        with httpx.Client(timeout=None) as client:
+            with client.stream(
                 "GET",
                 f"http://{drone_ip}:{_DRONE_API_PORT}/api/logs/stream",
                 params=params,
             ) as resp:
                 resp.raise_for_status()
-                try:
-                    async for line in resp.aiter_lines():
-                        if line.startswith("data: "):
-                            yield line + "\n\n"
-                except (asyncio.CancelledError, GeneratorExit):
-                    return
-    except (asyncio.CancelledError, GeneratorExit):
+                for line in resp.iter_lines():
+                    if isinstance(line, bytes):
+                        line = line.decode("utf-8", errors="replace")
+                    if line.startswith("data: "):
+                        yield line + "\n\n"
+    except GeneratorExit:
         return
     except Exception as e:
         error = build_log_entry(

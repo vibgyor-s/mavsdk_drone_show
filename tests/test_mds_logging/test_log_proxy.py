@@ -1,5 +1,4 @@
 """Tests for GCS-to-drone log proxy logic."""
-import asyncio
 import json
 import os
 import sys
@@ -104,19 +103,18 @@ class TestFetchDroneSessionContent:
 
 
 class TestStreamDroneLogs:
-    @pytest.mark.asyncio
-    async def test_stream_error_emits_structured_warning_entry(self):
+    def test_stream_error_emits_structured_warning_entry(self):
         from log_proxy import stream_drone_logs
 
-        with patch("log_proxy.httpx.AsyncClient") as MockClient:
-            client_instance = AsyncMock()
+        with patch("log_proxy.httpx.Client") as MockClient:
+            client_instance = MagicMock()
             client_instance.stream = MagicMock(side_effect=httpx.ConnectError("All connection attempts failed"))
-            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-            client_instance.__aexit__ = AsyncMock(return_value=None)
+            client_instance.__enter__ = MagicMock(return_value=client_instance)
+            client_instance.__exit__ = MagicMock(return_value=None)
             MockClient.return_value = client_instance
 
             stream = stream_drone_logs("192.168.1.105", drone_id=5)
-            line = await anext(stream)
+            line = next(stream)
 
         assert line.startswith("data: ")
         payload = json.loads(line[len("data: "):])
@@ -126,32 +124,31 @@ class TestStreamDroneLogs:
         assert payload["drone_id"] == 5
         assert "All connection attempts failed" in payload["msg"]
 
-    @pytest.mark.asyncio
-    async def test_stream_cancellation_exits_quietly(self):
+    def test_stream_cancellation_exits_quietly(self):
         from log_proxy import stream_drone_logs
 
         class _CancelingResponse:
             def raise_for_status(self):
                 return None
 
-            async def aiter_lines(self):
-                raise asyncio.CancelledError
+            def iter_lines(self):
+                raise GeneratorExit
                 yield  # pragma: no cover
 
         class _StreamContext:
-            async def __aenter__(self):
+            def __enter__(self):
                 return _CancelingResponse()
 
-            async def __aexit__(self, exc_type, exc, tb):
+            def __exit__(self, exc_type, exc, tb):
                 return None
 
-        with patch("log_proxy.httpx.AsyncClient") as MockClient:
-            client_instance = AsyncMock()
+        with patch("log_proxy.httpx.Client") as MockClient:
+            client_instance = MagicMock()
             client_instance.stream = MagicMock(return_value=_StreamContext())
-            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-            client_instance.__aexit__ = AsyncMock(return_value=None)
+            client_instance.__enter__ = MagicMock(return_value=client_instance)
+            client_instance.__exit__ = MagicMock(return_value=None)
             MockClient.return_value = client_instance
 
             stream = stream_drone_logs("192.168.1.105", drone_id=5)
-            with pytest.raises(StopAsyncIteration):
-                await anext(stream)
+            with pytest.raises(StopIteration):
+                next(stream)
