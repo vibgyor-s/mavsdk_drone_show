@@ -505,7 +505,7 @@ check_download_mavsdk() {
         echo "MAVSDK server binary not found, downloading..."
         if [[ -f "$REPO_DIR/tools/download_mavsdk_server.sh" ]]; then
             sudo bash "$REPO_DIR/tools/download_mavsdk_server.sh"
-            echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
+            echo "Note: The downloader auto-detects the latest MAVSDK release by default. Use MDS_MAVSDK_VERSION or MDS_MAVSDK_URL only when you intentionally want to pin a specific binary."
         else
             echo "Error: MAVSDK server download script not found."
             exit 1

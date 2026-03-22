@@ -40,11 +40,22 @@ docker_sitl_run_prepare_script() {
     local container_name="$1"
     local repo_url="$2"
     local branch="$3"
-    docker exec \
-        -e "MDS_REPO_URL=$repo_url" \
-        -e "MDS_BRANCH=$branch" \
-        "$container_name" \
-        bash /tmp/mds_sitl_image_prepare.sh
+    local docker_exec_args=(
+        docker exec
+        -e "MDS_REPO_URL=$repo_url"
+        -e "MDS_BRANCH=$branch"
+    )
+
+    if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
+        docker_exec_args+=(-e "MDS_MAVSDK_VERSION=${MDS_MAVSDK_VERSION}")
+    fi
+
+    if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
+        docker_exec_args+=(-e "MDS_MAVSDK_URL=${MDS_MAVSDK_URL}")
+    fi
+
+    docker_exec_args+=("$container_name" bash /tmp/mds_sitl_image_prepare.sh)
+    "${docker_exec_args[@]}"
 }
 
 docker_sitl_flatten_container() {

@@ -66,11 +66,11 @@ Notes:
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
 - `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch and hard-resets the worktree to that latest remote state.
-- Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 is intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
+- Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
 - Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
 - Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
-- If you want to pin the MAVSDK server version or URL, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`.
+- If you want to override the MAVSDK server binary at runtime, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`. For large fleets, bake that override into the image instead of downloading on every container start.
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.
 
 ### Step 2: Build Custom Docker Image (If Needed)
@@ -81,7 +81,7 @@ cd /path/to/mavsdk_drone_show
 bash tools/build_custom_image.sh
 ```
 
-`tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
+`tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It now really does honor exported `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` during image preparation, so you can bake a pinned MAVSDK binary into the image instead of downloading it at container boot. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
 `tools/build_custom_image.sh` now builds a clean custom image without `docker commit`. It prepares a shallow repo checkout for your selected branch, pre-installs the Python venv, preserves runtime git sync for later container startups, and flattens the final filesystem into a fresh image layer stack.
 
 ### Step 3: Deploy Your Drones

@@ -39,7 +39,7 @@ These parameters are required but can be provided interactively if omitted:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--mavsdk-version VERSION` | Specific MAVSDK version (e.g., `v3.5.0`) | Auto-detect latest |
+| `--mavsdk-version VERSION` | Specific MAVSDK version (e.g., `v3.15.0`) | Auto-detect latest |
 | `--mavsdk-url URL` | Direct URL to MAVSDK binary (overrides version) | - |
 
 ## Skip Flags
@@ -151,7 +151,7 @@ sudo ./tools/mds_init.sh -d 5 \
 Specific MAVSDK version:
 ```bash
 sudo ./tools/mds_init.sh -d 1 \
-    --mavsdk-version v3.5.0 \
+    --mavsdk-version v3.15.0 \
     -y
 ```
 

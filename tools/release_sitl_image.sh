@@ -45,6 +45,8 @@ Options:
 Result:
   - Tags the output image as ${DEFAULT_IMAGE_REPO}:latest and ${DEFAULT_IMAGE_REPO}:${DEFAULT_VERSION_TAG}
   - Keeps the image filesystem ready for fast SITL container startup with runtime git sync enabled
+  - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you want to
+    pin the baked mavsdk_server binary for this release
 EOF
 }
 
@@ -109,6 +111,12 @@ TEMP_CONTAINER="mds-sitl-release-$(date +%s)-$$"
 trap 'docker_sitl_cleanup_container "$TEMP_CONTAINER"' EXIT
 
 log "Creating temporary container from ${BASE_IMAGE}..."
+if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
+    log "Using MAVSDK version override: ${MDS_MAVSDK_VERSION}"
+fi
+if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
+    log "Using MAVSDK URL override: ${MDS_MAVSDK_URL}"
+fi
 docker run --name "$TEMP_CONTAINER" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
 
 log "Preparing runtime filesystem inside temporary container..."

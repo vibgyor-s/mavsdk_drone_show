@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: MAVSDK Binary
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.4.1
 # Description: MAVSDK server binary download and configuration
 # Author: MDS Team
 # =============================================================================
@@ -17,12 +17,12 @@ _MDS_MAVSDK_LOADED=1
 
 readonly MAVSDK_BINARY="${MDS_INSTALL_DIR}/mavsdk_server"
 readonly MAVSDK_GITHUB_API="https://api.github.com/repos/mavlink/MAVSDK/releases/latest"
-readonly MAVSDK_FALLBACK_VERSION="v3.5.0"
+readonly MAVSDK_FALLBACK_VERSION="v3.15.0"
 
 # Architecture to binary name mapping
 declare -A MAVSDK_ARCH_MAP=(
     ["arm64"]="mavsdk_server_linux-arm64-musl"
-    ["armhf"]="mavsdk_server_linux-armv7-musl"
+    ["armhf"]="mavsdk_server_linux-armv7l-musl"
     ["x86_64"]="mavsdk_server_musl_x86_64"
 )
 

@@ -94,6 +94,8 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup | `true` |
 | `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |
 | `MDS_SITL_FILE_LOG_MODE` | Runtime file log retention (`bounded`, `full`, `discard`) | `bounded` |
+| `MDS_MAVSDK_VERSION` | Runtime or image-build MAVSDK server version override | unset |
+| `MDS_MAVSDK_URL` | Runtime or image-build MAVSDK server URL override | unset |
 
 See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 

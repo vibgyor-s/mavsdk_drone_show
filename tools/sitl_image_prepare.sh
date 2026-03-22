@@ -108,12 +108,22 @@ fresh_clone_mds_repo() {
 }
 
 ensure_mavsdk_server() {
-    if [ -x "$MAVSDK_BINARY_PATH" ]; then
+    local force_refresh="false"
+
+    if [ -n "${MDS_MAVSDK_VERSION:-}" ] || [ -n "${MDS_MAVSDK_URL:-}" ]; then
+        force_refresh="true"
+    fi
+
+    if [ "$force_refresh" != "true" ] && [ -x "$MAVSDK_BINARY_PATH" ]; then
         return 0
     fi
 
     [ -f "$MAVSDK_DOWNLOAD_SCRIPT" ] || fail "Missing MAVSDK download helper: $MAVSDK_DOWNLOAD_SCRIPT"
     require_cmd curl
+    if [ "$force_refresh" = "true" ]; then
+        log "Refreshing mavsdk_server because MDS_MAVSDK_VERSION or MDS_MAVSDK_URL was set..."
+        rm -f "$MAVSDK_BINARY_PATH"
+    fi
     log "Provisioning mavsdk_server into $BASE_DIR..."
     MDS_INSTALL_DIR="$BASE_DIR" bash "$MAVSDK_DOWNLOAD_SCRIPT" >/tmp/mds_mavsdk_download.log 2>&1 || {
         tail -n 40 /tmp/mds_mavsdk_download.log >&2 || true
@@ -200,6 +210,7 @@ write_build_metadata() {
 MDS_IMAGE_REPO_URL=${REPO_URL}
 MDS_IMAGE_BRANCH=${BRANCH}
 MDS_IMAGE_COMMIT=${commit_hash}
+MDS_IMAGE_MAVSDK_VERSION_REQUESTED=${MDS_MAVSDK_VERSION:-}
 MDS_IMAGE_PREPARED_AT_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
 }

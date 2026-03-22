@@ -139,7 +139,7 @@ OPTIONAL COMPONENTS:
     --gcs-ip IP                 Override GCS IP address
 
 MAVSDK OPTIONS:
-    --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.5.0)
+    --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.15.0)
                                 Default: auto-detect latest
     --mavsdk-url URL            Direct URL to MAVSDK binary (overrides version)
 

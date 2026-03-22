@@ -955,12 +955,17 @@ setup_python_env() {
 
 ensure_mavsdk_server() {
     mkdir -p "$BASE_DIR/logs"
+    local force_refresh="false"
+
+    if [ -n "${MDS_MAVSDK_VERSION:-}" ] || [ -n "${MDS_MAVSDK_URL:-}" ]; then
+        force_refresh="true"
+    fi
 
     if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then
         chmod +x "$MAVSDK_BINARY_PATH"
     fi
 
-    if [ -x "$MAVSDK_BINARY_PATH" ]; then
+    if [ "$force_refresh" != "true" ] && [ -x "$MAVSDK_BINARY_PATH" ]; then
         log_message "MAVSDK server binary ready: $MAVSDK_BINARY_PATH"
         return
     fi
@@ -976,7 +981,12 @@ ensure_mavsdk_server() {
     fi
 
     local mavsdk_log="$BASE_DIR/logs/mavsdk_download.log"
-    log_message "MAVSDK server binary missing. Downloading it into $BASE_DIR..."
+    if [ "$force_refresh" = "true" ]; then
+        log_message "Refreshing mavsdk_server because MDS_MAVSDK_VERSION or MDS_MAVSDK_URL was set."
+        rm -f "$MAVSDK_BINARY_PATH"
+    else
+        log_message "MAVSDK server binary missing. Downloading it into $BASE_DIR..."
+    fi
 
     if MDS_INSTALL_DIR="$BASE_DIR" bash "$MAVSDK_DOWNLOAD_SCRIPT" &>"$mavsdk_log"; then
         if [ -f "$MAVSDK_BINARY_PATH" ] && [ ! -x "$MAVSDK_BINARY_PATH" ]; then

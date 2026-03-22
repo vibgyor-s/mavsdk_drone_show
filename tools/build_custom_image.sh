@@ -34,6 +34,8 @@ Notes:
   - It prepares a shallow repo checkout, pre-installs the Python venv,
     removes unnecessary baggage, then flattens the container filesystem into
     a clean image.
+  - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you need
+    the image to bake in a specific MAVSDK server binary.
   - The resulting image still keeps the MDS repo as a shallow git checkout so
     each SITL container can fetch/reset to the latest branch state on startup.
 EOF
@@ -75,6 +77,12 @@ main() {
     log_info "Repo       : ${repo_url}"
     log_info "Branch     : ${branch}"
     log_info "Target     : ${image_name}"
+    if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
+        log_info "MAVSDK ver : ${MDS_MAVSDK_VERSION}"
+    fi
+    if [[ -n "${MDS_MAVSDK_URL:-}" ]]; then
+        log_info "MAVSDK URL : ${MDS_MAVSDK_URL}"
+    fi
 
     docker run --name "$temp_container" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
     docker_sitl_copy_prepare_script "$REPO_ROOT" "$temp_container"

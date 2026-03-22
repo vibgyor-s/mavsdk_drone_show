@@ -174,9 +174,9 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 
 > **Current Docker SITL standard**
 > - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
-> - the image keeps one prebuilt PX4 SITL build tree, a compact PX4 runtime git snapshot for `make`-based startup checks, and one prebuilt Python venv; old release layer history is flattened out during packaging
+> - the image keeps one prebuilt PX4 SITL build tree, a compact PX4 runtime git snapshot for `make`-based startup checks, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging
 > - each container still fetches and hard-resets to the latest configured MDS branch on startup
-> - PX4 itself is pinned inside the image and is updated only through a validated image rebuild; it is not auto-pulled during container startup
+> - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
 > - runtime file logs are bounded by default so containers stay small, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
@@ -299,7 +299,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which verifies the `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
+    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which hard-resets the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 
