@@ -42,6 +42,8 @@ Start here to get your first drone show simulation running:
 | Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
 | Customize deployment | [Advanced SITL Guide](guides/advanced-sitl.md) |
 | Build or redistribute a custom SITL release | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
+| Run QuickScout SAR / recon missions | [QuickScout Guide](quickscout.md) |
+| Review live or historical operator logs | [Logging System Guide](guides/logging-system.md) |
 | Understand features | [Features Section](#-features) |
 
 ---
@@ -73,6 +75,8 @@ Detailed documentation for MDS features:
 | Feature | Description |
 |---------|-------------|
 | **[Swarm Trajectory](features/swarm-trajectory.md)** | Smart swarm mode, leader-follower clustering, Kalman filters |
+| **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
+| **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |
 | **[Control Modes and Coordinates](control-modes-and-coordinates.md)** | Comprehensive guide to control modes, coordinate systems, Phase 2 auto-correction, and time synchronization |
 

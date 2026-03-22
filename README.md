@@ -1,12 +1,12 @@
 # MAVSDK Drone Show (MDS)
 
-**All-in-One Drone Show & Smart Swarm Framework for PX4**
+**All-in-One PX4 Framework for Drone Shows, Smart Swarms, and SAR**
 
 [![Version](https://img.shields.io/badge/version-5.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
-MDS is a unified platform for PX4-based drone performances and intelligent swarm missions. Whether you want to run pre-planned, decentralized drone shows using SkyBrush outputs or orchestrate live, collaborative swarms with leader–follower clustering, MDS has you covered.
+MDS is a unified platform for PX4-based drone performances, intelligent swarm missions, and cooperative SAR/reconnaissance workflows. Whether you want to run pre-planned drone shows from SkyBrush outputs, orchestrate live clustered swarms, or plan multi-drone coverage missions, MDS keeps the stack in one place.
 
 ---
 
@@ -49,15 +49,23 @@ MDS combines three core components into a single, cohesive package:
 - Upload offline "ShowMode" trajectories (CSV/JSON from SkyBrush)
 - Visualize live positions, assign leaders/followers, and trigger mission modes
 - **3D Trajectory Planning** with interactive waypoints and terrain elevation
-- Supports both Drone-Show mode and Smart-Swarm mode
+- QuickScout planning/monitoring UI, mission configuration, and unified log viewing
+- Supports Drone-Show, Smart-Swarm, and QuickScout SAR modes
 
 **In short, MDS is one package for:**
 - **Offline Drone Shows**: Pre-planned, synchronized formations from SkyBrush CSV
 - **Smart Swarm Missions**: Decentralized leader–follower missions with robust failsafe handling
+- **QuickScout SAR / Recon**: Cooperative area coverage, PX4 Mission Mode execution, and live progress tracking
+- **Mission Planning & Operations**: Trajectory design, SITL validation, operator control, and log analysis in one stack
 
 ---
 
 ## Demo Videos
+
+### MDS 5 Walkthrough
+**Coming soon**
+
+A consolidated MDS 5 release/demo walkthrough is planned and will be linked here when published.
 
 ### MDS 3 Complete Feature Showcase
 **3D Drone Swarms in Action | Mission Planning + Autonomous Clustered Formation**
@@ -94,6 +102,11 @@ MDS combines three core components into a single, cohesive package:
 - Dynamic formation reshaping and per-drone role changes
 - In-flight failsafe monitors for communication, altimeter, ESC health
 
+### QuickScout SAR / Reconnaissance
+- Cooperative multi-drone area survey with boustrophedon coverage planning
+- PX4 Mission Mode execution with per-drone sector assignment and mission lifecycle control
+- POI handling, progress tracking, and terrain-aware planning from the GCS dashboard
+
 ### Stable Startup Handshake
 - Three-way acknowledgement chain (Drone ⇄ PX4 ⇄ MAVSDK ⇄ GCS)
 - "OK-to-Start" broadcast prevents premature launches
@@ -110,6 +123,8 @@ MDS combines three core components into a single, cohesive package:
 - **3D Trajectory Planning**: Interactive waypoint creation with real terrain elevation
   - Professional trajectory management with speed optimization
   - Requires Mapbox access token for full functionality
+- **QuickScout UI**: Search-area drawing, coverage preview, mission execution, and monitoring
+- **Unified Log Viewer**: Live/historical GCS and drone logs with drill-down filters, exports, and operator/developer modes
 - Formation editor (drag-and-drop) - coming soon
 - REST API endpoints via MAVLink2REST
 
@@ -123,6 +138,11 @@ MDS combines three core components into a single, cohesive package:
 - SkyBrush CSV → MDS converter script
 - JSON-based mission/formation files with validators
 - Parameter tuning utilities for leader election, Kalman filters, failsafe timeouts
+
+### Unified Logging & Diagnostics
+- Structured JSONL logging shared by GCS, drones, and frontend error reporting
+- Session-based retention with live SSE streaming and historical export
+- Operations-focused UI that keeps GCS and per-drone diagnostics searchable without overwhelming operators
 
 ---
 
@@ -245,6 +265,8 @@ All project documentation is organized in the `docs/` folder:
 - **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)** - Full SITL setup and usage
 - **[Advanced SITL Configuration](docs/guides/advanced-sitl.md)** - Custom deployments
 - **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)** - Fork maintenance, validated custom images, packaging, and redistribution
+- **[QuickScout Guide](docs/quickscout.md)** - SAR/reconnaissance planning and execution workflow
+- **[Logging System Guide](docs/guides/logging-system.md)** - Unified logging architecture and Log Viewer usage
 - **[CSV Migration Guide](docs/guides/csv-migration.md)** - Configuration format migration
 - **[Python Compatibility](docs/guides/python-compatibility.md)** - Python version requirements
 - **[Swarm Trajectory Feature](docs/features/swarm-trajectory.md)** - Smart swarm capabilities

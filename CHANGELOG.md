@@ -60,6 +60,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/build_custom_image.sh` now produces flattened custom images instead of layering more state through `docker commit`
 - SITL image preparation/build docs now pin PX4 plus baked `mavsdk_server` inside the image, pass `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` through the image-build path, and use updated MAVSDK release asset naming for current releases
 - SITL public setup docs now separate pinned validated releases from mutable latest-on-boot development mode, add a dedicated custom release workflow guide, and refresh FastAPI startup/version guidance for current GCS deployment behavior
+- Root and docs index READMEs now reflect the current MDS 5 scope more accurately, including QuickScout SAR, trajectory planning, unified logging, and the current SITL/custom-release workflow paths
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)
