@@ -158,14 +158,33 @@ stabilize_mavlink2rest_binary() {
 }
 
 prepare_px4_git_snapshot() {
-    log "Preparing compact PX4 git metadata for runtime make checks..."
+    prepare_git_snapshot() {
+        local repo_dir="$1"
+        local snapshot_name="$2"
 
-    rm -rf "$PX4_DIR/.git"
-    git -C "$PX4_DIR" init -q
-    git -C "$PX4_DIR" config user.name "MDS SITL Image"
-    git -C "$PX4_DIR" config user.email "mds-sitl-image@example.invalid"
-    git -C "$PX4_DIR" add -A
-    git -C "$PX4_DIR" commit -q -m "PX4 runtime snapshot"
+        rm -rf "$repo_dir/.git"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.name "MDS SITL Image"
+        git -C "$repo_dir" config user.email "mds-sitl-image@example.invalid"
+        git -C "$repo_dir" add -A
+        git -C "$repo_dir" commit -q -m "${snapshot_name} runtime snapshot"
+        git -C "$repo_dir" gc --prune=now >/dev/null 2>&1 || true
+    }
+
+    log "Preparing compact PX4 git metadata for runtime make checks..."
+    prepare_git_snapshot "$PX4_DIR" "PX4"
+
+    local mavlink_dir="$PX4_DIR/src/modules/mavlink/mavlink"
+    if [ -d "$mavlink_dir" ] && [ -e "$mavlink_dir/.git" ]; then
+        log "Preparing MAVLink git metadata for PX4 version checks..."
+        prepare_git_snapshot "$mavlink_dir" "PX4 MAVLink"
+    fi
+
+    local nuttx_dir="$PX4_DIR/platforms/nuttx/NuttX/nuttx"
+    if [ -d "$nuttx_dir" ] && [ -e "$nuttx_dir/.git" ]; then
+        log "Preparing NuttX git metadata for PX4 version checks..."
+        prepare_git_snapshot "$nuttx_dir" "PX4 NuttX"
+    fi
 }
 
 cleanup_runtime_baggage() {
