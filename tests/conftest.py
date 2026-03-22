@@ -17,6 +17,7 @@ import asyncio
 import httpx
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
 from typing import Dict, List, Any
+from fastapi.testclient import TestClient as FastAPITestClient
 
 # Configure Python path for all test modules
 # This is the SINGLE source of truth for path configuration in tests
@@ -131,6 +132,44 @@ class SyncASGITestClient:
 
     def post(self, url: str, **kwargs):
         return self.request("POST", url, **kwargs)
+
+    def websocket_connect(self, url: str, **kwargs):
+        """
+        Provide websocket support via FastAPI's sync TestClient.
+
+        HTTP requests use httpx.ASGITransport because Starlette's TestClient
+        can deadlock in this environment for normal request/response traffic.
+        WebSocket tests still need the TestClient websocket session helper, so
+        we use a short-lived dedicated client only for that context.
+        """
+        return _WebSocketConnectContext(self.app, url, **kwargs)
+
+
+class _WebSocketConnectContext:
+    """Context manager that keeps a FastAPI TestClient alive for one WS session."""
+
+    def __init__(self, app, url: str, **kwargs):
+        self._app = app
+        self._url = url
+        self._kwargs = kwargs
+        self._client = None
+        self._ws_context = None
+        self._websocket = None
+
+    def __enter__(self):
+        self._client = FastAPITestClient(self._app)
+        self._client.__enter__()
+        self._ws_context = self._client.websocket_connect(self._url, **self._kwargs)
+        self._websocket = self._ws_context.__enter__()
+        return self._websocket
+
+    def __exit__(self, exc_type, exc, tb):
+        suppressed = False
+        if self._ws_context is not None:
+            suppressed = self._ws_context.__exit__(exc_type, exc, tb)
+        if self._client is not None:
+            self._client.__exit__(exc_type, exc, tb)
+        return suppressed
 
 @pytest.fixture
 def mock_params():

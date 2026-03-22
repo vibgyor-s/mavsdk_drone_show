@@ -53,6 +53,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
 - All drone-side components migrated from `configure_logging()`/inline setup to `mds_logging`
 - CLI flags unified: `--debug` replaced with `--verbose`/`--debug`/`--quiet`
+- Backend compatibility shims and test helpers now match the current FastAPI/httpx websocket path, telemetry schema, and session ordering behavior so the full regression suite stays green on current dependencies
 - `multiple_sitl/startup_sitl.sh` now keeps runtime repo sync via `git fetch/reset`, only reinstalls Python requirements when `requirements.txt` changes, and bounds container-side file logs by default
 - Docker SITL image prep now preserves the real PX4 git/submodule metadata, records PX4 provenance in image metadata files, and makes the startup repo auto-sync behavior explicit as mutable latest-on-boot mode
 - Docker SITL launcher now persists wrapper-level startup diagnostics, strips repetitive PX4 shell prompt noise from `sitl_simulation.log`, and waits for PX4/router/coordinator readiness before reporting success

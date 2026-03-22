@@ -317,41 +317,54 @@ class TestTrajectoryPointValidation:
 class TestGPSFixValidation:
     """Test GPS fix type validation"""
 
+    @staticmethod
+    def _telemetry_payload(gps_fix_type):
+        return {
+            "pos_id": 1,
+            "hw_id": "drone1",
+            "detected_pos_id": 1,
+            "state": "idle",
+            "mission": 0,
+            "last_mission": 0,
+            "trigger_time": 0,
+            "position_lat": 35.0,
+            "position_long": 51.0,
+            "position_alt": 1200.0,
+            "velocity_north": 0.0,
+            "velocity_east": 0.0,
+            "velocity_down": 0.0,
+            "yaw": 0.0,
+            "battery_voltage": 12.4,
+            "follow_mode": 0,
+            "update_time": "2026-03-22T00:00:00Z",
+            "timestamp": 1234567890,
+            "flight_mode": "MANUAL",
+            "base_mode": 81,
+            "system_status": 3,
+            "is_armed": False,
+            "is_ready_to_arm": True,
+            "hdop": 0.8,
+            "vdop": 1.1,
+            "gps_fix_type": gps_fix_type,
+            "satellites_visible": 12,
+            "ip": "172.18.0.2",
+        }
+
     def test_valid_gps_fix_range(self):
         """Test valid GPS fix types (0-6)"""
-        from gcs_server_schemas import DroneTelemetry, DroneState, FlightMode
+        from gcs_server_schemas import DroneTelemetry
 
         # GPS fix type 3 is typical 3D fix
-        telemetry = DroneTelemetry(
-            pos_id=1,
-            hw_id="drone1",
-            state=DroneState.IDLE,
-            flight_mode=FlightMode.MANUAL,
-            armed=False,
-            in_air=False,
-            health_ok=True,
-            gps_fix=3,
-            timestamp=1234567890
-        )
+        telemetry = DroneTelemetry(**self._telemetry_payload(3))
 
-        assert telemetry.gps_fix == 3
+        assert telemetry.gps_fix_type == 3
 
     def test_invalid_gps_fix_high(self):
         """Test rejection of GPS fix > 6"""
-        from gcs_server_schemas import DroneTelemetry, DroneState, FlightMode
+        from gcs_server_schemas import DroneTelemetry
 
         with pytest.raises(ValidationError):
-            DroneTelemetry(
-                pos_id=1,
-                hw_id="drone1",
-                state=DroneState.IDLE,
-                flight_mode=FlightMode.MANUAL,
-                armed=False,
-                in_air=False,
-                health_ok=True,
-                gps_fix=7,  # Invalid: max is 6
-                timestamp=1234567890
-            )
+            DroneTelemetry(**self._telemetry_payload(7))  # Invalid: max is 6
 
 
 # Import helper to make schemas accessible

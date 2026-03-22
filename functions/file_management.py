@@ -6,6 +6,17 @@ from mds_logging import get_logger
 
 logger = get_logger("file_management")
 
+
+def setup_logging():
+    """
+    Backward-compatible no-op logging initializer.
+
+    Legacy callers and tests still import setup_logging() from this module.
+    Logging is now configured centrally through mds_logging, so this shim
+    simply returns the module logger without reconfiguring global handlers.
+    """
+    return logger
+
 def ensure_directory_exists(directory):
     """Ensure directory exists or create it if not."""
     if not os.path.exists(directory):

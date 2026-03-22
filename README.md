@@ -114,7 +114,8 @@ MDS combines three core components into a single, cohesive package:
 - REST API endpoints via MAVLink2REST
 
 ### Automated Docker Environment
-- Prebuilt SITL image includes PX4, MAVSDK, MAVLink Router, MAVLink2REST, and Gazebo Sim support
+- Prebuilt SITL image includes PX4, Gazebo Sim, `mavsdk_server`, MAVLink Router, and Python runtime dependencies
+- The stock image is `mavlink2rest`-ready via routed MAVLink output, but it does not auto-start a `mavlink2rest` REST service by default
 - Auto hardware-ID detection
 - Dynamic container creation scripts
 
@@ -138,6 +139,9 @@ MDS combines three core components into a single, cohesive package:
 The fastest way to try MDS is with our SITL (Software-In-The-Loop) demo:
 
 📖 **[SITL Demo Guide](docs/guides/sitl-comprehensive.md)** - Complete step-by-step setup
+
+If you maintain your own fork or want to publish a validated custom archive, use
+📖 **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)**.
 
 This guide covers:
 - Mega image download, `7z` extraction, and `docker load` commands
@@ -240,6 +244,7 @@ All project documentation is organized in the `docs/` folder:
 
 - **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)** - Full SITL setup and usage
 - **[Advanced SITL Configuration](docs/guides/advanced-sitl.md)** - Custom deployments
+- **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)** - Fork maintenance, validated custom images, packaging, and redistribution
 - **[CSV Migration Guide](docs/guides/csv-migration.md)** - Configuration format migration
 - **[Python Compatibility](docs/guides/python-compatibility.md)** - Python version requirements
 - **[Swarm Trajectory Feature](docs/features/swarm-trajectory.md)** - Smart swarm capabilities

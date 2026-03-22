@@ -49,7 +49,9 @@ def list_sessions(log_dir: str) -> list[dict]:
                 "size_bytes": stat.st_size,
                 "modified": stat.st_mtime,
             })
-    files.sort(key=lambda f: f["modified"], reverse=True)
+    # Session IDs encode UTC creation order and are more deterministic than
+    # filesystem mtimes when tests create many files within the same second.
+    files.sort(key=lambda f: (f["session_id"], f["modified"]), reverse=True)
     return files
 
 
