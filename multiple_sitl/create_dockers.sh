@@ -637,14 +637,15 @@ EOF
     printf "  bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
     printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3030\n\n"
 
-    printf "To access QGC on another system, ensure 'mavlink-router' is installed:\n"
-    printf "  bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n\n"
+    printf "For remote QGroundControl / multi-GCS routing, use the current routing guide:\n"
+    printf "  ~/mavsdk_drone_show/docs/guides/mavlink-routing-setup.md\n\n"
 
-    printf "Then run one of the following commands:\n"
-    printf "  mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
-    printf "  bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n\n"
+    printf "If you need the host-side MAVLink router helper, install it with:\n"
+    printf "  git clone https://github.com/alireza787b/mavlink-anywhere\n"
+    printf "  cd mavlink-anywhere\n"
+    printf "  sudo ./install_mavlink_router.sh\n\n"
 
-    printf "Now you can connect via QGC on port 24550 UDP from the remote GCS client.\n"
+    printf "Then point your remote GCS/QGC workflow at UDP port 24550 as documented in the routing guide.\n"
 
     # Provide cleanup command to remove all drone containers
     echo
