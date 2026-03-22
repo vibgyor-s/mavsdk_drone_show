@@ -1,4 +1,5 @@
 """Tests for GCS-to-drone log proxy logic."""
+import asyncio
 import json
 import os
 import sys
@@ -124,3 +125,33 @@ class TestStreamDroneLogs:
         assert payload["source"] == "gcs"
         assert payload["drone_id"] == 5
         assert "All connection attempts failed" in payload["msg"]
+
+    @pytest.mark.asyncio
+    async def test_stream_cancellation_exits_quietly(self):
+        from log_proxy import stream_drone_logs
+
+        class _CancelingResponse:
+            def raise_for_status(self):
+                return None
+
+            async def aiter_lines(self):
+                raise asyncio.CancelledError
+                yield  # pragma: no cover
+
+        class _StreamContext:
+            async def __aenter__(self):
+                return _CancelingResponse()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+        with patch("log_proxy.httpx.AsyncClient") as MockClient:
+            client_instance = AsyncMock()
+            client_instance.stream = MagicMock(return_value=_StreamContext())
+            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
+            client_instance.__aexit__ = AsyncMock(return_value=None)
+            MockClient.return_value = client_instance
+
+            stream = stream_drone_logs("192.168.1.105", drone_id=5)
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)

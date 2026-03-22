@@ -7,6 +7,7 @@ Reference: docs/guides/logging-system.md
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Optional
 
@@ -105,9 +106,14 @@ async def stream_drone_logs(
                 params=params,
             ) as resp:
                 resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: "):
-                        yield line + "\n\n"
+                try:
+                    async for line in resp.aiter_lines():
+                        if line.startswith("data: "):
+                            yield line + "\n\n"
+                except (asyncio.CancelledError, GeneratorExit):
+                    return
+    except (asyncio.CancelledError, GeneratorExit):
+        return
     except Exception as e:
         error = build_log_entry(
             level="WARNING",
