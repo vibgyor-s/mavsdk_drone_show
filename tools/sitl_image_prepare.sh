@@ -69,11 +69,17 @@ fresh_clone_mds_repo() {
     local fallback_repo_url=""
     local clone_parent
     local clone_dir
+    local preserve_dir
+    preserve_dir=$(mktemp -d)
 
     if fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
         :
     else
         fallback_repo_url=""
+    fi
+
+    if [ -x "$BASE_DIR/mavsdk_server" ]; then
+        cp "$BASE_DIR/mavsdk_server" "$preserve_dir/mavsdk_server"
     fi
 
     clone_parent=$(mktemp -d)
@@ -92,6 +98,13 @@ fresh_clone_mds_repo() {
     rm -rf "$BASE_DIR"
     mv "$clone_dir" "$BASE_DIR"
     rm -rf "$clone_parent"
+
+    if [ -f "$preserve_dir/mavsdk_server" ] && [ ! -f "$BASE_DIR/mavsdk_server" ]; then
+        mv "$preserve_dir/mavsdk_server" "$BASE_DIR/mavsdk_server"
+        chmod +x "$BASE_DIR/mavsdk_server"
+    fi
+
+    rm -rf "$preserve_dir"
 }
 
 ensure_mavsdk_server() {
