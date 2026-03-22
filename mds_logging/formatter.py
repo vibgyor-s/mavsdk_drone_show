@@ -18,13 +18,16 @@ class JSONLFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         ts = datetime.fromtimestamp(record.created, tz=timezone.utc)
         ts_str = ts.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ts.microsecond // 1000:03d}Z"
+        from mds_logging import get_context_defaults
+
+        context = get_context_defaults()
         entry = {
             "ts": ts_str,
             "level": record.levelname,
             "component": getattr(record, "mds_component", record.name),
-            "source": getattr(record, "mds_source", "gcs"),
-            "drone_id": getattr(record, "mds_drone_id", None),
-            "session_id": getattr(record, "mds_session_id", ""),
+            "source": getattr(record, "mds_source", context.get("source") or "gcs"),
+            "drone_id": getattr(record, "mds_drone_id", context.get("drone_id")),
+            "session_id": getattr(record, "mds_session_id", context.get("session_id") or ""),
             "msg": record.getMessage(),
             "extra": getattr(record, "mds_extra", None),
         }

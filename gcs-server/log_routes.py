@@ -255,7 +255,7 @@ def create_log_router(
         if ip is None:
             raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
         return StreamingResponse(
-            stream_drone_logs(ip, level=level, component=component, source=source),
+            stream_drone_logs(ip, drone_id=drone_id, level=level, component=component, source=source),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )

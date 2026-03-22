@@ -18,6 +18,7 @@ from typing import List, Dict, Any, Tuple, Iterable
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
 from enums import CommandResultCategory, Mission
+from heartbeat import get_all_heartbeats
 
 # Unified logging system
 from mds_logging.server import get_logger
@@ -59,6 +60,7 @@ _CRITICAL_MISSIONS = {
     Mission.RETURN_RTL,
     Mission.KILL_TERMINATE,
 }
+_COMMAND_HEARTBEAT_GRACE_SECONDS = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
 
 def normalize_drone_id(drone_id: Any) -> str:
     """Normalize hardware/position identifiers to strings for consistent routing."""
@@ -68,6 +70,72 @@ def normalize_drone_id(drone_id: Any) -> str:
 def normalize_drone_ids(drone_ids: Iterable[Any]) -> List[str]:
     """Normalize a collection of drone identifiers to strings."""
     return [normalize_drone_id(drone_id) for drone_id in drone_ids]
+
+
+def _has_recent_heartbeat(heartbeat: Dict[str, Any] | None, now: float) -> bool:
+    """Check whether a drone has a heartbeat recent enough for command dispatch."""
+    if not heartbeat:
+        return False
+
+    timestamp_ms = heartbeat.get('timestamp')
+    if not timestamp_ms:
+        return False
+
+    try:
+        age_seconds = now - (float(timestamp_ms) / 1000.0)
+    except (TypeError, ValueError):
+        return False
+
+    return age_seconds <= _COMMAND_HEARTBEAT_GRACE_SECONDS
+
+
+def _partition_recently_online_drones(
+    drones: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], bool]:
+    """Split targets into active and clearly-offline groups using recent heartbeats."""
+    try:
+        heartbeats = get_all_heartbeats()
+    except Exception as exc:
+        logger.warning(f"Failed to load heartbeats before command dispatch: {exc}")
+        return drones, {}, False
+
+    if not heartbeats:
+        return drones, {}, False
+
+    now = time.time()
+    recent_presence_detected = any(
+        _has_recent_heartbeat(heartbeat, now) for heartbeat in heartbeats.values()
+    )
+    if not recent_presence_detected:
+        return drones, {}, False
+
+    active_drones: List[Dict[str, Any]] = []
+    preclassified_offline: Dict[str, Dict[str, Any]] = {}
+
+    for drone in drones:
+        drone_id = normalize_drone_id(drone.get('hw_id'))
+        heartbeat = heartbeats.get(drone_id)
+
+        if _has_recent_heartbeat(heartbeat, now):
+            active_drones.append(drone)
+            continue
+
+        reason = "No recent heartbeat"
+        if heartbeat and heartbeat.get('timestamp'):
+            try:
+                age_seconds = now - (float(heartbeat['timestamp']) / 1000.0)
+                reason = f"Heartbeat stale ({age_seconds:.1f}s old)"
+            except (TypeError, ValueError):
+                reason = "Heartbeat timestamp invalid"
+
+        preclassified_offline[drone_id] = {
+            'success': False,
+            'category': CommandResultCategory.OFFLINE.value,
+            'error': reason,
+            'drone_ip': drone.get('ip'),
+        }
+
+    return active_drones, preclassified_offline, True
 
 
 def resolve_mission_type(mission_type: Any) -> Mission | None:
@@ -285,18 +353,26 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
     )
     
     start_time = time.time()
-    results = {}
+    candidate_drones, preclassified_offline, heartbeat_short_circuit = _partition_recently_online_drones(drones)
+    results = dict(preclassified_offline)
     success_count = 0
-    offline_count = 0
+    offline_count = len(preclassified_offline)
     rejected_count = 0
     error_count = 0
-    
+
+    if heartbeat_short_circuit and preclassified_offline:
+        skipped_ids = ", ".join(sorted(preclassified_offline))
+        _log_command_event(
+            f"Skipping offline targets for '{command_type}' based on recent heartbeat status: {skipped_ids}",
+            "INFO",
+        )
+
     # Execute commands concurrently
-    with ThreadPoolExecutor(max_workers=min(len(drones), 20)) as executor:
+    with ThreadPoolExecutor(max_workers=max(1, min(len(candidate_drones), 20))) as executor:
         # Submit all commands
         future_to_drone = {
             executor.submit(send_command_to_drone, drone, command_data): drone
-            for drone in drones
+            for drone in candidate_drones
         }
         
         # Collect results as they complete

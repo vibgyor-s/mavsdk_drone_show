@@ -401,6 +401,53 @@ class TestGcsCommandDistribution:
         assert results['success'] == 1
         assert '1' in results['results']
 
+    def test_send_commands_to_all_short_circuits_targets_without_recent_heartbeat(self):
+        """Offline targets should not delay dispatch when recent heartbeat data exists."""
+        from command import send_commands_to_all
+
+        now_ms = int(time.time() * 1000)
+        drones = [
+            {'hw_id': 1, 'ip': '172.18.0.2'},
+            {'hw_id': 2, 'ip': '172.18.0.3'},
+        ]
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        with patch('command.get_all_heartbeats', return_value={
+            '1': {'timestamp': now_ms},
+        }):
+            with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')) as mock_send:
+                results = send_commands_to_all(drones, command_data)
+
+        assert results['success'] == 1
+        assert results['offline'] == 1
+        assert results['total'] == 2
+        assert mock_send.call_count == 1
+        assert mock_send.call_args.args[0]['hw_id'] == 1
+        assert results['results']['2']['category'] == 'offline'
+
+    def test_send_commands_to_all_keeps_targets_when_no_recent_heartbeat_baseline_exists(self):
+        """Do not short-circuit if the heartbeat layer has no current presence signal at all."""
+        from command import send_commands_to_all
+
+        now_ms = int(time.time() * 1000)
+        stale_ms = now_ms - 60_000
+        drones = [
+            {'hw_id': 1, 'ip': '172.18.0.2'},
+            {'hw_id': 2, 'ip': '172.18.0.3'},
+        ]
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        with patch('command.get_all_heartbeats', return_value={
+            '1': {'timestamp': stale_ms},
+            '2': {'timestamp': stale_ms},
+        }):
+            with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')) as mock_send:
+                results = send_commands_to_all(drones, command_data)
+
+        assert results['success'] == 2
+        assert results['offline'] == 0
+        assert mock_send.call_count == 2
+
 
 # ============================================================================
 # Command Validation Tests

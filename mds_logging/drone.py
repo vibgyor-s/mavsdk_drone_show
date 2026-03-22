@@ -7,6 +7,7 @@ Reference: docs/guides/logging-system.md
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 import mds_logging
@@ -37,6 +38,7 @@ def init_drone_logging(drone_id: int | None = None, log_dir: str | None = None) 
     # Set global state
     mds_logging.set_session(session_id)
     mds_logging.set_source("drone")
+    mds_logging.set_drone_id(drone_id if drone_id is not None else os.environ.get("MDS_HW_ID"))
 
     # Configure root logger
     root = logging.getLogger()

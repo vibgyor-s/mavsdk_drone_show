@@ -3,6 +3,14 @@ import json
 import logging
 import pytest
 from mds_logging.formatter import JSONLFormatter, ConsoleFormatter
+from mds_logging import reset, set_drone_id, set_session, set_source
+
+
+@pytest.fixture(autouse=True)
+def clean_logging_context():
+    reset()
+    yield
+    reset()
 
 
 class TestJSONLFormatter:
@@ -49,6 +57,23 @@ class TestJSONLFormatter:
         assert parsed["component"] == "test"
         assert parsed["source"] == "gcs"
         assert parsed["drone_id"] is None
+
+    def test_missing_mds_fields_fall_back_to_process_context(self):
+        set_source("drone")
+        set_session("s_20260322_080000")
+        set_drone_id("7")
+
+        fmt = JSONLFormatter()
+        record = logging.LogRecord(
+            name="urllib3.connectionpool", level=logging.WARNING, pathname="",
+            lineno=0, msg="connection retry", args=(), exc_info=None,
+        )
+
+        parsed = json.loads(fmt.format(record))
+        assert parsed["component"] == "urllib3.connectionpool"
+        assert parsed["source"] == "drone"
+        assert parsed["session_id"] == "s_20260322_080000"
+        assert parsed["drone_id"] == 7
 
 
 class TestConsoleFormatter:

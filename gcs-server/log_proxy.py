@@ -14,6 +14,7 @@ import httpx
 
 from config import load_config
 from mds_logging import get_logger
+from mds_logging.schema import build_log_entry
 
 logger = get_logger("log_proxy")
 
@@ -83,6 +84,7 @@ async def fetch_drone_session_content(
 
 async def stream_drone_logs(
     drone_ip: str,
+    drone_id: int,
     level: str | None = None,
     component: str | None = None,
     source: str | None = None,
@@ -102,9 +104,22 @@ async def stream_drone_logs(
                 f"http://{drone_ip}:{_DRONE_API_PORT}/api/logs/stream",
                 params=params,
             ) as resp:
+                resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if line.startswith("data: "):
                         yield line + "\n\n"
     except Exception as e:
-        error = json.dumps({"event": "error", "drone_ip": drone_ip, "msg": str(e)})
-        yield f"data: {error}\n\n"
+        error = build_log_entry(
+            level="WARNING",
+            component="log_proxy",
+            source="gcs",
+            msg=f"Drone #{drone_id} log stream unavailable: {e}",
+            session_id="",
+            drone_id=drone_id,
+            extra={
+                "kind": "proxy_stream_error",
+                "drone_ip": drone_ip,
+                "error": str(e),
+            },
+        )
+        yield f"data: {json.dumps(error)}\n\n"

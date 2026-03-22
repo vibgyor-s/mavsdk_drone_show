@@ -1,4 +1,5 @@
 """Tests for GCS-to-drone log proxy logic."""
+import json
 import os
 import sys
 import pytest
@@ -99,3 +100,27 @@ class TestFetchDroneSessionContent:
             # Verify query params were passed
             call_args = client_instance.get.call_args
             assert call_args.kwargs.get("params", {}).get("level") == "WARNING"
+
+
+class TestStreamDroneLogs:
+    @pytest.mark.asyncio
+    async def test_stream_error_emits_structured_warning_entry(self):
+        from log_proxy import stream_drone_logs
+
+        with patch("log_proxy.httpx.AsyncClient") as MockClient:
+            client_instance = AsyncMock()
+            client_instance.stream = MagicMock(side_effect=httpx.ConnectError("All connection attempts failed"))
+            client_instance.__aenter__ = AsyncMock(return_value=client_instance)
+            client_instance.__aexit__ = AsyncMock(return_value=None)
+            MockClient.return_value = client_instance
+
+            stream = stream_drone_logs("192.168.1.105", drone_id=5)
+            line = await anext(stream)
+
+        assert line.startswith("data: ")
+        payload = json.loads(line[len("data: "):])
+        assert payload["level"] == "WARNING"
+        assert payload["component"] == "log_proxy"
+        assert payload["source"] == "gcs"
+        assert payload["drone_id"] == 5
+        assert "All connection attempts failed" in payload["msg"]
