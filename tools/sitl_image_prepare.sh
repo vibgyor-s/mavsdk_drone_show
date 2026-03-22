@@ -113,6 +113,17 @@ stabilize_mavlink2rest_binary() {
     fi
 }
 
+prepare_px4_git_snapshot() {
+    log "Preparing compact PX4 git metadata for runtime make checks..."
+
+    rm -rf "$PX4_DIR/.git"
+    git -C "$PX4_DIR" init -q
+    git -C "$PX4_DIR" config user.name "MDS SITL Image"
+    git -C "$PX4_DIR" config user.email "mds-sitl-image@example.invalid"
+    git -C "$PX4_DIR" add -A
+    git -C "$PX4_DIR" commit -q -m "PX4 runtime snapshot"
+}
+
 cleanup_runtime_baggage() {
     log "Removing cached and development-only baggage..."
 
@@ -127,7 +138,6 @@ cleanup_runtime_baggage() {
         find "$PX4_DIR/build" -mindepth 1 -maxdepth 1 ! -name px4_sitl_default -exec rm -rf {} +
     fi
 
-    rm -rf "$PX4_DIR/.git"
     rm -rf "$PX4_DIR/docs"
     rm -rf "$PX4_DIR/.github"
 
@@ -170,6 +180,7 @@ main() {
     ensure_python_env
     stabilize_mavlink2rest_binary
     cleanup_runtime_baggage
+    prepare_px4_git_snapshot
     write_build_metadata
 
     log "Prepared image workspace:"
