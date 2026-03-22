@@ -1,6 +1,6 @@
 # Drone API Server Documentation
 
-**Version:** 2.0.0 (FastAPI)
+**Version:** 5.0 (FastAPI)
 **Previous Version:** 1.x (Flask) - Deprecated
 **Migration Date:** 2025-11-22
 **Status:** ✅ Production Ready

@@ -58,6 +58,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Docker SITL launcher now persists wrapper-level startup diagnostics, strips repetitive PX4 shell prompt noise from `sitl_simulation.log`, and waits for PX4/router/coordinator readiness before reporting success
 - `tools/build_custom_image.sh` now produces flattened custom images instead of layering more state through `docker commit`
 - SITL image preparation/build docs now pin PX4 plus baked `mavsdk_server` inside the image, pass `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` through the image-build path, and use updated MAVSDK release asset naming for current releases
+- SITL public setup docs now separate pinned validated releases from mutable latest-on-boot development mode, add a dedicated custom release workflow guide, and refresh FastAPI startup/version guidance for current GCS deployment behavior
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)

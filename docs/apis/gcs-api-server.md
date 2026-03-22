@@ -1,6 +1,6 @@
 # GCS API Server Documentation
 
-**Version:** 2.0.0 (FastAPI)
+**Version:** 5.0 (FastAPI)
 **Port:** 5000 (default)
 **Base URL:** `http://localhost:5000`
 **Documentation:** `/docs` (Swagger UI) | `/redoc` (ReDoc)
@@ -38,13 +38,29 @@ The GCS (Ground Control Station) API Server provides comprehensive control and m
 ### Starting the Server
 
 ```bash
-# Development mode (with auto-reload)
-cd gcs-server
-uvicorn app_fastapi:app --host 0.0.0.0 --port 5000 --reload
+# Recommended full launcher for GCS + dashboard in SITL
+bash app/linux_dashboard_start.sh --sitl
 
-# Production mode
-uvicorn app_fastapi:app --host 0.0.0.0 --port 5000
+# Production-style launcher
+bash app/linux_dashboard_start.sh --prod --sitl
 ```
+
+If you only want the backend service without the React dashboard:
+
+```bash
+cd gcs-server
+
+# Development backend only
+./start_gcs_server.sh development fastapi 5000
+
+# Production backend only
+./start_gcs_server.sh production fastapi 5000
+```
+
+Notes:
+- `--sitl` starts FastAPI plus the dashboard in development mode.
+- `--prod --sitl` builds/serves the React dashboard and runs FastAPI in production mode.
+- Production currently stays single-worker on purpose because command tracking, heartbeat state, and background services still rely on in-process memory.
 
 ### Interactive API Documentation
 
@@ -66,7 +82,7 @@ Health check endpoint.
 {
   "status": "ok",
   "timestamp": 1700000000000,
-  "version": "2.0.0"
+  "version": "5.0"
 }
 ```
 
@@ -1076,6 +1092,6 @@ All Flask endpoints work identically in FastAPI:
 
 ---
 
-**Last Updated:** 2025-11-22
-**Version:** 2.0.0 (FastAPI)
+**Last Updated:** 2026-03-22
+**Version:** 5.0 (FastAPI)
 **Maintainer:** MAVSDK Drone Show Team

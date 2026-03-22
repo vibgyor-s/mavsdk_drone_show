@@ -4,6 +4,8 @@
 
 This guide is for advanced users who want to use their own forked repository or custom Docker images with MDS SITL.
 
+If you need a full release-maintenance workflow instead of just runtime overrides, also read [SITL Custom Release Workflow](sitl-custom-release-workflow.md). That guide covers the clean path for validated custom images, packaging, archive distribution, and large-fleet pinned deployments.
+
 > **⚠️ Prerequisites Required:**
 > - Good understanding of Git, Docker, and Linux
 > - Experience with environment variables and bash commands
@@ -276,7 +278,7 @@ git checkout your-branch
 bash tools/build_custom_image.sh "https://github.com/YOURORG/YOURREPO.git" "your-branch" "mycompany-mds-sitl:v5-custom"
 ```
 
-This is the recommended workflow. It keeps the resulting image reproducible and avoids container-local edits that would be overwritten by startup git sync.
+This is the recommended workflow. It keeps the resulting image reproducible and avoids container-local edits that would be overwritten by startup git sync. For the full validated release flow, including packaging and redistribution, see [SITL Custom Release Workflow](sitl-custom-release-workflow.md).
 
 ### Step 3: Optional Container Debugging
 

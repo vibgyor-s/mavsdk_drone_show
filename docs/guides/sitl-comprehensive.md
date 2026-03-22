@@ -106,7 +106,7 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 ```bash
 cd ~
 # Public Mega download; large archives may take several minutes to complete.
-megadl 'https://mega.nz/#!WaAhzb7B!RA202MoFHqaWYeothG801TLj7IaWEYTX3rVPT_D9IPk'
+megadl 'https://mega.nz/file/2CR3HLyJ#qRKzPmUvQh9nHkw5MBXTz56RpQgX7zQcxKXL80hiGOs'
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
@@ -122,7 +122,7 @@ After extraction you should have:
 > - If Mega free-tier throttling or temporary limits block the public download, retry with the official MEGAcmd client after signing in:
 >   ```bash
 >   mega-login 'you@example.com' 'your-password'
->   mega-get 'https://mega.nz/#!WaAhzb7B!RA202MoFHqaWYeothG801TLj7IaWEYTX3rVPT_D9IPk' .
+>   mega-get 'https://mega.nz/file/2CR3HLyJ#qRKzPmUvQh9nHkw5MBXTz56RpQgX7zQcxKXL80hiGOs' .
 >   ```
 > - For authenticated MEGA account operations, prefer the official MEGAcmd client over third-party tools.
 > - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
@@ -156,6 +156,8 @@ You should see the current official tags, including:
 > **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.
 >
 > **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).
+>
+> **Need a custom release workflow?** See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) for the clean path to maintain your own fork, rebuild a validated image, package it, and redistribute it without relying on ad hoc container edits.
 >
 > **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false` so startup does not fan out into one remote git fetch or Python re-sync per container.
 
@@ -269,7 +271,9 @@ You should now be able to access the GUI via a browser using your domain, IP, or
 
 You can configure your mission, swarm design, or drone show using SkyBrush or similar tools.
 
-Remember, if you want to make any changes to these configurations, you should push those changes to your own forked GitHub repo; otherwise, none of these settings will take effect and will be overwritten (pulled) from the main MDS repo.
+If you are running the default mutable latest-on-boot mode with `MDS_SITL_GIT_SYNC=true`, container startup fetches and hard-resets the MDS repo to the configured branch, so uncommitted container-local edits are disposable by design.
+
+For an official or validated release workflow, do **not** rely on in-container edits. Commit changes to git first, rebuild or release a clean image, and then redeploy containers from that image. See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) if you maintain your own fork or customer-specific image.
 
 The following section covers the standard flow for launching SITL drone instances, with an optional note for multi-server scaling.
 
@@ -308,7 +312,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, bind-mounts a single `.hwID` file plus the host `startup_sitl.sh`, then launches `startup_sitl.sh` as the container's main process. That startup path hard-resets the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
+    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, bind-mounts only per-drone runtime state such as the generated `.hwID` file, and launches the image-baked `startup_sitl.sh` as the container's main process by default. That startup path can optionally hard-reset the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`. Use `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override instead of the image-baked startup path.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 

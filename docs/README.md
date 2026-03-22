@@ -31,6 +31,8 @@ Start here to get your first drone show simulation running:
 
 2. **[Advanced SITL Guide](guides/advanced-sitl.md)** - Use this if you maintain your own fork or custom Docker image
 
+3. **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** - Use this if you need a validated custom image, package, or redistribution workflow
+
 ### Choose Your Path
 
 | I want to... | Start with... |
@@ -39,6 +41,7 @@ Start here to get your first drone show simulation running:
 | Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
 | Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
 | Customize deployment | [Advanced SITL Guide](guides/advanced-sitl.md) |
+| Build or redistribute a custom SITL release | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | Understand features | [Features Section](#-features) |
 
 ---
@@ -51,6 +54,7 @@ Start here to get your first drone show simulation running:
 |-------|-------------|----------|
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
+| **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** | Fork maintenance, clean image rebuilds, package/archive distribution | Advanced users |
 
 ### Configuration
 
