@@ -65,7 +65,7 @@ export const useTheme = () => {
           return 'Unknown';
       }
     }
-  }), [theme, themePreference, systemTheme, isDark, isLight]);
+  }), [theme, themePreference, systemTheme, isDark]);
 
   return {
     // Core theme state

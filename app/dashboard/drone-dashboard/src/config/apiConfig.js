@@ -90,18 +90,10 @@ export const config = {
   isAutoDetected: !process.env.REACT_APP_SERVER_URL,
 };
 
-// Log configuration in development mode
-if (process.env.NODE_ENV === 'development') {
-  console.log('API Config:', {
-    baseURL: config.baseURL,
-    gcsURL: config.gcsURL,
-    droneURL: config.droneURL,
-    autoDetected: config.isAutoDetected,
-  });
-}
-
-export default {
+const apiConfigModule = {
   getBackendURL,
   getDroneServiceURL,
   config,
 };
+
+export default apiConfigModule;

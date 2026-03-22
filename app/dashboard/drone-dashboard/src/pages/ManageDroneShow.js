@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { Container, Box, Typography, Paper, Button } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
-import { getBackendURL } from '../utilities/utilities';
 import ImportSection from '../components/ImportSection';
 import ExportSection from '../components/ExportSection';
 import VisualizationSection from '../components/VisualizationSection';

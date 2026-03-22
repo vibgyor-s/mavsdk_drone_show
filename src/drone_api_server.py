@@ -50,6 +50,7 @@ from src.drone_config import DroneConfig
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 from functions.data_utils import safe_float, safe_get
 from functions.file_utils import load_csv, get_trajectory_first_position
+from src import __version__ as MDS_VERSION
 from src.params import Params
 from src.enums import Mission, State, CommandErrorCode
 
@@ -183,7 +184,7 @@ class DroneAPIServer:
         self.app = FastAPI(
             title="Drone API Server",
             description="High-performance API server for drone-side communication with HTTP REST and WebSocket support",
-            version="2.0.0",  # FastAPI version
+            version=MDS_VERSION,
             docs_url="/docs",  # Interactive API docs
             redoc_url="/redoc",  # Alternative docs
             openapi_url="/openapi.json"  # OpenAPI schema

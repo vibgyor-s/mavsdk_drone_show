@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Unified Banner - Shared across all initialization scripts
 # =============================================================================
-# Version: 4.4.0
+# Version: Reads from VERSION file
 # Description: Provides consistent branding and version display for all MDS scripts
 # Author: MDS Team
 # =============================================================================
@@ -14,7 +14,15 @@ _MDS_BANNER_LOADED=1
 # =============================================================================
 # VERSION
 # =============================================================================
-readonly MDS_BANNER_VERSION="4.4.0"
+_MDS_BANNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_MDS_BANNER_VERSION_FILE="$(cd "${_MDS_BANNER_DIR}/.." && pwd)/VERSION"
+readonly MDS_BANNER_VERSION="$(
+    if [[ -f "${_MDS_BANNER_VERSION_FILE}" ]]; then
+        tr -d '[:space:]' < "${_MDS_BANNER_VERSION_FILE}"
+    else
+        printf 'unknown'
+    fi
+)"
 
 # =============================================================================
 # BANNER FUNCTION

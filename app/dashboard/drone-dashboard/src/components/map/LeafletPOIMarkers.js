@@ -1,7 +1,7 @@
 // src/components/map/LeafletPOIMarkers.js
 // POI markers for Leaflet — same interface as POIMarkerSystem.js
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { CircleMarker, Popup, useMapEvents } from 'react-leaflet';
 import { createPOI } from '../../services/sarApiService';
 import { toast } from 'react-toastify';

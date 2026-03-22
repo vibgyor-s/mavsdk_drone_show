@@ -12,6 +12,8 @@
   max-width: 100%;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
+  container-type: inline-size;
+  container-name: drone-card;
 }
 
 .drone-config-card:hover {
@@ -776,13 +778,15 @@
   border-radius: var(--border-radius-sm);
   background: rgba(15, 23, 42, 0.28);
   padding: var(--spacing-sm);
+  min-width: 0;
 }
 
 .custom-field-editor-grid {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 160px) minmax(240px, 1.2fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.6fr) minmax(0, 1.15fr) auto;
   gap: var(--spacing-sm);
   align-items: start;
+  min-width: 0;
 }
 
 .custom-field-value-field {
@@ -802,6 +806,7 @@
   color: #fca5a5;
   cursor: pointer;
   transition: var(--transition-base);
+  flex-shrink: 0;
 }
 
 .custom-field-remove-button:hover {
@@ -1139,6 +1144,26 @@ input:checked + .slider:before {
   justify-content: space-between;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
+}
+
+@container drone-card (max-width: 860px) {
+  .identity-strip,
+  .form-grid,
+  .custom-field-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-section-header,
+  .custom-field-section-header,
+  .custom-field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-button.compact,
+  .custom-field-remove-button {
+    width: 100%;
+  }
 }
 
 /* Data unavailable states */

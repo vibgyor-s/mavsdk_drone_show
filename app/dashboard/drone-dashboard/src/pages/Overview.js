@@ -14,7 +14,6 @@ const Overview = ({ setSelectedDrone }) => {
   const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [incompleteDrones, setIncompleteDrones] = useState([]);
   const droneRefs = useRef({});
 
   useEffect(() => {
@@ -40,7 +39,6 @@ const Overview = ({ setSelectedDrone }) => {
         );
 
         setDrones(validDrones);
-        setIncompleteDrones(invalidDrones);
         setError(null);
         setNotification(null);
 

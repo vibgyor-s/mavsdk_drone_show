@@ -5,7 +5,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { 
   getSpeedStatus, 
-  validateSpeed, 
   YAW_CONSTANTS,
   normalizeHeading,
   formatHeading 
@@ -115,7 +114,6 @@ const WaypointPanel = ({
       
       case 'time':
         const time = parseFloat(editValues.timeFromStart);
-        const waypoint = waypoints.find(wp => wp.id === editingWaypointId);
         const waypointIndex = waypoints.findIndex(wp => wp.id === editingWaypointId);
         const prevWaypoint = waypointIndex > 0 ? waypoints[waypointIndex - 1] : null;
         const nextWaypoint = waypointIndex < waypoints.length - 1 ? waypoints[waypointIndex + 1] : null;
@@ -159,6 +157,8 @@ const WaypointPanel = ({
           // When switching to auto, recalculate heading based on trajectory
           // This will be handled by the speed recalculation in the parent component
         }
+        break;
+      default:
         break;
     }
 

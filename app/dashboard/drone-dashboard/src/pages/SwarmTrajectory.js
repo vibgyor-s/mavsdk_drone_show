@@ -65,8 +65,6 @@ const SwarmTrajectory = () => {
           },
           processed_drone_list: data.status.processed_drones // Store the list of processed drone IDs
         });
-        
-        console.log(`Found existing results: ${data.status.processed_trajectories} processed drones with ${data.status.generated_plots} plots`);
       }
     } catch (error) {
       console.error('Error checking existing results:', error);

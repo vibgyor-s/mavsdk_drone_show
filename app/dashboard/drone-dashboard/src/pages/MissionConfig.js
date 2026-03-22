@@ -776,11 +776,20 @@ const MissionConfig = () => {
         </div>
       )}
 
-      {/* Heading Controls */}
-      <div className="heading-controls">
-        <label htmlFor="headingSlider">
-          Forward Heading: {forwardHeading}°
-        </label>
+      {/* TODO: Persist mission-wide forward heading once the backend contract is finalized. */}
+      <div className="heading-controls heading-controls-preview">
+        <div className="heading-controls-header">
+          <div>
+            <div className="heading-kicker">Preview Only</div>
+            <label htmlFor="headingSlider">
+              Forward Heading: {forwardHeading}°
+            </label>
+            <p className="heading-controls-copy">
+              Updates the mission preview only. Server-backed forward heading workflow is still under development.
+            </p>
+          </div>
+          <span className="heading-status-badge">Under development</span>
+        </div>
         <input
           id="headingSlider"
           type="range"
@@ -789,13 +798,9 @@ const MissionConfig = () => {
           value={forwardHeading}
           onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
         />
-        <button
-          onClick={() => {
-            toast.info(`TODO: Save heading=${forwardHeading}° to server (placeholder).`);
-          }}
-        >
-          Save Heading to Server
-        </button>
+        <div className="heading-preview-note">
+          Coming soon: mission-wide save/apply behavior after the operator workflow is finalized.
+        </div>
       </div>
 
       {/* Main content: Drone Cards & Plots */}

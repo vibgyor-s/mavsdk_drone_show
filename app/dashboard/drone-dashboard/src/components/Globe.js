@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
-import { Color, AxesHelper } from 'three';
+import { Color } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';

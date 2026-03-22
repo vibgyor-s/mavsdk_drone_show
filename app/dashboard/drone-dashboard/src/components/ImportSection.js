@@ -12,7 +12,6 @@ import {
   Paper, 
   List, 
   ListItem, 
-  ListItemText, 
   Link,
   Modal,
   LinearProgress,

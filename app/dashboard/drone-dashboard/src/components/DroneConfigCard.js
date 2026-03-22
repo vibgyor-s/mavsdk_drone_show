@@ -1236,7 +1236,7 @@ export default function DroneConfigCard({
       setDroneData(getCompleteFormData(drone));
       setErrors({});
     }
-  }, [isEditing]);
+  }, [isEditing, drone]);
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};

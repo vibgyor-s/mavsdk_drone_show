@@ -154,6 +154,8 @@ You should see the current official tags, including:
 - `mavsdk-drone-show-sitl:v5`
 
 > **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.
+>
+> **Still supported for advanced users:** This does **not** remove custom image or custom repository support. If you need your own fork, branch, or image tag, keep using `MDS_DOCKER_IMAGE`, `MDS_REPO_URL`, and `MDS_BRANCH` as documented in [Advanced SITL Configuration](advanced-sitl.md).
 
 #### Image Features and Components
 
@@ -223,7 +225,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Install Node.js (v22 LTS recommended via [nvm](https://nodejs.org/en/download/package-manager)), then:
+Install Node.js (Node.js 20 LTS recommended via [nvm](https://nodejs.org/en/download/package-manager); Node.js 22 also works but usually needs more build memory), then:
 
 ```bash
 cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
@@ -238,6 +240,8 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
+- On smaller VPSes, raise the React build heap before `--prod` if needed:
+  `export MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE=4096`
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 

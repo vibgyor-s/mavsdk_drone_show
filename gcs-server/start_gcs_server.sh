@@ -4,7 +4,7 @@
 # GCS Server Launcher (Flask or FastAPI)
 #
 # Project: MAVSDK Drone Show
-# Version: 2.0.0
+# Version: Reads from VERSION file
 #
 # Supports both Flask and FastAPI backends
 # with proper environment configuration
@@ -35,6 +35,13 @@ PORT="${3:-$DEFAULT_PORT}"
 # PATH RESOLUTION
 # ===========================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+VERSION_FILE="${PROJECT_ROOT}/VERSION"
+PROJECT_VERSION="unknown"
+
+if [[ -f "$VERSION_FILE" ]]; then
+    PROJECT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+fi
 
 # ===========================================
 # LOGGING FUNCTIONS
@@ -224,7 +231,7 @@ start_flask() {
 # ===========================================
 main() {
     log_info "============================================"
-    log_info "GCS Server Launcher v2.0.0"
+    log_info "GCS Server Launcher v${PROJECT_VERSION}"
     log_info "============================================"
 
     check_dependencies

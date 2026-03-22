@@ -38,7 +38,6 @@ const OriginModal = ({
 
   // Altitude support (optional)
   const [altitude, setAltitude] = useState('');
-  const [altitudeSource, setAltitudeSource] = useState('manual');
 
   // A flag to ensure we auto-compute only once when a drone is first picked.
   const [hasAutoComputed, setHasAutoComputed] = useState(false);
@@ -59,13 +58,11 @@ const OriginModal = ({
         // Load altitude if available
         if (currentOrigin.alt !== undefined && currentOrigin.alt !== null) {
           setAltitude(currentOrigin.alt.toString());
-          setAltitudeSource(currentOrigin.alt_source || 'manual');
         }
       } else {
         setCoordinateInput('');
         setSelectedLatLon(null);
         setAltitude('');
-        setAltitudeSource('manual');
       }
 
       // Reset states

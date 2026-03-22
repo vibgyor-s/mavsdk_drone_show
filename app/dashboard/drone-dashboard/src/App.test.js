@@ -1,5 +1,6 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import App from './App';
 
 // Mock eagerly loaded components
 jest.mock('./pages/Overview', () => () => <div data-testid="overview" />);
@@ -27,21 +28,19 @@ jest.mock('./services/logService', () => ({
   reportFrontendError: jest.fn().mockResolvedValue({ status: 'received' }),
 }));
 
-import App from './App';
-
 describe('App', () => {
   test('renders without crashing', () => {
-    const { container } = render(<App />);
-    expect(container.querySelector('.app-container')).toBeInTheDocument();
+    render(<App />);
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
   });
 
   test('renders sidebar navigation', () => {
     render(<App />);
-    expect(document.querySelector('[data-testid="sidebar"]')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
   });
 
   test('renders default route (Overview)', () => {
     render(<App />);
-    expect(document.querySelector('[data-testid="overview"]')).toBeInTheDocument();
+    expect(screen.getByTestId('overview')).toBeInTheDocument();
   });
 });

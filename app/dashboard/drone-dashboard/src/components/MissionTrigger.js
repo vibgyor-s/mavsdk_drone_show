@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
-import MissionNotification from './MissionNotification';
 import { DRONE_MISSION_TYPES, DRONE_MISSION_DISPLAY_ORDER, defaultTriggerTimeDelay, getMissionDescription } from '../constants/droneConstants';
 import '../styles/MissionTrigger.css';
 
@@ -11,7 +10,6 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
   const [useSlider, setUseSlider] = useState(true);
   const [selectedTime, setSelectedTime] = useState('');
-  const [notification, setNotification] = useState(null);
   const [autoGlobalOrigin, setAutoGlobalOrigin] = useState(true); // Default enabled for precision
   const [useGlobalSetpoints, setUseGlobalSetpoints] = useState(true); // Default to GLOBAL mode
 
@@ -74,8 +72,6 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
 
   return (
     <div className="mission-trigger-container">
-      {notification && <MissionNotification message={notification} />}
-
       {!selectedMission && (
         <div className="mission-cards">
           {DRONE_MISSION_DISPLAY_ORDER.map((mission) => (

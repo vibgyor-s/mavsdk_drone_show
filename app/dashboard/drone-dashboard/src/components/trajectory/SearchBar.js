@@ -234,6 +234,8 @@ const SearchBar = ({ onLocationSelect }) => {
         setSelectedIndex(-1);
         searchInputRef.current?.blur();
         break;
+      default:
+        break;
     }
   };
 

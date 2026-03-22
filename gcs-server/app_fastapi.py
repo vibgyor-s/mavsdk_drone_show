@@ -68,6 +68,7 @@ from coordinate_utils import get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
+from src import __version__ as MDS_VERSION
 
 # Import SAR router
 from sar.routes import router as sar_router
@@ -291,7 +292,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="GCS Server API",
     description="Ground Control Station server for MAVSDK Drone Show with HTTP REST and WebSocket support",
-    version="2.0.0",
+    version=MDS_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -357,7 +358,7 @@ async def health_check():
     return HealthCheckResponse(
         status="ok",
         timestamp=int(time.time() * 1000),
-        version="2.0.0"
+        version=MDS_VERSION
     )
 
 

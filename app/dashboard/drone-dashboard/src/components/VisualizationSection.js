@@ -89,7 +89,7 @@ const VisualizationSection = ({ uploadCount }) => {
             setComprehensiveMetrics(metricsData);
           }
         } catch (metricsError) {
-          console.log('Comprehensive metrics not available:', metricsError);
+          setComprehensiveMetrics(null);
         }
       } catch (err) {
         console.error('Error fetching data:', err.message);

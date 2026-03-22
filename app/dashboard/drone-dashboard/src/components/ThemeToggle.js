@@ -15,7 +15,6 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
   const {
     themePreference,
     getThemeLabel,
-    getThemeIcon,
     setTheme,
     toggleTheme,
     cycleTheme,

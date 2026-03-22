@@ -161,12 +161,14 @@ const VERSION_DISPLAY = `v${{VERSION}} (${{GIT_COMMIT}})`;
 
 export {{ VERSION, GIT_COMMIT, GIT_BRANCH, VERSION_DISPLAY }};
 
-export default {{
+const versionInfo = {{
   VERSION,
   GIT_COMMIT,
   GIT_BRANCH,
   VERSION_DISPLAY
 }};
+
+export default versionInfo;
 '''
 
     FRONTEND_VERSION_JS.write_text(content)

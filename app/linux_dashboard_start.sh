@@ -48,6 +48,7 @@ PROD_LOG_LEVEL="info"
 DEV_REACT_PORT=3030
 DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
+REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 
 # ===========================================
 # PATH RESOLUTION (ABSOLUTE PATHS ONLY)
@@ -76,6 +77,7 @@ ENV_FILE_PATH="$REACT_APP_DIR/.env"
 BUILD_DIR="$REACT_APP_DIR/build"
 REAL_MODE_FILE="$GCS_SERVER_DIR/real.mode"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
+VERSION_FILE_PATH="$PROJECT_ROOT/VERSION"
 
 # ===========================================
 # VARIABLES
@@ -95,6 +97,11 @@ SKIP_DEPENDENCY_CHECK=false
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
 BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
+PROJECT_VERSION="unknown"
+
+if [[ -f "$VERSION_FILE_PATH" ]]; then
+    PROJECT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE_PATH")"
+fi
 
 # Backend: FastAPI (Flask legacy removed)
 GCS_BACKEND="fastapi"
@@ -630,23 +637,29 @@ build_react_app() {
         exit 1
     }
     
-    if [[ ! -d "node_modules" || "$REACT_APP_DIR/package.json" -nt "node_modules" ]]; then
-        log_info "Installing Node.js dependencies..."
-        npm ci --only=production
-        if [[ $? -ne 0 ]]; then
-            log_error "Failed to install dependencies."
-            exit 1
-        fi
+    if [[ ! -d "node_modules" || "$REACT_APP_DIR/package.json" -nt "node_modules" || "$REACT_APP_DIR/package-lock.json" -nt "node_modules" ]]; then
+        install_dashboard_dependencies
     fi
-    
+
     log_info "Building optimized production bundle..."
-    npm run build
+    NODE_OPTIONS="${NODE_OPTIONS:-} --max_old_space_size=${REACT_BUILD_MAX_OLD_SPACE_SIZE}" npm run build
     if [[ $? -ne 0 ]]; then
         log_error "Build failed."
         exit 1
     fi
     
     log_success "React build completed successfully."
+}
+
+install_dashboard_dependencies() {
+    log_info "Installing dashboard npm dependencies..."
+
+    if ! npm ci --no-audit --no-fund; then
+        log_warn "npm ci failed, trying npm install..."
+        npm install --no-audit --no-fund
+    fi
+
+    log_success "Dashboard npm dependencies ready."
 }
 
 verify_react_setup() {
@@ -658,18 +671,15 @@ verify_react_setup() {
     fi
 
     # Verify node_modules exists (MDS GCS Init integration)
-    if [[ ! -d "$REACT_APP_DIR/node_modules" ]]; then
+    if [[ ! -d "$REACT_APP_DIR/node_modules" || "$REACT_APP_DIR/package.json" -nt "$REACT_APP_DIR/node_modules" || "$REACT_APP_DIR/package-lock.json" -nt "$REACT_APP_DIR/node_modules" ]]; then
         log_warn "Node modules not installed at $REACT_APP_DIR"
-        log_info "Installing npm dependencies..."
-        (cd "$REACT_APP_DIR" && npm ci) || {
-            log_warn "npm ci failed, trying npm install..."
-            (cd "$REACT_APP_DIR" && npm install) || {
-                log_error "Failed to install npm dependencies"
-                log_info "Run: cd $REACT_APP_DIR && npm install"
-                exit 1
-            }
+        (
+            cd "$REACT_APP_DIR" && install_dashboard_dependencies
+        ) || {
+            log_error "Failed to install npm dependencies"
+            log_info "Run: cd $REACT_APP_DIR && npm install"
+            exit 1
         }
-        log_success "npm dependencies installed"
     fi
 
     log_success "React setup verified."
@@ -735,13 +745,29 @@ get_gcs_server_command() {
 
 get_react_command() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        if check_build_needed; then
-            build_react_app
+        if [[ ! -d "$BUILD_DIR" ]]; then
+            log_error "Production build directory missing: $BUILD_DIR"
+            exit 1
         fi
         echo "cd '$BUILD_DIR' && python3 -m http.server $DEV_REACT_PORT"
     else
-        verify_react_setup
         echo "cd '$REACT_APP_DIR' && npm start"
+    fi
+}
+
+prepare_react_runtime() {
+    if [[ "$RUN_GUI_APP" != "true" ]]; then
+        return 0
+    fi
+
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        if check_build_needed; then
+            build_react_app
+        else
+            log_success "Production React build already up to date."
+        fi
+    else
+        verify_react_setup
     fi
 }
 
@@ -761,7 +787,9 @@ start_services_in_tmux() {
     
     local gcs_cmd=""
     local react_cmd=""
-    
+
+    prepare_react_runtime
+
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         gcs_cmd=$(get_gcs_server_command)
     fi
@@ -815,6 +843,8 @@ start_services_in_tmux() {
 
 start_services_no_tmux() {
     log_info "Starting services without tmux in $DEPLOYMENT_MODE mode..."
+
+    prepare_react_runtime
 
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         local gcs_cmd=$(get_gcs_server_command)
@@ -944,7 +974,7 @@ display_startup_banner() {
         local git_info branch commit git_date
         git_info=$(get_git_info "$PARENT_DIR" 2>/dev/null || echo "unknown|unknown|unknown")
         IFS='|' read -r branch commit git_date <<< "$git_info"
-        print_mds_banner "Dashboard Services" "4.4.0" "$branch" "$commit"
+        print_mds_banner "Dashboard Services" "$PROJECT_VERSION" "$branch" "$commit"
     else
         # Fallback banner
         echo ""
@@ -956,7 +986,7 @@ display_startup_banner() {
         echo ""
         echo "MAVSDK Drone Show - Dashboard Services"
         echo "================================================"
-        echo "Version:  4.4.0"
+        echo "Version:  $PROJECT_VERSION"
         echo "================================================"
         echo ""
     fi
