@@ -95,9 +95,16 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
+STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
+CREATED_CONTAINERS=()
+READY_CONTAINERS=()
+FAILED_CONTAINERS=()
+WAIT_FOR_READY="${MDS_SITL_WAIT_FOR_READY:-true}"
+READY_TIMEOUT_SECONDS="${MDS_SITL_READY_TIMEOUT_SECONDS:-60}"
+READY_POLL_INTERVAL_SECONDS="${MDS_SITL_READY_POLL_INTERVAL_SECONDS:-2}"
 
 # Variables for custom network, starting drone ID, and starting IP
 CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
@@ -153,6 +160,36 @@ print_launcher_configuration() {
     fi
 
     echo
+}
+
+validate_launcher_configuration() {
+    case "$WAIT_FOR_READY" in
+        true|false) ;;
+        *)
+            printf "Error: MDS_SITL_WAIT_FOR_READY must be 'true' or 'false'.\n" >&2
+            exit 1
+            ;;
+    esac
+
+    if ! [[ "$READY_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+        printf "Error: MDS_SITL_READY_TIMEOUT_SECONDS must be a positive integer.\n" >&2
+        exit 1
+    fi
+
+    if ! [[ "$READY_POLL_INTERVAL_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+        printf "Error: MDS_SITL_READY_POLL_INTERVAL_SECONDS must be a positive integer.\n" >&2
+        exit 1
+    fi
+}
+
+print_scale_guidance() {
+    local num_instances="$1"
+    local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
+
+    if (( num_instances >= 10 )) && [[ "$effective_git_sync" == "true" ]]; then
+        printf "Warning: launching %d containers with MDS_SITL_GIT_SYNC=true will trigger %d runtime git fetch/reset operations.\n" "$num_instances" "$num_instances" >&2
+        printf "For validated large-fleet runs, prefer a rebuilt image plus MDS_SITL_GIT_SYNC=false.\n" >&2
+    fi
 }
 
 ensure_container_git_excludes() {
@@ -366,20 +403,94 @@ create_instance() {
     if $VERBOSE; then
         printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
         printf "To exit the attached mode, press CTRL+C.\n"
-        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
+        if [[ -t 0 && -t 1 ]]; then
+            docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
+        else
+            printf "No interactive TTY detected. Falling back to non-TTY verbose mode.\n"
+            docker exec -i "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
+        fi
         return 0
     fi
 
-    # Run the startup SITL script inside the container in detached mode
+    # Run the startup SITL script inside the container in detached mode and
+    # persist wrapper-level diagnostics to a file for later readiness checks.
     printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
-    if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
+    if ! docker exec -d "$container_name" bash -lc "mkdir -p '$HWID_CONTAINER_DIR/logs' && exec bash '$STARTUP_SCRIPT_CONTAINER' >> '$STARTUP_LOG_CONTAINER' 2>&1"; then
         printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null  # Stop container if startup fails
         docker rm "$container_name" >/dev/null
         return 1
     fi
 
-    printf "Instance '%s' configured and started successfully.\n" "$container_name"
+    printf "Instance '%s' launched. Awaiting readiness verification.\n" "$container_name"
+    CREATED_CONTAINERS+=("$container_name")
+}
+
+instance_is_ready() {
+    local container_name="$1"
+    docker exec "$container_name" bash -lc '
+        pgrep -f "/root/PX4-Autopilot/build/px4_sitl_default/bin/px4" >/dev/null &&
+        pgrep -x mavlink-routerd >/dev/null &&
+        pgrep -f "/root/mavsdk_drone_show/coordinator.py" >/dev/null
+    ' >/dev/null 2>&1
+}
+
+print_container_failure_logs() {
+    local container_name="$1"
+
+    printf "Recent startup diagnostics for '%s':\n" "$container_name" >&2
+    docker exec "$container_name" bash -lc "
+        echo '--- startup_sitl.log ---'
+        tail -n 60 '$STARTUP_LOG_CONTAINER' 2>/dev/null || true
+        echo '--- mavlink_router.log ---'
+        tail -n 40 '$HWID_CONTAINER_DIR/logs/mavlink_router.log' 2>/dev/null || true
+        echo '--- coordinator.log ---'
+        tail -n 40 '$HWID_CONTAINER_DIR/logs/coordinator.log' 2>/dev/null || true
+        echo '--- sitl_simulation.log ---'
+        tail -n 40 '$HWID_CONTAINER_DIR/logs/sitl_simulation.log' 2>/dev/null || true
+    " >&2 || true
+}
+
+wait_for_instances_ready() {
+    local pending=("${CREATED_CONTAINERS[@]}")
+    local next_pending=()
+    local elapsed=0
+    local container_name
+
+    if [ ${#pending[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    printf "\nWaiting for %d container(s) to become ready...\n" "${#pending[@]}"
+
+    while [ ${#pending[@]} -gt 0 ] && [ "$elapsed" -lt "$READY_TIMEOUT_SECONDS" ]; do
+        next_pending=()
+
+        for container_name in "${pending[@]}"; do
+            if instance_is_ready "$container_name"; then
+                READY_CONTAINERS+=("$container_name")
+                printf "Ready: %s\n" "$container_name"
+            else
+                next_pending+=("$container_name")
+            fi
+        done
+
+        pending=("${next_pending[@]}")
+        if [ ${#pending[@]} -eq 0 ]; then
+            return 0
+        fi
+
+        sleep "$READY_POLL_INTERVAL_SECONDS"
+        elapsed=$((elapsed + READY_POLL_INTERVAL_SECONDS))
+    done
+
+    FAILED_CONTAINERS=("${pending[@]}")
+    for container_name in "${FAILED_CONTAINERS[@]}"; do
+        printf "Error: '%s' did not become ready within %ss.\n" "$container_name" "$READY_TIMEOUT_SECONDS" >&2
+        print_container_failure_logs "$container_name"
+    done
+
+    return 1
 }
 
 # Function: report container-specific resource usage
@@ -432,9 +543,11 @@ main() {
 
     # Validate inputs
     validate_input "$num_instances"
+    validate_launcher_configuration
 
     collect_mds_env_args
     print_launcher_configuration
+    print_scale_guidance "$num_instances"
 
     # Setup Docker network
     setup_docker_network
@@ -458,6 +571,13 @@ main() {
         fi
     done
 
+    if ! $VERBOSE && [[ "$WAIT_FOR_READY" == "true" ]]; then
+        if ! wait_for_instances_ready; then
+            printf "Error: one or more containers failed readiness checks.\n" >&2
+            exit 1
+        fi
+    fi
+
     # Introductory banner
     cat << "EOF"
     ___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
@@ -470,7 +590,11 @@ main() {
 EOF
 
     echo
-    printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
+    if ! $VERBOSE && [[ "$WAIT_FOR_READY" == "true" ]]; then
+        printf "All %d instance(s) created and verified ready.\n" "$num_instances"
+    else
+        printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
+    fi
     echo "========================================================="
     echo
     printf "Instances created with starting drone ID: %d\n" "$START_ID"
