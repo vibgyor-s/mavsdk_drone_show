@@ -98,6 +98,7 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_SITL_WAIT_FOR_READY` | Wait for PX4, router, and coordinator before reporting container success | `true` |
 | `MDS_SITL_READY_TIMEOUT_SECONDS` | Readiness timeout per launch batch | `60` |
 | `MDS_SITL_READY_POLL_INTERVAL_SECONDS` | Readiness polling interval | `2` |
+| `MDS_SITL_KEEP_ARM_TOOLCHAIN` | Keep the PX4 ARM firmware toolchain in release images | `false` |
 | `MDS_MAVSDK_VERSION` | Runtime or image-build MAVSDK server version override | unset |
 | `MDS_MAVSDK_URL` | Runtime or image-build MAVSDK server URL override | unset |
 

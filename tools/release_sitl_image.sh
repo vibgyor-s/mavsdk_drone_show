@@ -149,6 +149,7 @@ if [[ "$PACKAGE_IMAGE" == true ]]; then
     PACKAGE_ARGS=(
         --image-repo "$IMAGE_REPO"
         --version-tag "$VERSION_TAG"
+        --commit-tag "$MDS_COMMIT"
         --output-dir "$OUTPUT_DIR"
         --archive-basename "$ARCHIVE_BASENAME"
     )

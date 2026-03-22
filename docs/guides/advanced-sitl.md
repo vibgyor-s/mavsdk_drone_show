@@ -56,6 +56,7 @@ export MDS_SITL_STRIP_PXH_PROMPTS=true
 export MDS_SITL_WAIT_FOR_READY=true
 export MDS_SITL_READY_TIMEOUT_SECONDS=60
 export MDS_SITL_READY_POLL_INTERVAL_SECONDS=2
+export MDS_SITL_KEEP_ARM_TOOLCHAIN=false
 
 # Optional debugging / routing controls
 export MDS_SITL_TRACE=0
@@ -75,13 +76,15 @@ Notes:
 - For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.
 - Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
 - Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
-- Raw PX4 `pxh>` shell prompt noise is stripped from `sitl_simulation.log` by default so bounded logs stay readable.
+- Common raw PX4 `pxh>` shell prompt noise is reduced in `sitl_simulation.log` by default so bounded logs stay readable, but you may still see occasional prompt variants in deep debug sessions.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
 - If you want to override the MAVSDK server binary at runtime, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`. For large fleets, bake that override into the image instead of downloading on every container start.
 - The image now keeps the real PX4 git checkout and submodule metadata intact. Image prep also writes PX4 provenance files into the repo root so you can audit what PX4 revision was baked into a release.
-- `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. Startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.
+- Release image prep removes the PX4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.
+- `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. `startup_sitl.sh` runs as the container main process, and startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.
 - For large validated fleets, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub at once.
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.
+- The current stock SITL image does not auto-start `mavlink2rest`. The router still forwards MAVLink to `127.0.0.1:14569` for optional custom use, but `http://DRONE_IP:8088` should not be assumed in the default workflow.
 
 ### Step 2: Build Custom Docker Image (If Needed)
 
@@ -138,6 +141,7 @@ Some scripts support direct arguments:
 
 ```bash
 # Dashboard with custom branch
+# This performs a repo sync to the requested branch before startup.
 bash app/linux_dashboard_start.sh --sitl -b your-branch-name
 
 # Build custom image with arguments
@@ -303,7 +307,7 @@ For repeatable official-style packaging, prefer the helper script:
 bash tools/package_sitl_image.sh --image-repo mycompany-mds-sitl --version-tag v5-custom
 ```
 
-That helper keeps a stable archive basename, exports the Docker tags inside the tar, and verifies the generated `.7z` automatically.
+That helper keeps a stable archive basename, exports the Docker tags inside the tar, verifies the generated `.7z` automatically, writes checksum/manifest files, and deletes the raw `.tar` afterwards unless you pass `--keep-tar`.
 
 If you need to rebuild and package a clean flattened release in one step, use:
 

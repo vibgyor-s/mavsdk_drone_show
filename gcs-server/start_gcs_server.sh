@@ -1,15 +1,17 @@
 #!/bin/bash
 
 #########################################
-# GCS Server Launcher (Flask or FastAPI)
+# GCS Server Launcher (FastAPI only)
 #
 # Project: MAVSDK Drone Show
 # Version: Reads from VERSION file
 #
-# Supports both Flask and FastAPI backends
-# with proper environment configuration
+# Legacy note:
+#   Flask mode has been removed from the active deployment path.
+#   This script is kept as a standalone FastAPI launcher for operators
+#   who want a direct backend entrypoint outside linux_dashboard_start.sh.
 #
-# Usage: ./start_gcs_server.sh [OPTIONS]
+# Usage: ./start_gcs_server.sh [MODE] [fastapi] [PORT]
 #########################################
 
 set -euo pipefail  # Strict error handling
@@ -18,7 +20,7 @@ set -euo pipefail  # Strict error handling
 # CONFIGURATION
 # ===========================================
 DEFAULT_MODE="development"
-DEFAULT_BACKEND="fastapi"  # Options: flask, fastapi
+DEFAULT_BACKEND="fastapi"
 DEFAULT_PORT=5000
 PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
@@ -31,12 +33,18 @@ MODE="${1:-$DEFAULT_MODE}"
 BACKEND="${2:-$DEFAULT_BACKEND}"
 PORT="${3:-$DEFAULT_PORT}"
 
+if [[ "$BACKEND" =~ ^[0-9]+$ ]]; then
+    PORT="$BACKEND"
+    BACKEND="$DEFAULT_BACKEND"
+fi
+
 # ===========================================
 # PATH RESOLUTION
 # ===========================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VERSION_FILE="${PROJECT_ROOT}/VERSION"
+VENV_PATH="${PROJECT_ROOT}/venv"
 PROJECT_VERSION="unknown"
 
 if [[ -f "$VERSION_FILE" ]]; then
@@ -74,16 +82,16 @@ apply_logging_mode_defaults() {
 # ===========================================
 display_usage() {
     cat << EOF
-GCS Server Launcher - Flask or FastAPI
+GCS Server Launcher - FastAPI
 
-USAGE: $0 [MODE] [BACKEND] [PORT]
+USAGE: $0 [MODE] [fastapi] [PORT]
 
 ARGUMENTS:
   MODE      deployment mode (default: $DEFAULT_MODE)
             Options: development, production
 
-  BACKEND   server backend (default: $DEFAULT_BACKEND)
-            Options: flask, fastapi
+  BACKEND   optional compatibility placeholder
+            Only 'fastapi' is supported
 
   PORT      server port (default: $DEFAULT_PORT)
 
@@ -94,16 +102,10 @@ EXAMPLES:
   # Start FastAPI in production mode
   $0 production fastapi 5000
 
-  # Start Flask in development mode
-  $0 development flask 5000
-
-  # Start Flask in production mode with gunicorn
-  $0 production flask 5000
-
 ENVIRONMENT VARIABLES:
   GCS_ENV      Override deployment mode (development|production)
   GCS_PORT     Override server port
-  GCS_BACKEND  Override backend choice (flask|fastapi)
+  GCS_BACKEND  Override backend choice (must remain 'fastapi')
 
 EOF
     exit 0
@@ -130,16 +132,27 @@ if [[ "$MODE" != "development" && "$MODE" != "production" ]]; then
     exit 1
 fi
 
-if [[ "$BACKEND" != "flask" && "$BACKEND" != "fastapi" ]]; then
-    log_error "Invalid BACKEND: $BACKEND. Must be 'flask' or 'fastapi'"
+if [[ "$BACKEND" != "fastapi" ]]; then
+    log_error "Invalid BACKEND: $BACKEND. Flask mode has been removed; use 'fastapi'."
     exit 1
 fi
 
 # ===========================================
 # DEPENDENCY CHECK
 # ===========================================
+load_virtualenv() {
+    if [[ -d "$VENV_PATH" ]]; then
+        # shellcheck disable=SC1090
+        source "$VENV_PATH/bin/activate"
+        log_info "Activated virtual environment: $VENV_PATH"
+    else
+        log_warn "Virtual environment not found at $VENV_PATH; using current Python interpreter"
+    fi
+}
+
 check_dependencies() {
     log_info "Checking dependencies..."
+    load_virtualenv
 
     # Check Python
     if ! command -v python3 &> /dev/null; then
@@ -147,20 +160,20 @@ check_dependencies() {
         exit 1
     fi
 
-    # Check for FastAPI dependencies if using FastAPI
-    if [[ "$BACKEND" == "fastapi" ]]; then
-        if ! python3 -c "import fastapi" 2>/dev/null; then
-            log_warn "FastAPI not installed. Installing dependencies..."
-            pip3 install -r "${SCRIPT_DIR}/../requirements.txt"
-        fi
+    if ! python3 -c "import fastapi" 2>/dev/null; then
+        log_error "FastAPI is not installed in the active interpreter."
+        log_error "Install dependencies with: bash tools/mds_gcs_init.sh or pip install -r requirements.txt inside the venv."
+        exit 1
     fi
 
-    # Check for gunicorn in production mode
     if [[ "$MODE" == "production" ]]; then
         if ! python3 -c "import gunicorn" 2>/dev/null; then
-            log_warn "Gunicorn not installed. Installing..."
-            pip3 install gunicorn
+            log_error "Gunicorn is required for production mode but is not installed in the active interpreter."
+            exit 1
         fi
+    elif ! python3 -c "import uvicorn" 2>/dev/null; then
+        log_error "Uvicorn is required for development mode but is not installed in the active interpreter."
+        exit 1
     fi
 
     log_success "Dependencies check complete"
@@ -184,12 +197,9 @@ start_server() {
     export GCS_ENV="$MODE"
     export GCS_PORT="$PORT"
     export GCS_BACKEND="$BACKEND"
+    export PYTHONPATH="${PROJECT_ROOT}:${PROJECT_ROOT}/src:${PYTHONPATH:-}"
 
-    if [[ "$BACKEND" == "fastapi" ]]; then
-        start_fastapi
-    else
-        start_flask
-    fi
+    start_fastapi
 }
 
 start_fastapi() {
@@ -199,7 +209,7 @@ start_fastapi() {
     if [[ "$MODE" == "production" ]]; then
         # Production: keep a single worker until API state is moved out of process memory
         log_info "Running FastAPI with Gunicorn + Uvicorn worker ($PROD_WSGI_WORKERS worker)"
-        log_info "Production optimizations: preload app, worker recycling, graceful timeout"
+        log_info "Production optimizations: single-worker Gunicorn, worker recycling, graceful timeout"
         exec gunicorn app_fastapi:app \
             -w "$PROD_WSGI_WORKERS" \
             -k uvicorn.workers.UvicornWorker \
@@ -208,7 +218,6 @@ start_fastapi() {
             --log-level "$PROD_LOG_LEVEL" \
             --access-logfile - \
             --error-logfile - \
-            --preload-app \
             --max-requests 1000 \
             --max-requests-jitter 50 \
             --graceful-timeout 30 \
@@ -223,26 +232,6 @@ start_fastapi() {
             --port "$PORT" \
             --reload \
             --log-level info
-    fi
-}
-
-start_flask() {
-    log_info "Starting Flask server..."
-
-    if [[ "$MODE" == "production" ]]; then
-        # Production: Use Gunicorn WSGI server
-        log_info "Running Flask with Gunicorn"
-        exec gunicorn app:app \
-            -w "$PROD_WSGI_WORKERS" \
-            -b "0.0.0.0:$PORT" \
-            --timeout "$PROD_GUNICORN_TIMEOUT" \
-            --log-level "$PROD_LOG_LEVEL" \
-            --access-logfile - \
-            --error-logfile -
-    else
-        # Development: Use Flask development server
-        log_info "Running Flask development server"
-        exec python3 app.py
     fi
 }
 

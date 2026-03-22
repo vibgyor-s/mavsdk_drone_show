@@ -14,6 +14,7 @@ MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
 MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
 PX4_SUBMODULE_STATUS_FILE="$BASE_DIR/.mds_px4_submodules.txt"
+KEEP_ARM_TOOLCHAIN="${MDS_SITL_KEEP_ARM_TOOLCHAIN:-false}"
 
 log() {
     printf '%s\n' "$*"
@@ -199,10 +200,12 @@ cleanup_runtime_baggage() {
         find "$PX4_DIR/build" -mindepth 1 -maxdepth 1 ! -name px4_sitl_default -exec rm -rf {} +
     fi
 
-    # Keep the real PX4 git checkout and submodule metadata intact so the
-    # runtime image stays aligned with normal PX4 source-tree expectations.
-    rm -rf "$PX4_DIR/docs"
-    rm -rf "$PX4_DIR/.github"
+    # PX4 docs and repo metadata stay intact so the runtime image still behaves
+    # like a normal upstream checkout for provenance and future maintenance.
+
+    if [ "$KEEP_ARM_TOOLCHAIN" != "true" ]; then
+        rm -rf /opt/gcc-arm-none-eabi-*
+    fi
 
     rm -rf /root/.cargo
     rm -rf /root/.rustup
@@ -242,6 +245,7 @@ MDS_IMAGE_BRANCH=${BRANCH}
 MDS_IMAGE_COMMIT=${commit_hash}
 MDS_IMAGE_SYNC_MODE=mutable_latest_on_boot
 MDS_IMAGE_MAVSDK_VERSION_REQUESTED=${MDS_MAVSDK_VERSION:-}
+MDS_IMAGE_KEEP_ARM_TOOLCHAIN=${KEEP_ARM_TOOLCHAIN}
 MDS_IMAGE_PX4_BRANCH=${px4_branch}
 MDS_IMAGE_PX4_COMMIT=${px4_commit}
 MDS_IMAGE_PX4_DESCRIBE=${px4_describe}

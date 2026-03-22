@@ -167,7 +167,7 @@ This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes
 - **mavsdk_drone_show** preloaded as a shallow git checkout so each container can sync the latest branch state on startup
 - **Python virtual environment** prebuilt from `requirements.txt` for faster container startup
 - **mavlink-router**
-- **mavlink2rest**
+- **mavlink2rest-ready routing target** on `127.0.0.1:14569` for optional future use
 - **Gazebo Sim (`gz`)**
 - **SITL workflow dependencies**
 - **All other necessary dependencies**
@@ -177,16 +177,17 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > **Current Docker SITL standard**
 > - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
 > - the image keeps one prebuilt PX4 SITL build tree, the real PX4 git checkout plus submodule metadata, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging
+> - release image prep removes the PX4 ARM firmware toolchain by default to save space because it is not required for normal SITL runtime; set `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding if you intentionally need that toolchain in a custom image
 > - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`
 > - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup
 > - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents
 > - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
-> - runtime file logs are bounded by default so containers stay small, repeated PX4 `pxh>` prompt noise is stripped from the raw SITL log, and those logs disappear when the container is removed
+> - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise is reduced in the raw SITL log, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path
-> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; startup-wrapper diagnostics are written to `logs/startup_sitl.log`
+> - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process so docker restart / host reboot recovery is correct, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`
 
 #### Need Custom Repository or Advanced Configuration?
 
@@ -240,7 +241,7 @@ Install Node.js (Node.js 20 LTS recommended via [nvm](https://nodejs.org/en/down
 
 ```bash
 cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
-npm install
+npm ci
 ```
 
 #### Start the Dashboard
@@ -252,8 +253,10 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
+- Production serves the React build with SPA route fallback, so direct browser refresh on routes like `/logs` or `/mission-config` keeps working.
 - On smaller VPSes, raise the React build heap before `--prod` if needed:
   `export MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE=4096`
+- The launcher uses `npm ci` by default and refuses to mutate `package-lock.json` with `npm install` unless you explicitly opt in with `MDS_ALLOW_NPM_INSTALL_FALLBACK=true`.
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 
@@ -304,7 +307,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, copies a single `.hwID` file for that drone, then launches `startup_sitl.sh`, which hard-resets the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
+    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, bind-mounts a single `.hwID` file plus the host `startup_sitl.sh`, then launches `startup_sitl.sh` as the container's main process. That startup path hard-resets the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 
@@ -458,7 +461,7 @@ In the given command, MAVLink messages are being sent initially on port `34550` 
 On your local GCS, open QGroundControl and navigate to **'Application Settings'** > **'Comm Links'**. Create a new comm link, name it (e.g., **'server1'**), check the **'High Latency'** mode, set the connection type to **'UDP'**, set the port to **`24550`**, and add the server (`SERVER_GCS_NETBIRD_IP`). Save and select this comm link to connect. All your drones should now be auto-detected.
 
 #### Using MAVLink2REST
-While its not yet fully implemented, soon MDS will rely more on MAVLink2REST. If you setup the routing and Netbird network, you should be able to access each drone via REST API on port 8088 eg. http://172.18.0.2:8088 . visit [MAVLINK2REST documentation](https://github.com/mavlink/mavlink2rest) for more.
+The current Docker SITL workflow does **not** auto-start a per-drone `mavlink2rest` server. The router still forwards MAVLink to `127.0.0.1:14569` so a future or custom `mavlink2rest` process can subscribe there, but you should **not** assume `http://DRONE_IP:8088` is available from the stock image today. If you intentionally add `mavlink2rest`, use the routed local endpoint and review the upstream [MAVLink2REST documentation](https://github.com/mavlink/mavlink2rest) for the expected process and REST port behavior.
 
 
 ## Clean-Up

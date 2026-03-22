@@ -11,13 +11,14 @@ VERSION_TAG="latest"
 COMMIT_TAG=""
 ARCHIVE_BASENAME="$DEFAULT_ARCHIVE_BASENAME"
 COMPRESS=true
+KEEP_TAR=false
 
 usage() {
     cat <<EOF
 Package the official Docker SITL image into a stable tar/7z distribution.
 
 Usage:
-  ${SCRIPT_NAME} [--image-repo REPO] [--version-tag TAG] [--commit-tag SHA] [--output-dir DIR] [--archive-basename NAME] [--no-compress]
+  ${SCRIPT_NAME} [--image-repo REPO] [--version-tag TAG] [--commit-tag SHA] [--output-dir DIR] [--archive-basename NAME] [--no-compress] [--keep-tar]
 
 Defaults:
   image repo        ${DEFAULT_IMAGE_REPO}
@@ -34,6 +35,8 @@ Notes:
   - Official releases should include both the stable release tag and latest.
   - If --commit-tag is set, that tag is exported too for traceability.
   - When compression is enabled, the generated .7z is verified with '7z t'.
+  - Compression writes a .sha256 checksum and manifest. The raw tar is deleted
+    after compression unless --keep-tar is set.
 EOF
 }
 
@@ -80,6 +83,10 @@ while [[ $# -gt 0 ]]; do
             COMPRESS=false
             shift
             ;;
+        --keep-tar)
+            KEEP_TAR=true
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -91,6 +98,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_cmd docker
+require_cmd sha256sum
 mkdir -p "$OUTPUT_DIR"
 
 image_refs=("${IMAGE_REPO}:${VERSION_TAG}")
@@ -123,6 +131,9 @@ done
 
 tar_path="${OUTPUT_DIR}/${ARCHIVE_BASENAME}.tar"
 archive_path="${OUTPUT_DIR}/${ARCHIVE_BASENAME}.7z"
+archive_sha_path="${archive_path}.sha256"
+tar_sha_path="${tar_path}.sha256"
+manifest_path="${OUTPUT_DIR}/${ARCHIVE_BASENAME}.manifest.json"
 
 log "Packaging Docker SITL image"
 log "  Image refs : ${unique_refs[*]}"
@@ -130,13 +141,56 @@ log "  Tar output : ${tar_path}"
 
 docker save -o "$tar_path" "${unique_refs[@]}"
 
+tar_file="$(basename "$tar_path")"
+tar_sha_file=""
 if [[ "$COMPRESS" == true ]]; then
     require_cmd 7z
     rm -f "$archive_path"
+    rm -f "$archive_sha_path"
     log "  7z output  : ${archive_path}"
     7z a "$archive_path" "$tar_path" >/dev/null
     log "  7z verify  : ${archive_path}"
     7z t "$archive_path" >/dev/null
+    sha256sum "$archive_path" > "$archive_sha_path"
+    if [[ "$KEEP_TAR" == "true" ]]; then
+        sha256sum "$tar_path" > "$tar_sha_path"
+        tar_sha_file="$(basename "$tar_sha_path")"
+    else
+        rm -f "$tar_path"
+        rm -f "$tar_sha_path"
+        tar_file=""
+    fi
+else
+    sha256sum "$tar_path" > "$tar_sha_path"
+    tar_sha_file="$(basename "$tar_sha_path")"
 fi
+
+archive_file=""
+archive_sha_file=""
+if [[ "$COMPRESS" == true ]]; then
+    archive_file="$(basename "$archive_path")"
+    archive_sha_file="$(basename "$archive_sha_path")"
+fi
+
+cat > "$manifest_path" <<EOF
+{
+  "image_repo": "${IMAGE_REPO}",
+  "version_tag": "${VERSION_TAG}",
+  "commit_tag": "${COMMIT_TAG}",
+  "image_refs": [
+$(for idx in "${!unique_refs[@]}"; do
+    suffix=","
+    if [[ "$idx" -eq $((${#unique_refs[@]} - 1)) ]]; then
+        suffix=""
+    fi
+    printf '    "%s"%s\n' "${unique_refs[$idx]}" "$suffix"
+done)
+  ],
+  "tar_file": "${tar_file}",
+  "tar_sha256_file": "${tar_sha_file}",
+  "archive_file": "${archive_file}",
+  "archive_sha256_file": "${archive_sha_file}"
+}
+EOF
 
 log "Done."

@@ -342,7 +342,7 @@ sudo kill -9 <PID>
 
 ### npm Install Failures
 
-**Problem:** npm ci or npm install fails.
+**Problem:** `npm ci` fails.
 
 **Solutions:**
 1. **Clear npm cache:**
@@ -350,12 +350,17 @@ sudo kill -9 <PID>
    npm cache clean --force
    ```
 
-2. **Remove node_modules and retry:**
+2. **Remove node_modules and retry with the lockfile:**
    ```bash
    rm -rf ~/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules
    cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
-   npm install
+   npm ci --no-audit --no-fund
    ```
+
+3. **If `npm ci` still fails, fix the repo state instead of mutating it on the server:**
+   - ensure `package.json` and `package-lock.json` are committed together
+   - pull the latest branch state
+   - only use `MDS_ALLOW_NPM_INSTALL_FALLBACK=true` for an intentional one-off emergency fallback
 
 ### Resume Interrupted Installation
 

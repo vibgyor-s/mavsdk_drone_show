@@ -94,6 +94,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
+HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$HOME/.local/share/mavsdk_drone_show/sitl_runtime}"
+RUNTIME_FILES_CONTAINER="/tmp/mds_runtime"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
 STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
@@ -145,6 +147,7 @@ print_launcher_configuration() {
     echo "  Startup Script : ${STARTUP_SCRIPT_HOST}"
     echo "  Container Repo : /root/mavsdk_drone_show"
     echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
+    echo "  Runtime Files  : ${HOST_RUNTIME_ROOT}"
     echo "  Wait For Ready : ${WAIT_FOR_READY}"
     echo "  Ready Timeout  : ${READY_TIMEOUT_SECONDS}s"
     echo "  Ready Poll     : ${READY_POLL_INTERVAL_SECONDS}s"
@@ -316,8 +319,10 @@ create_instance() {
     local instance_num=$1
     local drone_id=$((START_ID + instance_num -1))
     local container_name="drone-$drone_id"
-    local temp_hwid_dir
+    local runtime_dir
     local hwid_file
+    local startup_bootstrap
+    local detached_command
 
     printf "\nCreating container '%s'...\n" "$container_name"
 
@@ -327,13 +332,14 @@ create_instance() {
         docker rm -f "$container_name" >/dev/null 2>&1
     fi
 
-    temp_hwid_dir=$(mktemp -d)
-    hwid_file="${temp_hwid_dir}/${drone_id}.hwID"
+    runtime_dir="${HOST_RUNTIME_ROOT}/${container_name}"
+    rm -rf "$runtime_dir"
+    mkdir -p "$runtime_dir"
+    hwid_file="${runtime_dir}/${drone_id}.hwID"
 
     # Create an empty .hwID file for the container
     if ! touch "$hwid_file"; then
         printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
-        rm -rf "$temp_hwid_dir"
         return 1
     fi
 
@@ -344,16 +350,44 @@ create_instance() {
     # Check for reserved IP addresses
     if [[ "$last_octet" -eq 0 || "$last_octet" -eq 255 ]]; then
         printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
-        rm -rf "$temp_hwid_dir"
+        rm -rf "$runtime_dir"
         return 1
     fi
 
-    # Run the container with specified network and IP (pass environment variables for repository config)
+    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && cp '$RUNTIME_FILES_CONTAINER'/*.hwID '$HWID_CONTAINER_DIR/' && exec bash '$STARTUP_SCRIPT_CONTAINER'"
+    detached_command="${startup_bootstrap} >> '$STARTUP_LOG_CONTAINER' 2>&1"
+
+    # If verbose mode is enabled, run attached mode for debugging purposes
+    if $VERBOSE; then
+        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
+        printf "To exit the attached mode, press CTRL+C.\n"
+        if [[ -t 0 && -t 1 ]]; then
+            docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
+                "${DOCKER_ENV_ARGS[@]}" \
+                -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
+                -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
+                -it "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
+        else
+            printf "No interactive TTY detected. Falling back to non-TTY verbose mode.\n"
+            docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
+                "${DOCKER_ENV_ARGS[@]}" \
+                -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
+                -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
+                -i "$TEMPLATE_IMAGE" bash -lc "${startup_bootstrap} --verbose"
+        fi
+        return 0
+    fi
+
+    # Run the startup SITL script as the container's main process so restart
+    # semantics remain correct after host reboots or docker restarts.
+    printf "Starting container '%s' with startup_sitl.sh as PID 1...\n" "$container_name"
     if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
         "${DOCKER_ENV_ARGS[@]}" \
-        -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
+        -v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro" \
+        -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro" \
+        -d "$TEMPLATE_IMAGE" bash -lc "$detached_command" >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-        rm -rf "$temp_hwid_dir"
+        rm -rf "$runtime_dir"
         return 1
     fi
 
@@ -363,65 +397,7 @@ create_instance() {
         printf "Error: Failed to configure local git excludes in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
-        rm -rf "$temp_hwid_dir"
-        return 1
-    fi
-
-    # Ensure runtime directories exist inside the container
-    if ! docker exec "$container_name" mkdir -p "$HWID_CONTAINER_DIR" "/tmp"; then
-        printf "Error: Failed to create runtime directories in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -rf "$temp_hwid_dir"
-        return 1
-    fi
-
-    # Transfer the .hwID file to the container
-    if ! docker cp "$hwid_file" "${container_name}:${HWID_CONTAINER_DIR}/"; then
-        printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -rf "$temp_hwid_dir"
-        return 1
-    fi
-    rm -rf "$temp_hwid_dir"
-
-    # Transfer the startup script to a runtime-only location to avoid dirtying the repo checkout.
-    if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
-        printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # Make the startup script executable inside the container
-    if ! docker exec "$container_name" chmod +x "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # If verbose mode is enabled, run attached mode for debugging purposes
-    if $VERBOSE; then
-        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
-        printf "To exit the attached mode, press CTRL+C.\n"
-        if [[ -t 0 && -t 1 ]]; then
-            docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
-        else
-            printf "No interactive TTY detected. Falling back to non-TTY verbose mode.\n"
-            docker exec -i "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
-        fi
-        return 0
-    fi
-
-    # Run the startup SITL script inside the container in detached mode and
-    # persist wrapper-level diagnostics to a file for later readiness checks.
-    printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
-    if ! docker exec -d "$container_name" bash -lc "mkdir -p '$HWID_CONTAINER_DIR/logs' && exec bash '$STARTUP_SCRIPT_CONTAINER' >> '$STARTUP_LOG_CONTAINER' 2>&1"; then
-        printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null  # Stop container if startup fails
-        docker rm "$container_name" >/dev/null
+        rm -rf "$runtime_dir"
         return 1
     fi
 

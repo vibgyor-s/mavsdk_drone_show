@@ -69,7 +69,7 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
 | 14540 | MAVSDK                | Local     | Direct PX4 connection (SITL) or routed (real HW) |
 | 14550 | PX4 GCS Output        | Local     | PX4 SITL default GCS port (router input) |
 | 12550 | LocalMavlinkController| Local     | pymavlink telemetry monitoring       |
-| 14569 | mavlink2rest          | Local     | REST API bridge for web interfaces   |
+| 14569 | mavlink2rest target   | Local     | Routed local endpoint for an optional mavlink2rest process |
 | 24550 | Remote GCS            | Network   | QGroundControl over VPN/WAN          |
 | 34550 | Router Listen         | Network   | Legacy server-side listen port       |
 
@@ -86,6 +86,7 @@ For SITL containers, MAVLink routing is handled automatically by `startup_sitl.s
 - `startup_sitl.sh` expects the PX4 GCS UDP port to be `14550` and logs that expectation during startup
 - If runtime inspection shows a different live PX4 GCS port, startup logs a warning and falls back to the detected port so mixed/legacy SITL images still keep telemetry alive
 - Router takes the validated PX4 GCS port and distributes it to: 12550, 14569, and GCS_IP:24550
+- The stock SITL workflow does **not** auto-start `mavlink2rest`; `14569` is simply the routed local endpoint you would use if you add that process yourself
 - Remote GCS connects on port **24550** (not 14550)
 
 If runtime inspection fails entirely, SITL falls back to `14550`. Advanced users can override detection explicitly:

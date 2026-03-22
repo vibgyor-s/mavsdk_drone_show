@@ -123,7 +123,7 @@ SKIP FLAGS:
     --skip-repo         Skip repository setup
     --skip-firewall     Skip firewall configuration
     --skip-python-env   Skip Python venv setup
-    --skip-nodejs-env   Skip npm install
+    --skip-nodejs-env   Skip dashboard npm dependency install
     --skip-env-config   Skip .env configuration
 
 CONTROL OPTIONS:
@@ -167,7 +167,7 @@ PHASES:
     4. repository   - Clone/update repository with SSH key
     5. firewall     - UFW with GCS ports
     6. python_env   - venv + requirements.txt
-    7. nodejs_env   - npm install for dashboard
+    7. nodejs_env   - npm ci for dashboard
     8. env_config   - .env file configuration
     9. verify       - Final verification
 

@@ -16,6 +16,7 @@ _MDS_GCS_NODEJS_ENV_LOADED=1
 # =============================================================================
 
 readonly GCS_DASHBOARD_SUBDIR="app/dashboard/drone-dashboard"
+readonly GCS_NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
 
 # =============================================================================
 # DASHBOARD PATH
@@ -44,6 +45,15 @@ check_node_modules_exists() {
 # =============================================================================
 # NPM OPERATIONS
 # =============================================================================
+
+run_npm_with_log() {
+    local log_file="$1"
+    shift
+    if "$@" >"$log_file" 2>&1; then
+        return 0
+    fi
+    return 1
+}
 
 # Fix node_modules ownership when running as sudo
 # npm ci/install as root creates files owned by root — the invoking user
@@ -82,41 +92,46 @@ install_npm_dependencies() {
         return 1
     }
 
-    # Try npm ci first (clean install), fall back to npm install
+    # Try npm ci first (clean install). npm install fallback is opt-in only
+    # because it mutates package-lock.json and can dirty the repo on a host.
     log_info "Running npm ci (clean install)..."
-
-    local output
-    local exit_code
+    local npm_log
+    npm_log=$(mktemp)
 
     start_progress "Running npm ci" "may take 2-5 min depending on network"
-    output=$(npm ci 2>&1)
-    exit_code=$?
-    stop_progress
-
-    if [[ $exit_code -eq 0 ]]; then
-        echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
+    if run_npm_with_log "$npm_log" npm ci --no-audit --no-fund; then
+        stop_progress
+        grep -q "added" "$npm_log" && log_debug "$(grep "added" "$npm_log" | tail -1)"
         fix_node_modules_ownership "$dashboard_path"
+        rm -f "$npm_log"
         log_success "npm dependencies installed"
         return 0
-    else
-        log_warn "npm ci failed (exit code: $exit_code), trying npm install..."
-
-        start_progress "Running npm install (fallback)" "may take 2-5 min"
-        output=$(npm install 2>&1)
-        exit_code=$?
-        stop_progress
-
-        if [[ $exit_code -eq 0 ]]; then
-            echo "$output" | grep -q "added" && log_debug "$(echo "$output" | grep "added" | tail -1)"
-            fix_node_modules_ownership "$dashboard_path"
-            log_success "npm dependencies installed (via npm install)"
-            return 0
-        else
-            log_error "Failed to install npm dependencies"
-            echo "$output" | tail -10
-            return 1
-        fi
     fi
+    stop_progress
+
+    if [[ "$GCS_NPM_ALLOW_INSTALL_FALLBACK" != "true" ]]; then
+        log_error "npm ci failed. Refusing to run npm install automatically on this host."
+        tail -10 "$npm_log"
+        rm -f "$npm_log"
+        return 1
+    fi
+
+    log_warn "npm ci failed. MDS_ALLOW_NPM_INSTALL_FALLBACK=true, trying npm install..."
+    start_progress "Running npm install (fallback)" "may take 2-5 min"
+    if run_npm_with_log "$npm_log" npm install --no-audit --no-fund; then
+        stop_progress
+        grep -q "added" "$npm_log" && log_debug "$(grep "added" "$npm_log" | tail -1)"
+        fix_node_modules_ownership "$dashboard_path"
+        rm -f "$npm_log"
+        log_success "npm dependencies installed (via npm install)"
+        return 0
+    fi
+    stop_progress
+
+    log_error "Failed to install npm dependencies"
+    tail -10 "$npm_log"
+    rm -f "$npm_log"
+    return 1
 }
 
 # Verify node_modules
@@ -171,22 +186,23 @@ build_dashboard() {
         fi
     fi
 
-    local output
+    local build_log
+    build_log=$(mktemp)
 
     start_progress "Building React dashboard" "may take 2-5 min, needs 2GB+ RAM"
-    output=$(npm run build 2>&1)
-    local rc=$?
-    stop_progress
-
-    if [[ $rc -eq 0 ]]; then
+    if run_npm_with_log "$build_log" npm run build; then
+        stop_progress
+        rm -f "$build_log"
         log_success "Production bundle built"
         gcs_state_set_value "dashboard_built" "true"
         return 0
-    else
-        log_warn "Build failed (dashboard can still run in development mode)"
-        log_debug "Build output: $(echo "$output" | tail -5)"
-        return 0
     fi
+    stop_progress
+
+    log_warn "Build failed (dashboard can still run in development mode)"
+    log_debug "Build output: $(tail -5 "$build_log")"
+    rm -f "$build_log"
+    return 0
 }
 
 # =============================================================================

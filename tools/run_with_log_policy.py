@@ -13,11 +13,15 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import signal
 import subprocess
 import sys
 from pathlib import Path
 from typing import TextIO
+
+
+PXH_PROMPT_PATTERN = re.compile(rb"(?:\x1b\[[0-9;?]*[A-Za-z])*(?:\r|\n)*pxh>\s*")
 
 
 def positive_int(value: str) -> int:
@@ -180,7 +184,7 @@ def run_child(args: argparse.Namespace) -> int:
                 if not chunk:
                     break
                 if args.strip_pxh_prompts:
-                    chunk = chunk.replace(b"\x1b[2K\rpxh> ", b"")
+                    chunk = PXH_PROMPT_PATTERN.sub(b"", chunk)
                 log_writer.write(chunk)
         return child.wait()
     finally:

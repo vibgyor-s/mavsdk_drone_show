@@ -49,6 +49,7 @@ DEV_REACT_PORT=3030
 DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
+NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
 
 enforce_fastapi_single_worker() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
@@ -96,6 +97,7 @@ BUILD_DIR="$REACT_APP_DIR/build"
 REAL_MODE_FILE="$GCS_SERVER_DIR/real.mode"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 VERSION_FILE_PATH="$PROJECT_ROOT/VERSION"
+SPA_SERVER_SCRIPT="$PROJECT_ROOT/tools/spa_static_server.py"
 
 # ===========================================
 # VARIABLES
@@ -153,6 +155,26 @@ log_warn() { echo "[WARN] $1"; }
 log_error() { echo "[ERROR] $1" >&2; }
 log_success() { echo "[SUCCESS] $1"; }
 log_header() { echo -e "\n=== $1 ==="; }
+
+refresh_project_metadata() {
+    if [[ -f "$VERSION_FILE_PATH" ]]; then
+        PROJECT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE_PATH")"
+    fi
+}
+
+configure_react_version_env() {
+    local git_commit
+    local git_branch
+
+    refresh_project_metadata
+
+    git_commit=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    git_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "$BRANCH_NAME")
+
+    export REACT_APP_VERSION="$PROJECT_VERSION"
+    export REACT_APP_GIT_COMMIT="$git_commit"
+    export REACT_APP_GIT_BRANCH="$git_branch"
+}
 
 # ===========================================
 # STATUS AND DIAGNOSTIC FUNCTIONS
@@ -506,8 +528,17 @@ check_and_kill_port() {
     check_command_installed "lsof" "lsof"
     local pids=$(lsof -t -i :"$port" 2>/dev/null || true)
     if [[ -n "$pids" ]]; then
-        log_warn "Port $port is in use. Killing processes: $pids"
-        echo "$pids" | xargs -r kill -9
+        log_warn "Port $port is in use. Sending SIGTERM to processes: $pids"
+        echo "$pids" | xargs -r kill
+        sleep 2
+
+        local remaining
+        remaining=$(lsof -t -i :"$port" 2>/dev/null || true)
+        if [[ -n "$remaining" ]]; then
+            log_warn "Port $port is still busy. Escalating to SIGKILL: $remaining"
+            echo "$remaining" | xargs -r kill -9
+        fi
+
         log_success "Port $port freed."
     else
         log_info "Port $port is available."
@@ -546,8 +577,9 @@ handle_real_mode_file() {
 update_repository() {
     if [[ -n "$BRANCH_NAME" && -f "$UPDATE_SCRIPT_PATH" ]]; then
         log_info "Updating repository to branch: $BRANCH_NAME"
-        bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
+        REPO_DIR="$PROJECT_ROOT" bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
         if [[ $? -eq 0 ]]; then
+            refresh_project_metadata
             log_success "Repository updated successfully."
         else
             log_error "Repository update failed."
@@ -672,12 +704,21 @@ build_react_app() {
 install_dashboard_dependencies() {
     log_info "Installing dashboard npm dependencies..."
 
-    if ! npm ci --no-audit --no-fund; then
-        log_warn "npm ci failed, trying npm install..."
-        npm install --no-audit --no-fund
+    if npm ci --no-audit --no-fund; then
+        log_success "Dashboard npm dependencies ready."
+        return 0
     fi
 
-    log_success "Dashboard npm dependencies ready."
+    if [[ "$NPM_ALLOW_INSTALL_FALLBACK" == "true" ]]; then
+        log_warn "npm ci failed. MDS_ALLOW_NPM_INSTALL_FALLBACK=true, so npm install will be attempted."
+        npm install --no-audit --no-fund
+        log_success "Dashboard npm dependencies ready via npm install fallback."
+        return 0
+    fi
+
+    log_error "npm ci failed. Refusing to run npm install automatically on this host."
+    log_error "Refresh package-lock.json in git, or set MDS_ALLOW_NPM_INSTALL_FALLBACK=true for an explicit one-off fallback."
+    exit 1
 }
 
 verify_react_setup() {
@@ -695,7 +736,7 @@ verify_react_setup() {
             cd "$REACT_APP_DIR" && install_dashboard_dependencies
         ) || {
             log_error "Failed to install npm dependencies"
-            log_info "Run: cd $REACT_APP_DIR && npm install"
+            log_info "Run: cd $REACT_APP_DIR && npm ci --no-audit --no-fund"
             exit 1
         }
     fi
@@ -771,7 +812,11 @@ get_react_command() {
             log_error "Production build directory missing: $BUILD_DIR"
             exit 1
         fi
-        echo "cd '$BUILD_DIR' && python3 -m http.server $DEV_REACT_PORT"
+        if [[ ! -f "$SPA_SERVER_SCRIPT" ]]; then
+            log_error "SPA static server helper missing: $SPA_SERVER_SCRIPT"
+            exit 1
+        fi
+        echo "python3 '$SPA_SERVER_SCRIPT' --directory '$BUILD_DIR' --port $DEV_REACT_PORT"
     else
         echo "cd '$REACT_APP_DIR' && npm start"
     fi
@@ -860,13 +905,22 @@ start_services_in_tmux() {
     fi
     
     show_tmux_instructions
-    tmux attach-session -t "$session"
+    if [[ -t 0 && -t 1 ]]; then
+        tmux attach-session -t "$session"
+    else
+        log_info "No interactive TTY detected. Services are running in tmux session: $session"
+    fi
 }
 
 start_services_no_tmux() {
     log_info "Starting services without tmux in $DEPLOYMENT_MODE mode..."
 
     prepare_react_runtime
+
+    if ! command -v gnome-terminal >/dev/null 2>&1; then
+        log_error "gnome-terminal is not available. Use tmux mode on headless systems."
+        exit 1
+    fi
 
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         local gcs_cmd=$(get_gcs_server_command)
@@ -1096,6 +1150,8 @@ echo "-----------------------------------------------------------------------"
 
 # Execute setup sequence (minimal output)
 handle_real_mode_file
+update_repository
+configure_react_version_env
 load_virtualenv
 validate_backend
 check_python_dependencies
