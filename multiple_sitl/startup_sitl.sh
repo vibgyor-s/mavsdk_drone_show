@@ -147,6 +147,7 @@ ACTIVE_SITL_PARAM_OVERRIDES=()
 PX4_PARAM_ENV_VARS=()
 SIMULATION_ENV_VARS=()
 SIMULATION_COMMAND=()
+LAUNCH_WITH_LOG_POLICY_LAST_PID=""
 
 if [ "$SHELL_TRACE_ENABLED" = "1" ]; then
     set -x
@@ -594,7 +595,7 @@ launch_with_log_policy() {
         else
             "$@" </dev/null &> "$log_file" &
         fi
-        echo $!
+        LAUNCH_WITH_LOG_POLICY_LAST_PID="$!"
         return 0
     fi
 
@@ -605,7 +606,7 @@ launch_with_log_policy() {
         --backup-count "$SITL_FILE_LOG_BACKUP_COUNT" \
         -- \
         "$@" </dev/null >/dev/null 2>&1 &
-    echo $!
+    LAUNCH_WITH_LOG_POLICY_LAST_PID="$!"
 }
 
 # Retry helper for SITL git operations (matches update_repo_ssh.sh pattern)
@@ -836,7 +837,8 @@ run_mavlink_router() {
     if [ -x "$MAVLINK_ROUTER_SCRIPT" ]; then
         local router_input_port="${PX4_GCS_MAVLINK_PORT:-14550}"
         log_message "MAVLink router input port: $router_input_port"
-        mavlink_router_pid=$(launch_with_log_policy "$MAVLINK_ROUTER_LOG" "$MAVLINK_ROUTER_SCRIPT" "$router_input_port")
+        launch_with_log_policy "$MAVLINK_ROUTER_LOG" "$MAVLINK_ROUTER_SCRIPT" "$router_input_port"
+        mavlink_router_pid="$LAUNCH_WITH_LOG_POLICY_LAST_PID"
         log_message "MAVLink router started with PID: $mavlink_router_pid. Output: $(describe_log_policy_target "$MAVLINK_ROUTER_LOG")"
         sleep 2  # Wait for router to initialize before starting other services
         if ! kill -0 "$mavlink_router_pid" 2>/dev/null; then
@@ -901,7 +903,8 @@ run_mavlink2rest() {
     # Ensure the logs directory exists
     mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
 
-    mavlink2rest_pid=$(launch_with_log_policy "$MAVLINK2REST_LOG" bash -lc "$mavlink2rest_CMD")
+    launch_with_log_policy "$MAVLINK2REST_LOG" bash -lc "$mavlink2rest_CMD"
+    mavlink2rest_pid="$LAUNCH_WITH_LOG_POLICY_LAST_PID"
     log_message "mavlink2rest started with PID: $mavlink2rest_pid. Output: $(describe_log_policy_target "$MAVLINK2REST_LOG")"
 }
 
@@ -1175,7 +1178,8 @@ start_simulation() {
     export px4_instance="${HWID}-1"
 
     # Execute the simulation command in the background
-    simulation_pid=$(launch_with_log_policy "$BASE_DIR/logs/sitl_simulation.log" env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}")
+    launch_with_log_policy "$BASE_DIR/logs/sitl_simulation.log" env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}"
+    simulation_pid="$LAUNCH_WITH_LOG_POLICY_LAST_PID"
     log_message "SITL simulation started with PID: $simulation_pid. Output: $(describe_log_policy_target "$BASE_DIR/logs/sitl_simulation.log")"
 }
 
@@ -1213,7 +1217,8 @@ run_coordinator() {
         python3 "$BASE_DIR/coordinator.py"
         # Script will wait here until coordinator.py exits
     else
-        coordinator_pid=$(launch_with_log_policy "$BASE_DIR/logs/coordinator.log" python3 "$BASE_DIR/coordinator.py")
+        launch_with_log_policy "$BASE_DIR/logs/coordinator.log" python3 "$BASE_DIR/coordinator.py"
+        coordinator_pid="$LAUNCH_WITH_LOG_POLICY_LAST_PID"
         log_message "coordinator.py started with PID: $coordinator_pid. Output: $(describe_log_policy_target "$BASE_DIR/logs/coordinator.log")"
     fi
 }
