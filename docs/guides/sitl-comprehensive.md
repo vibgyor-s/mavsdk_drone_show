@@ -162,7 +162,8 @@ You should see the current official tags, including:
 This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes:
 
 - **PX4 SITL with Gazebo Harmonic support**
-- **mavsdk_drone_show**
+- **mavsdk_drone_show** preloaded as a shallow git checkout so each container can sync the latest branch state on startup
+- **Python virtual environment** prebuilt from `requirements.txt` for faster container startup
 - **mavlink-router**
 - **mavlink2rest**
 - **Gazebo Sim (`gz`)**
@@ -173,6 +174,10 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 
 > **Current Docker SITL standard**
 > - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
+> - the image keeps one prebuilt PX4 SITL build tree and one prebuilt Python venv; old release layer history is flattened out during packaging
+> - each container still fetches and hard-resets to the latest configured MDS branch on startup
+> - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
+> - runtime file logs are bounded by default so containers stay small, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path

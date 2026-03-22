@@ -91,6 +91,9 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_REPO_URL` | Custom git repository URL | Official repo |
 | `MDS_BRANCH` | Custom git branch | `main-candidate` |
 | `MDS_DOCKER_IMAGE` | Custom Docker image | Official image |
+| `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup | `true` |
+| `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |
+| `MDS_SITL_FILE_LOG_MODE` | Runtime file log retention (`bounded`, `full`, `discard`) | `bounded` |
 
 See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 

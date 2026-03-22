@@ -44,11 +44,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - Runtime config toggle at `POST /api/logs/config`
   - `read_session_lines()` helper for filtered session content retrieval
   - `httpx` async HTTP client dependency for drone proxy
+- **SITL Image Release Tooling**:
+  - `tools/sitl_image_prepare.sh` to rebuild a clean runtime filesystem inside a temporary container
+  - `tools/release_sitl_image.sh` to flatten and retag official SITL releases without carrying old `docker commit` history
+  - `tools/run_with_log_policy.py` for bounded runtime file logs in SITL containers
 
 ### Changed
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
 - All drone-side components migrated from `configure_logging()`/inline setup to `mds_logging`
 - CLI flags unified: `--debug` replaced with `--verbose`/`--debug`/`--quiet`
+- `multiple_sitl/startup_sitl.sh` now keeps runtime repo sync via `git fetch/reset`, only reinstalls Python requirements when `requirements.txt` changes, and bounds container-side file logs by default
+- `tools/build_custom_image.sh` now produces flattened custom images instead of layering more state through `docker commit`
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)

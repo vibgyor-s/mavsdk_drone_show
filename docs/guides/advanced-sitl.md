@@ -47,6 +47,11 @@ export MDS_PX4_GZ_TARGET="gz_x500"
 export MDS_QT_QPA_PLATFORM="offscreen"
 export MDS_GZ_PARTITION_PREFIX="px4_sim"
 export MDS_SITL_PARAM_OVERRIDES="COM_RC_IN_MODE=4,NAV_RCL_ACT=0,NAV_DLL_ACT=0,COM_DL_LOSS_T=0,CBRK_SUPPLY_CHK=894281,SDLOG_MODE=-1"
+export MDS_SITL_GIT_SYNC=true
+export MDS_SITL_REQUIREMENTS_SYNC=true
+export MDS_SITL_FILE_LOG_MODE="bounded"
+export MDS_SITL_FILE_LOG_MAX_BYTES=$((5 * 1024 * 1024))
+export MDS_SITL_FILE_LOG_BACKUP_COUNT=1
 
 # Optional debugging / routing controls
 export MDS_SITL_TRACE=0
@@ -60,6 +65,9 @@ Notes:
 - SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
+- `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch and hard-resets the worktree to that latest remote state.
+- Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
+- Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
 - If you want to pin the MAVSDK server version or URL, export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before launching `create_dockers.sh`.
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.
@@ -72,7 +80,8 @@ cd /path/to/mavsdk_drone_show
 bash tools/build_custom_image.sh
 ```
 
-`tools/build_custom_image.sh` now ensures `/root/mavsdk_drone_show/mavsdk_server` exists before committing the image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
+`tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It also honors `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` if you need to pin or override the binary source. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
+`tools/build_custom_image.sh` now builds a clean custom image without `docker commit`. It prepares a shallow repo checkout for your selected branch, pre-installs the Python venv, preserves runtime git sync for later container startups, and flattens the final filesystem into a fresh image layer stack.
 
 ### Step 3: Deploy Your Drones
 
@@ -257,14 +266,10 @@ git pull origin your-branch
 ### Step 3: Commit Your Changes
 
 ```bash
-# Exit the container first
+# Make your changes in your fork / branch, then rebuild cleanly
 exit
-
-# Commit container to new image version
-docker commit -m "Updated custom drone image" my-drone-dev mycompany-mds-sitl:v5-custom
-
-# Tag as latest (optional)
-docker tag mycompany-mds-sitl:v5-custom mycompany-mds-sitl:latest
+cd /path/to/mavsdk_drone_show
+bash tools/build_custom_image.sh "https://github.com/YOURORG/YOURREPO.git" "your-branch" "mycompany-mds-sitl:v5-custom"
 ```
 
 ### Step 4: Export Container (Optional)
@@ -293,6 +298,18 @@ bash tools/package_sitl_image.sh --image-repo mycompany-mds-sitl --version-tag v
 
 That helper keeps a stable archive basename, exports the Docker tags inside the tar, and verifies the generated `.7z` automatically.
 
+If you need to rebuild and package a clean flattened release in one step, use:
+
+```bash
+bash tools/release_sitl_image.sh \
+  --base-image mavsdk-drone-show-sitl:latest \
+  --image-repo mycompany-mds-sitl \
+  --version-tag v5-custom \
+  --repo-url "https://github.com/YOURORG/YOURREPO.git" \
+  --branch "your-branch" \
+  --package
+```
+
 If you publish archives for other users, keep one stable archive filename and let Docker tags carry the actual release version.
 
 ### Step 5: Use Your Custom Image for Real SITL Operations
@@ -309,25 +326,21 @@ bash multiple_sitl/create_dockers.sh 5
 ### Regular Maintenance Workflow
 
 ```bash
-# Start your development container again (for image updates only)
-sudo docker run -it --name my-drone-dev-v2 mycompany-mds-sitl:latest /bin/bash
+# Update your repo or branch first, then rebuild a clean image
+cd /path/to/mavsdk_drone_show
+git pull --ff-only
 
-# Make updates inside container
-cd /root/mavsdk_drone_show
-git pull
+export MDS_REPO_URL="https://github.com/mycompany/mds-fork.git"
+export MDS_BRANCH="production"
 
-# Exit and commit new version
-exit
-docker commit -m "Updated to latest version" my-drone-dev-v2 mycompany-mds-sitl:v5-custom-2
-docker tag mycompany-mds-sitl:v5-custom-2 mycompany-mds-sitl:latest
-
-# Clean up old containers
-docker rm my-drone-dev my-drone-dev-v2
+bash tools/build_custom_image.sh "$MDS_REPO_URL" "$MDS_BRANCH" "mycompany-mds-sitl:v5-custom-2"
 ```
 
 > **Current official release tag:** the validated shared SITL image is published as `mavsdk-drone-show-sitl:v5` and also tagged as `mavsdk-drone-show-sitl:latest`.
 
-> **💡 Pro Tip:** This workflow is for customizing Docker images only. For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.
+> **Best practice:** keep custom image creation reproducible. Avoid using `docker commit` as your normal release workflow, because it hides state and keeps unwanted layer history.
+>
+> For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.
 
 ---
 

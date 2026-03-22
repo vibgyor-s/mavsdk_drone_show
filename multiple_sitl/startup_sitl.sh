@@ -103,6 +103,11 @@ DEFAULT_PX4_GZ_TARGET="gz_x500"
 DEFAULT_QT_QPA_PLATFORM="offscreen"
 DEFAULT_GZ_PARTITION_PREFIX="px4_sim"
 DEFAULT_SITL_LOG_TAIL_LINES=40
+DEFAULT_SITL_GIT_SYNC="true"
+DEFAULT_SITL_REQUIREMENTS_SYNC="true"
+DEFAULT_SITL_FILE_LOG_MODE="bounded"
+DEFAULT_SITL_FILE_LOG_MAX_BYTES=$((5 * 1024 * 1024))
+DEFAULT_SITL_FILE_LOG_BACKUP_COUNT=1
 DEFAULT_SITL_PARAM_OVERRIDES=(
     "COM_RC_IN_MODE=4"
     "NAV_RCL_ACT=0"
@@ -120,6 +125,13 @@ GZ_PARTITION_OVERRIDE="${MDS_GZ_PARTITION:-}"
 SITL_LOG_TAIL_LINES="${MDS_SITL_LOG_TAIL_LINES:-$DEFAULT_SITL_LOG_TAIL_LINES}"
 KILL_STALE_SIM_PROCESSES="${MDS_SITL_KILL_STALE_PROCESSES:-true}"
 SHELL_TRACE_ENABLED="${MDS_SITL_TRACE:-0}"
+SITL_GIT_SYNC="${MDS_SITL_GIT_SYNC:-$DEFAULT_SITL_GIT_SYNC}"
+SITL_REQUIREMENTS_SYNC="${MDS_SITL_REQUIREMENTS_SYNC:-$DEFAULT_SITL_REQUIREMENTS_SYNC}"
+SITL_FILE_LOG_MODE="${MDS_SITL_FILE_LOG_MODE:-$DEFAULT_SITL_FILE_LOG_MODE}"
+SITL_FILE_LOG_MAX_BYTES="${MDS_SITL_FILE_LOG_MAX_BYTES:-$DEFAULT_SITL_FILE_LOG_MAX_BYTES}"
+SITL_FILE_LOG_BACKUP_COUNT="${MDS_SITL_FILE_LOG_BACKUP_COUNT:-$DEFAULT_SITL_FILE_LOG_BACKUP_COUNT}"
+VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
+LOG_POLICY_RUNNER="$BASE_DIR/tools/run_with_log_policy.py"
 
 # Backward-compatible legacy option parsing: the launcher now always forces
 # headless Gazebo Harmonic, but older invocations may still pass `-s`.
@@ -346,6 +358,40 @@ validate_runtime_configuration() {
             exit 1
             ;;
     esac
+
+    case "$SITL_GIT_SYNC" in
+        true|false) ;;
+        *)
+            log_message "ERROR: MDS_SITL_GIT_SYNC must be 'true' or 'false' (got '$SITL_GIT_SYNC')."
+            exit 1
+            ;;
+    esac
+
+    case "$SITL_REQUIREMENTS_SYNC" in
+        true|false) ;;
+        *)
+            log_message "ERROR: MDS_SITL_REQUIREMENTS_SYNC must be 'true' or 'false' (got '$SITL_REQUIREMENTS_SYNC')."
+            exit 1
+            ;;
+    esac
+
+    case "$SITL_FILE_LOG_MODE" in
+        bounded|full|discard) ;;
+        *)
+            log_message "ERROR: MDS_SITL_FILE_LOG_MODE must be one of: bounded, full, discard (got '$SITL_FILE_LOG_MODE')."
+            exit 1
+            ;;
+    esac
+
+    if [[ ! "$SITL_FILE_LOG_MAX_BYTES" =~ ^[1-9][0-9]*$ ]]; then
+        log_message "ERROR: MDS_SITL_FILE_LOG_MAX_BYTES must be a positive integer (got '$SITL_FILE_LOG_MAX_BYTES')."
+        exit 1
+    fi
+
+    if [[ ! "$SITL_FILE_LOG_BACKUP_COUNT" =~ ^[0-9]+$ ]]; then
+        log_message "ERROR: MDS_SITL_FILE_LOG_BACKUP_COUNT must be zero or greater (got '$SITL_FILE_LOG_BACKUP_COUNT')."
+        exit 1
+    fi
 }
 
 log_px4_source_state() {
@@ -448,6 +494,11 @@ log_startup_configuration() {
     log_message "  QT_QPA_PLATFORM: $QT_QPA_PLATFORM_VALUE"
     log_message "  GZ Partition Prefix: $GZ_PARTITION_PREFIX"
     log_message "  Kill Stale PX4/GZ Processes: $KILL_STALE_SIM_PROCESSES"
+    log_message "  Git Sync on Startup: $SITL_GIT_SYNC"
+    log_message "  Requirements Sync on Startup: $SITL_REQUIREMENTS_SYNC"
+    log_message "  File Log Mode: $SITL_FILE_LOG_MODE"
+    log_message "  File Log Max Bytes: $SITL_FILE_LOG_MAX_BYTES"
+    log_message "  File Log Backup Count: $SITL_FILE_LOG_BACKUP_COUNT"
     log_message "  Verbose Mode: $VERBOSE_MODE"
     log_px4_source_state
 }
@@ -510,11 +561,51 @@ cleanup_stale_simulation_processes() {
 
 tail_log_file() {
     local file_path="$1"
-    if [ -f "$file_path" ]; then
+    if [ -f "$file_path" ] && [ "$file_path" != "/dev/null" ]; then
         while IFS= read -r line; do
             log_message "  $line"
         done < <(tail -n "$SITL_LOG_TAIL_LINES" "$file_path")
     fi
+}
+
+describe_log_policy_target() {
+    local file_path="$1"
+    case "$SITL_FILE_LOG_MODE" in
+        discard)
+            printf "discarded"
+            ;;
+        bounded)
+            printf "%s (bounded to %s bytes, %s backup)" "$file_path" "$SITL_FILE_LOG_MAX_BYTES" "$SITL_FILE_LOG_BACKUP_COUNT"
+            ;;
+        full)
+            printf "%s" "$file_path"
+            ;;
+    esac
+}
+
+launch_with_log_policy() {
+    local log_file="$1"
+    shift
+
+    if [ ! -f "$LOG_POLICY_RUNNER" ]; then
+        log_message "WARNING: Log policy runner not found at $LOG_POLICY_RUNNER. Falling back to direct file redirection."
+        if [ "$SITL_FILE_LOG_MODE" = "discard" ]; then
+            "$@" >/dev/null 2>&1 &
+        else
+            "$@" &> "$log_file" &
+        fi
+        echo $!
+        return 0
+    fi
+
+    python3 "$LOG_POLICY_RUNNER" \
+        --mode "$SITL_FILE_LOG_MODE" \
+        --log-file "$log_file" \
+        --max-bytes "$SITL_FILE_LOG_MAX_BYTES" \
+        --backup-count "$SITL_FILE_LOG_BACKUP_COUNT" \
+        -- \
+        "$@" &
+    echo $!
 }
 
 # Retry helper for SITL git operations (matches update_repo_ssh.sh pattern)
@@ -551,22 +642,104 @@ github_https_fallback_url() {
     return 1
 }
 
+requirements_state_value() {
+    local requirements_file="$BASE_DIR/requirements.txt"
+    if [ ! -f "$requirements_file" ]; then
+        log_message "ERROR: Requirements file not found: $requirements_file"
+        exit 1
+    fi
+
+    local requirements_hash
+    local python_version
+    requirements_hash=$(sha256sum "$requirements_file" | awk '{print $1}')
+    python_version=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
+    printf "%s|python=%s\n" "$requirements_hash" "$python_version"
+}
+
+bootstrap_repository_checkout() {
+    local repo_url="$1"
+    local fallback_repo_url="$2"
+    local clone_parent
+    clone_parent=$(mktemp -d)
+    local clone_dir="$clone_parent/repo"
+    local preserve_dir
+    preserve_dir=$(mktemp -d)
+    local runtime_item
+
+    log_message "Bootstrapping repository checkout into $BASE_DIR..."
+
+    if [ -d "$BASE_DIR/venv" ]; then
+        mv "$BASE_DIR/venv" "$preserve_dir/venv"
+    fi
+
+    if [ -d "$BASE_DIR/logs" ]; then
+        mv "$BASE_DIR/logs" "$preserve_dir/logs"
+    fi
+
+    shopt -s nullglob
+    for runtime_item in "$BASE_DIR"/*.hwID; do
+        mv "$runtime_item" "$preserve_dir/"
+    done
+    shopt -u nullglob
+
+    if [ -f "$BASE_DIR/mavsdk_server" ]; then
+        mv "$BASE_DIR/mavsdk_server" "$preserve_dir/mavsdk_server"
+    fi
+
+    if [ -f "$BASE_DIR/config_sitl.json" ]; then
+        cp "$BASE_DIR/config_sitl.json" "$preserve_dir/config_sitl.json"
+    fi
+
+    if ! git clone --depth 1 --branch "$GIT_BRANCH" "$repo_url" "$clone_dir"; then
+        if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$repo_url" ]; then
+            log_message "Clone via SSH failed. Retrying with HTTPS fallback: $fallback_repo_url"
+            git clone --depth 1 --branch "$GIT_BRANCH" "$fallback_repo_url" "$clone_dir"
+        else
+            log_message "ERROR: Failed to clone $repo_url@$GIT_BRANCH"
+            exit 1
+        fi
+    fi
+
+    rm -rf "$BASE_DIR"
+    mv "$clone_dir" "$BASE_DIR"
+    rm -rf "$clone_parent"
+
+    if [ -d "$preserve_dir/venv" ]; then
+        mv "$preserve_dir/venv" "$BASE_DIR/venv"
+    fi
+
+    if [ -d "$preserve_dir/logs" ]; then
+        mv "$preserve_dir/logs" "$BASE_DIR/logs"
+    else
+        mkdir -p "$BASE_DIR/logs"
+    fi
+
+    shopt -s nullglob
+    for runtime_item in "$preserve_dir"/*.hwID; do
+        mv "$runtime_item" "$BASE_DIR/"
+    done
+    shopt -u nullglob
+
+    if [ -f "$preserve_dir/mavsdk_server" ] && [ ! -f "$BASE_DIR/mavsdk_server" ]; then
+        mv "$preserve_dir/mavsdk_server" "$BASE_DIR/mavsdk_server"
+    fi
+
+    if [ -f "$preserve_dir/config_sitl.json" ] && [ ! -f "$BASE_DIR/config_sitl.json" ]; then
+        mv "$preserve_dir/config_sitl.json" "$BASE_DIR/config_sitl.json"
+    fi
+
+    rm -rf "$preserve_dir"
+}
+
 # Function to update the repository
 update_repository() {
     local start_time
     start_time=$(date +%s)
 
-    log_message "Navigating to $BASE_DIR..."
-    cd "$BASE_DIR"
-
-    local dirty_status=""
-    dirty_status=$(git status --porcelain 2>/dev/null || true)
-    if [ -n "$dirty_status" ]; then
-        log_message "Stashing local changes..."
-        while IFS= read -r line; do
-            [ -n "$line" ] && log_message "  $line"
-        done <<< "$dirty_status"
-        git stash push --include-untracked || log_message "WARNING: stash failed, continuing"
+    if [ "$SITL_GIT_SYNC" != "true" ]; then
+        log_message "Skipping repository sync (MDS_SITL_GIT_SYNC=false)."
+        echo "GIT_SYNC_RESULT={\"success\":true,\"branch\":\"$GIT_BRANCH\",\"skipped\":true}"
+        return 0
     fi
 
     local fallback_repo_url=""
@@ -576,15 +749,26 @@ update_repository() {
         fallback_repo_url=""
     fi
 
+    if ! git -C "$BASE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        bootstrap_repository_checkout "$GITHUB_REPO_URL" "$fallback_repo_url"
+    fi
+
+    log_message "Navigating to $BASE_DIR..."
+    cd "$BASE_DIR"
+
     log_message "Setting Git remote to $GIT_REMOTE..."
-    git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL" || true
+    if git remote get-url "$GIT_REMOTE" >/dev/null 2>&1; then
+        git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL"
+    else
+        git remote add "$GIT_REMOTE" "$GITHUB_REPO_URL"
+    fi
 
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! sitl_retry 3 "GIT-FETCH" git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
+    if ! sitl_retry 3 "GIT-FETCH" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$GITHUB_REPO_URL" ]; then
             log_message "SSH fetch failed. Retrying with HTTPS fallback: $fallback_repo_url"
             git remote set-url "$GIT_REMOTE" "$fallback_repo_url" || true
-            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
+            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
                 log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH even after HTTPS fallback."
                 echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
                 exit 1
@@ -597,16 +781,16 @@ update_repository() {
     fi
 
     log_message "Checking out branch $GIT_BRANCH..."
-    if ! git checkout "$GIT_BRANCH"; then
+    if ! git checkout -B "$GIT_BRANCH" "$GIT_REMOTE/$GIT_BRANCH"; then
         log_message "ERROR: Failed to checkout branch $GIT_BRANCH."
         echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"checkout_failed\"}"
         exit 1
     fi
 
-    log_message "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! sitl_retry 3 "GIT-PULL" git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
-        log_message "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
-        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"pull_failed\"}"
+    log_message "Resetting worktree to $GIT_REMOTE/$GIT_BRANCH..."
+    if ! git reset --hard "$GIT_REMOTE/$GIT_BRANCH"; then
+        log_message "ERROR: Failed to reset to $GIT_REMOTE/$GIT_BRANCH."
+        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"reset_failed\"}"
         exit 1
     fi
 
@@ -652,9 +836,8 @@ run_mavlink_router() {
     if [ -x "$MAVLINK_ROUTER_SCRIPT" ]; then
         local router_input_port="${PX4_GCS_MAVLINK_PORT:-14550}"
         log_message "MAVLink router input port: $router_input_port"
-        $MAVLINK_ROUTER_SCRIPT "$router_input_port" &> "$MAVLINK_ROUTER_LOG" &
-        mavlink_router_pid=$!
-        log_message "MAVLink router started with PID: $mavlink_router_pid. Logs: $MAVLINK_ROUTER_LOG"
+        mavlink_router_pid=$(launch_with_log_policy "$MAVLINK_ROUTER_LOG" "$MAVLINK_ROUTER_SCRIPT" "$router_input_port")
+        log_message "MAVLink router started with PID: $mavlink_router_pid. Output: $(describe_log_policy_target "$MAVLINK_ROUTER_LOG")"
         sleep 2  # Wait for router to initialize before starting other services
         if ! kill -0 "$mavlink_router_pid" 2>/dev/null; then
             log_message "ERROR: MAVLink router exited during startup. Recent log lines:"
@@ -718,10 +901,8 @@ run_mavlink2rest() {
     # Ensure the logs directory exists
     mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
 
-    # Run mavlink2rest in the background, redirecting output to log file
-    $mavlink2rest_CMD &> "$MAVLINK2REST_LOG" &
-    mavlink2rest_pid=$!
-    log_message "mavlink2rest started with PID: $mavlink2rest_pid. Logs: $MAVLINK2REST_LOG"
+    mavlink2rest_pid=$(launch_with_log_policy "$MAVLINK2REST_LOG" bash -lc "$mavlink2rest_CMD")
+    log_message "mavlink2rest started with PID: $mavlink2rest_pid. Output: $(describe_log_policy_target "$MAVLINK2REST_LOG")"
 }
 
 # Function to set up Python environment
@@ -738,10 +919,31 @@ setup_python_env() {
         log_message "Activating the virtual environment..."
         source "$VENV_DIR/bin/activate"
 
-        log_message "Installing Python requirements..."
+        local desired_state
+        local current_state=""
+        desired_state=$(requirements_state_value)
+
+        if [ -f "$VENV_REQUIREMENTS_MARKER" ]; then
+            current_state=$(cat "$VENV_REQUIREMENTS_MARKER")
+        fi
+
+        if [ "$SITL_REQUIREMENTS_SYNC" != "true" ] && [ -n "$current_state" ]; then
+            log_message "Skipping Python requirements sync (MDS_SITL_REQUIREMENTS_SYNC=false)."
+            return
+        fi
+
+        if [ "$desired_state" = "$current_state" ]; then
+            log_message "Python requirements already match requirements.txt."
+            return
+        fi
+
+        log_message "Synchronizing Python requirements..."
         local pip_log="$BASE_DIR/logs/pip_install.log"
-        if pip install --upgrade pip -q &>"$pip_log" && pip install -q -r "$BASE_DIR/requirements.txt" &>>"$pip_log"; then
-            log_message "Python requirements installed successfully."
+        if PIP_NO_CACHE_DIR=1 python3 -m pip install --upgrade pip -q &>"$pip_log" && \
+            PIP_NO_CACHE_DIR=1 python3 -m pip install -q -r "$BASE_DIR/requirements.txt" &>>"$pip_log"; then
+            printf "%s\n" "$desired_state" > "$VENV_REQUIREMENTS_MARKER"
+            rm -f "$pip_log"
+            log_message "Python requirements synchronized successfully."
         else
             log_message "ERROR: Failed to install Python requirements. See $pip_log for details."
             exit 1
@@ -782,7 +984,8 @@ ensure_mavsdk_server() {
         fi
 
         if [ -x "$MAVSDK_BINARY_PATH" ]; then
-            log_message "MAVSDK server binary installed successfully. Logs: $mavsdk_log"
+            rm -f "$mavsdk_log"
+            log_message "MAVSDK server binary installed successfully."
             return
         fi
     fi
@@ -802,7 +1005,8 @@ prepare_px4_build_artifacts() {
     log_message "PX4 rcS file not found. Preparing px4_sitl_default build artifacts..."
     cd "$PX4_DIR"
     if make px4_sitl_default &> "$PX4_BUILD_PREP_LOG"; then
-        log_message "PX4 build artifacts prepared successfully. Logs: $PX4_BUILD_PREP_LOG"
+        rm -f "$PX4_BUILD_PREP_LOG"
+        log_message "PX4 build artifacts prepared successfully."
     else
         log_message "ERROR: Failed to prepare PX4 build artifacts. Recent log lines:"
         tail_log_file "$PX4_BUILD_PREP_LOG"
@@ -961,9 +1165,8 @@ start_simulation() {
     export px4_instance="${HWID}-1"
 
     # Execute the simulation command in the background
-    env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}" &> "$BASE_DIR/logs/sitl_simulation.log" &
-    simulation_pid=$!
-    log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
+    simulation_pid=$(launch_with_log_policy "$BASE_DIR/logs/sitl_simulation.log" env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}")
+    log_message "SITL simulation started with PID: $simulation_pid. Output: $(describe_log_policy_target "$BASE_DIR/logs/sitl_simulation.log")"
 }
 
 validate_simulation_startup() {
@@ -1000,9 +1203,8 @@ run_coordinator() {
         python3 "$BASE_DIR/coordinator.py"
         # Script will wait here until coordinator.py exits
     else
-        python3 "$BASE_DIR/coordinator.py" &> "$BASE_DIR/logs/coordinator.log" &
-        coordinator_pid=$!
-        log_message "coordinator.py started with PID: $coordinator_pid. Logs: $BASE_DIR/logs/coordinator.log"
+        coordinator_pid=$(launch_with_log_policy "$BASE_DIR/logs/coordinator.log" python3 "$BASE_DIR/coordinator.py")
+        log_message "coordinator.py started with PID: $coordinator_pid. Output: $(describe_log_policy_target "$BASE_DIR/logs/coordinator.log")"
     fi
 }
 
