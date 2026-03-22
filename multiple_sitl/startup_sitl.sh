@@ -1194,21 +1194,27 @@ read_offsets() {
         return
     fi
 
-    # Read first waypoint (skip header, read first data row)
-    # Trajectory CSV format: t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,yawspeed
-    local LINE_NUM=0
-    while IFS=, read -r t px py pz vx vy vz ax ay az yaw yawspeed; do
-        LINE_NUM=$((LINE_NUM + 1))
-        # Skip header
-        if [ "$LINE_NUM" -eq 1 ]; then
-            continue
-        fi
-        # Read first data row
-        OFFSET_X="$px"
-        OFFSET_Y="$py"
+    # Read the first waypoint and resolve px/py by header name so the parser
+    # stays correct if processed trajectories include an idx column.
+    local header
+    local px_col
+    local py_col
+    header=$(head -1 "$TRAJECTORY_FILE")
+    px_col=$(echo "$header" | tr ',' '\n' | grep -n '^px$' | cut -d: -f1)
+    py_col=$(echo "$header" | tr ',' '\n' | grep -n '^py$' | cut -d: -f1)
+
+    if [[ -z "$px_col" || -z "$py_col" ]]; then
+        log_message "WARNING: Could not locate px/py columns in $TRAJECTORY_FILE. Using default offsets (0,0)."
+        return
+    fi
+
+    OFFSET_X=$(awk -v col="$px_col" -F "," 'NR==2 {print $col}' "$TRAJECTORY_FILE")
+    OFFSET_Y=$(awk -v col="$py_col" -F "," 'NR==2 {print $col}' "$TRAJECTORY_FILE")
+
+    if [[ -n "$OFFSET_X" && -n "$OFFSET_Y" ]]; then
         log_message "Found trajectory offsets from $TRAJECTORY_FILE - X: $OFFSET_X, Y: $OFFSET_Y"
         return
-    done < "$TRAJECTORY_FILE"
+    fi
 
     log_message "WARNING: Could not read trajectory data from $TRAJECTORY_FILE. Using default offsets (0,0)."
 }
