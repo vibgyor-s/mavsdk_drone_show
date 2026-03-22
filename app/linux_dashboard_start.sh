@@ -41,7 +41,7 @@ set -euo pipefail  # Strict error handling
 # CONFIGURATION
 # ===========================================
 DEFAULT_MODE="development"
-PROD_WSGI_WORKERS=4
+PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_WSGI_BIND="0.0.0.0:5000"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
@@ -49,6 +49,14 @@ DEV_REACT_PORT=3030
 DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
+
+enforce_fastapi_single_worker() {
+    if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
+        log_warn "FastAPI production mode uses in-memory heartbeat, command, and background service state."
+        log_warn "Overriding MDS_PROD_WSGI_WORKERS=$PROD_WSGI_WORKERS to 1 to avoid split state across workers."
+        PROD_WSGI_WORKERS=1
+    fi
+}
 
 # ===========================================
 # PATH RESOLUTION (ABSOLUTE PATHS ONLY)
@@ -729,12 +737,14 @@ setup_production_environment() {
 }
 
 get_gcs_server_command() {
+    enforce_fastapi_single_worker
+
     # Set PYTHONPATH to include project root for module imports (functions, src, etc.)
     local python_path="PYTHONPATH='$PROJECT_ROOT:$PROJECT_ROOT/src:\$PYTHONPATH'"
 
     # FastAPI backend (only option)
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        # Production: Gunicorn with Uvicorn workers
+        # Production: single Uvicorn worker behind Gunicorn until backend state is externalized
         echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
     else
         # Development: Uvicorn with auto-reload
@@ -911,6 +921,8 @@ EOF
 }
 
 display_config_summary() {
+    enforce_fastapi_single_worker
+
     cat << EOF
 
 ===============================================

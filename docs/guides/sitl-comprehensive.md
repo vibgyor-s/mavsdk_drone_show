@@ -240,6 +240,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
+- Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
 - On smaller VPSes, raise the React build heap before `--prod` if needed:
   `export MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE=4096`
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.

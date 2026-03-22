@@ -413,6 +413,8 @@ cd ~/mavsdk_drone_show/app
 ./linux_dashboard_start.sh --status
 ```
 
+Production note: the FastAPI backend currently keeps heartbeats, command tracking, and background pollers in process memory, so `--prod` intentionally runs a single Gunicorn worker. This is by design for correctness, not a misconfiguration.
+
 ### Managing the Services
 
 ```bash

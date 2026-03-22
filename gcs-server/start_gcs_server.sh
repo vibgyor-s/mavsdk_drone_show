@@ -20,7 +20,7 @@ set -euo pipefail  # Strict error handling
 DEFAULT_MODE="development"
 DEFAULT_BACKEND="fastapi"  # Options: flask, fastapi
 DEFAULT_PORT=5000
-PROD_WSGI_WORKERS=4
+PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 
@@ -50,6 +50,14 @@ log_info() { echo "[INFO] $1"; }
 log_warn() { echo "[WARN] $1"; }
 log_error() { echo "[ERROR] $1" >&2; }
 log_success() { echo "[SUCCESS] $1"; }
+
+enforce_fastapi_single_worker() {
+    if [[ "$MODE" == "production" ]] && [[ "$BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
+        log_warn "FastAPI production mode uses in-memory state for heartbeats, command tracking, and background pollers."
+        log_warn "Overriding MDS_PROD_WSGI_WORKERS=$PROD_WSGI_WORKERS to 1 to prevent state divergence across workers."
+        PROD_WSGI_WORKERS=1
+    fi
+}
 
 # ===========================================
 # DISPLAY USAGE
@@ -175,10 +183,11 @@ start_server() {
 
 start_fastapi() {
     log_info "Starting FastAPI server..."
+    enforce_fastapi_single_worker
 
     if [[ "$MODE" == "production" ]]; then
-        # Production: Use Gunicorn with Uvicorn workers (optimized for performance)
-        log_info "Running FastAPI with Gunicorn + Uvicorn workers ($PROD_WSGI_WORKERS workers)"
+        # Production: keep a single worker until API state is moved out of process memory
+        log_info "Running FastAPI with Gunicorn + Uvicorn worker ($PROD_WSGI_WORKERS worker)"
         log_info "Production optimizations: preload app, worker recycling, graceful timeout"
         exec gunicorn app_fastapi:app \
             -w "$PROD_WSGI_WORKERS" \

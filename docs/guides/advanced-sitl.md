@@ -89,6 +89,8 @@ bash app/linux_dashboard_start.sh --sitl
 # Production-style launch if needed
 # bash app/linux_dashboard_start.sh --prod --sitl
 
+# FastAPI production intentionally stays single-worker until backend state is externalized.
+
 # Optional on smaller VPSes: give the React production build more heap
 # export MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE=4096
 ```
