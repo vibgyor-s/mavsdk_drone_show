@@ -59,3 +59,26 @@ def test_detect_pos_id_warns_on_confident_mismatch(caplog):
 
     assert drone_config.detected_pos_id == 2
     assert "Detected pos_id (2) does not match configured pos_id (1)." in caplog.text
+    assert "Confident pos_id detection established: 2" in caplog.text
+
+
+def test_detect_pos_id_does_not_repeat_waiting_message_every_cycle(caplog):
+    detector, _ = _build_detector(detected_pos_id=0)
+
+    with patch("src.pos_id_auto_detector.navpy.lla2ned", return_value=(50.0, 0.0, 0.0)):
+        with caplog.at_level(logging.INFO, logger="PosIDAutoDetector"):
+            detector.detect_pos_id()
+            detector.detect_pos_id()
+
+    assert caplog.text.count("waiting for stable position") == 1
+
+
+def test_detect_pos_id_does_not_repeat_mismatch_warning_for_same_slot(caplog):
+    detector, _ = _build_detector(detected_pos_id=0, pos_id=1)
+
+    with patch("src.pos_id_auto_detector.navpy.lla2ned", return_value=(5.0, 0.0, 0.0)):
+        with caplog.at_level(logging.INFO, logger="PosIDAutoDetector"):
+            detector.detect_pos_id()
+            detector.detect_pos_id()
+
+    assert caplog.text.count("does not match configured pos_id") == 1

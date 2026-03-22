@@ -85,14 +85,14 @@ def load_origin():
                 except Exception:
                     pass  # Don't fail if save fails during migration
 
-            logger.info("Origin coordinates loaded successfully.")
+            logger.debug("Origin coordinates loaded successfully.")
             return data
 
         except Exception as e:
             logger.error(f"Error loading origin coordinates: {e}")
             return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
     else:
-        logger.warning("Origin file does not exist. Returning default values.")
+        logger.debug("Origin file does not exist yet. Returning default values.")
         return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
 
 def calculate_position_deviations(telemetry_data_all_drones, drones_config, origin_lat, origin_lon):

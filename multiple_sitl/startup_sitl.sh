@@ -989,6 +989,13 @@ run_coordinator() {
     fi
 
     if [ "$VERBOSE_MODE" = true ]; then
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-DEBUG}"
+    else
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
+    fi
+    export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
+
+    if [ "$VERBOSE_MODE" = true ]; then
         log_message "Running coordinator.py in verbose mode (foreground)."
         python3 "$BASE_DIR/coordinator.py"
         # Script will wait here until coordinator.py exits

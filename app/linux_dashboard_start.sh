@@ -58,6 +58,16 @@ enforce_fastapi_single_worker() {
     fi
 }
 
+apply_logging_mode_defaults() {
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
+    else
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-DEBUG}"
+    fi
+
+    export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
+}
+
 # ===========================================
 # PATH RESOLUTION (ABSOLUTE PATHS ONLY)
 # ===========================================
@@ -710,6 +720,8 @@ install_production_dependencies() {
 }
 
 setup_production_environment() {
+    apply_logging_mode_defaults
+
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         log_info "Configuring production environment..."
         # Environment configuration

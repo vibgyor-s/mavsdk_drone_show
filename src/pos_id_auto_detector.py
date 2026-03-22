@@ -23,6 +23,10 @@ class PosIDAutoDetector:
         self.running_event = threading.Event()
         self.thread = None
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._repeat_log_interval = max(60.0, float(self.params.auto_detection_interval) * 20.0)
+        self._last_issue_key = None
+        self._last_issue_logged_at = 0.0
+        self._last_mismatch_pos_id = None
 
     def start(self):
         """
@@ -75,7 +79,7 @@ class PosIDAutoDetector:
         # Fetch origin from GCS
         origin = self.api_server._get_origin_from_gcs()
         if not origin:
-            self.logger.warning("Origin data unavailable. Skipping pos_id detection.")
+            self._log_issue("origin_unavailable", logging.WARNING, "Origin data unavailable. Skipping pos_id detection.")
             return
 
         origin_lat = origin.get('lat')
@@ -84,7 +88,7 @@ class PosIDAutoDetector:
 
         # Validate origin coordinates
         if not self._validate_coordinates(origin_lat, origin_lon):
-            self.logger.warning("Invalid origin coordinates. Skipping pos_id detection.")
+            self._log_issue("invalid_origin", logging.WARNING, "Invalid origin coordinates. Skipping pos_id detection.")
             return
 
         # Get drone's current position
@@ -94,7 +98,7 @@ class PosIDAutoDetector:
 
         # Validate drone coordinates
         if not self._validate_coordinates(drone_lat, drone_lon):
-            self.logger.warning("Invalid drone GPS data. Skipping pos_id detection.")
+            self._log_issue("invalid_gps", logging.WARNING, "Invalid drone GPS data. Skipping pos_id detection.")
             return
 
         # Convert global coordinates to local NED
@@ -115,6 +119,7 @@ class PosIDAutoDetector:
             y = e  # East
             self.logger.debug(f"Computed local NED offsets: x={x:.2f}, y={y:.2f}")
         except Exception as e:
+            self._log_issue("coordinate_conversion_failed", logging.ERROR, f"Error converting coordinates: {e}")
             self.logger.error(f"Error converting coordinates: {e}", exc_info=True)
             return
 
@@ -124,7 +129,11 @@ class PosIDAutoDetector:
         for pos_id, coords in self.drone_config.all_configs.items():
             if 'x' not in coords or 'y' not in coords:
                 # Skip if coordinates are missing in config for this drone
-                self.logger.warning(f"Missing coordinates for pos_id {pos_id}. Skipping.")
+                self._log_issue(
+                    f"missing_coords:{pos_id}",
+                    logging.WARNING,
+                    f"Missing coordinates for pos_id {pos_id}. Skipping.",
+                )
                 continue
 
             dx = x - coords['x']
@@ -134,8 +143,6 @@ class PosIDAutoDetector:
             if distance < min_distance:
                 min_distance = distance
                 best_pos_id = pos_id
-
-        self.logger.info(f"Closest pos_id detected: {best_pos_id} with distance {min_distance:.2f} meters.")
 
         previous_detected_pos_id = self.drone_config.detected_pos_id
 
@@ -149,22 +156,56 @@ class PosIDAutoDetector:
                     f"Clearing detected_pos_id from {previous_detected_pos_id} to 0."
                 )
             else:
-                self.logger.info(
+                self._log_issue(
+                    "waiting_for_stable_position",
+                    logging.INFO,
                     f"PosID detection waiting for stable position; minimum distance "
-                    f"{min_distance:.2f} exceeds max_deviation {self.params.max_deviation}."
+                    f"{min_distance:.2f} exceeds max_deviation {self.params.max_deviation}.",
                 )
+            self._last_mismatch_pos_id = None
+        else:
+            self._clear_issue()
 
         # Update detected_pos_id
         self.drone_config.detected_pos_id = best_pos_id
         self.logger.debug(f"Updated detected_pos_id from {previous_detected_pos_id} to {best_pos_id}.")
 
+        if best_pos_id and best_pos_id != previous_detected_pos_id:
+            if previous_detected_pos_id:
+                self.logger.warning(
+                    f"Confident pos_id detection changed from {previous_detected_pos_id} "
+                    f"to {best_pos_id} (distance {min_distance:.2f} meters)."
+                )
+            else:
+                self.logger.info(
+                    f"Confident pos_id detection established: {best_pos_id} "
+                    f"(distance {min_distance:.2f} meters)."
+                )
+
         # Warn only on confident, non-zero mismatches.
         if best_pos_id and best_pos_id != self.drone_config.pos_id:
-            self.logger.warning(
-                f"Detected pos_id ({best_pos_id}) does not match configured pos_id "
-                f"({self.drone_config.pos_id})."
+            if self._last_mismatch_pos_id != best_pos_id:
+                self.logger.warning(
+                    f"Detected pos_id ({best_pos_id}) does not match configured pos_id "
+                    f"({self.drone_config.pos_id})."
+                )
+            self._last_mismatch_pos_id = best_pos_id
+        elif self._last_mismatch_pos_id is not None and best_pos_id == self.drone_config.pos_id:
+            self.logger.info(
+                f"Detected pos_id realigned with configured pos_id ({self.drone_config.pos_id})."
             )
-            # Optionally, notify the operator via UI or other mechanisms here
+            self._last_mismatch_pos_id = None
+
+    def _log_issue(self, issue_key, level, message):
+        now = time.monotonic()
+        if issue_key != self._last_issue_key or (now - self._last_issue_logged_at) >= self._repeat_log_interval:
+            self.logger.log(level, message)
+            self._last_issue_key = issue_key
+            self._last_issue_logged_at = now
+
+    def _clear_issue(self):
+        self._last_issue_key = None
+        self._last_issue_logged_at = 0.0
 
     def _validate_coordinates(self, lat, lon):
         """

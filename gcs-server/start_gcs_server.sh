@@ -59,6 +59,16 @@ enforce_fastapi_single_worker() {
     fi
 }
 
+apply_logging_mode_defaults() {
+    if [[ "$MODE" == "production" ]]; then
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
+    else
+        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-DEBUG}"
+    fi
+
+    export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
+}
+
 # ===========================================
 # DISPLAY USAGE
 # ===========================================
@@ -161,6 +171,7 @@ check_dependencies() {
 # ===========================================
 start_server() {
     log_info "Starting GCS Server..."
+    apply_logging_mode_defaults
     log_info "  Mode: $MODE"
     log_info "  Backend: $BACKEND"
     log_info "  Port: $PORT"

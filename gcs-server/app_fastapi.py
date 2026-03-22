@@ -97,6 +97,7 @@ else:
     shapes_dir = os.path.join(BASE_DIR, 'shapes')
 
 from process_formation import run_formation_process
+from request_logging import get_request_log_level
 
 # Import metrics engine
 try:
@@ -333,16 +334,12 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     duration = time.time() - start_time
 
-    # Intelligent logging (skip routine endpoints)
-    routine_endpoints = ['/telemetry', '/ping', '/get-heartbeats']
-    is_routine = any(endpoint in str(request.url.path) for endpoint in routine_endpoints)
-
-    if not is_routine or response.status_code >= 400:
-        level = "ERROR" if response.status_code >= 500 else ("WARNING" if response.status_code >= 400 else "INFO")
-        log_system_event(
-            f"API {request.method} {request.url.path} → {response.status_code} ({duration:.3f}s)",
-            level, "api"
-        )
+    path = str(request.url.path)
+    level = get_request_log_level(path, response.status_code)
+    log_system_event(
+        f"API {request.method} {path} → {response.status_code} ({duration:.3f}s)",
+        level, "api"
+    )
 
     return response
 

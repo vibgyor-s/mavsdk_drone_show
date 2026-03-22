@@ -73,6 +73,12 @@ logger.debug("Processing data")
 | `MDS_LOG_CONSOLE_FORMAT` | `text` | Console format: `text` (colored) or `json` |
 | `MDS_LOG_FLUSH` | `true` | Flush file handler after every line |
 
+Launcher defaults:
+- Dashboard/GCS development runs default console logging to `DEBUG`.
+- Dashboard/GCS production runs default console logging to `INFO`.
+- SITL drone containers default console logging to `INFO`, or `DEBUG` when started with `startup_sitl.sh --verbose`.
+- File/session logging stays at `DEBUG` by default in all modes so historical analysis still has full detail.
+
 ### Deprecated (still supported via shim)
 
 | Old Variable | Maps To |
