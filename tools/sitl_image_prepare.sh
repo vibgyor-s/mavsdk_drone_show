@@ -12,6 +12,8 @@ VENV_DIR="$BASE_DIR/venv"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
 MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
+PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
+PX4_SUBMODULE_STATUS_FILE="$BASE_DIR/.mds_px4_submodules.txt"
 
 log() {
     printf '%s\n' "$*"
@@ -157,33 +159,29 @@ stabilize_mavlink2rest_binary() {
     fi
 }
 
-prepare_px4_git_snapshot() {
-    prepare_git_snapshot() {
-        local repo_dir="$1"
-        local snapshot_name="$2"
+capture_px4_provenance() {
+    local px4_branch="unknown"
+    local px4_commit="unknown"
+    local px4_describe="unknown"
 
-        rm -rf "$repo_dir/.git"
-        git -C "$repo_dir" init -q
-        git -C "$repo_dir" config user.name "MDS SITL Image"
-        git -C "$repo_dir" config user.email "mds-sitl-image@example.invalid"
-        git -C "$repo_dir" add -A
-        git -C "$repo_dir" commit -q -m "${snapshot_name} runtime snapshot"
-        git -C "$repo_dir" gc --prune=now >/dev/null 2>&1 || true
-    }
-
-    log "Preparing compact PX4 git metadata for runtime make checks..."
-    prepare_git_snapshot "$PX4_DIR" "PX4"
-
-    local mavlink_dir="$PX4_DIR/src/modules/mavlink/mavlink"
-    if [ -d "$mavlink_dir" ] && [ -e "$mavlink_dir/.git" ]; then
-        log "Preparing MAVLink git metadata for PX4 version checks..."
-        prepare_git_snapshot "$mavlink_dir" "PX4 MAVLink"
+    if git -C "$PX4_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        px4_branch=$(git -C "$PX4_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        px4_commit=$(git -C "$PX4_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        px4_describe=$(git -C "$PX4_DIR" describe --tags --always --dirty 2>/dev/null || echo "$px4_commit")
     fi
 
-    local nuttx_dir="$PX4_DIR/platforms/nuttx/NuttX/nuttx"
-    if [ -d "$nuttx_dir" ] && [ -e "$nuttx_dir/.git" ]; then
-        log "Preparing NuttX git metadata for PX4 version checks..."
-        prepare_git_snapshot "$nuttx_dir" "PX4 NuttX"
+    cat > "$PX4_PROVENANCE_FILE" <<EOF
+MDS_IMAGE_PX4_DIR=${PX4_DIR}
+MDS_IMAGE_PX4_BRANCH=${px4_branch}
+MDS_IMAGE_PX4_COMMIT=${px4_commit}
+MDS_IMAGE_PX4_DESCRIBE=${px4_describe}
+MDS_IMAGE_PX4_GIT_METADATA=original
+EOF
+
+    if git -C "$PX4_DIR" submodule status --recursive >"$PX4_SUBMODULE_STATUS_FILE" 2>/dev/null; then
+        :
+    else
+        rm -f "$PX4_SUBMODULE_STATUS_FILE"
     fi
 }
 
@@ -201,6 +199,8 @@ cleanup_runtime_baggage() {
         find "$PX4_DIR/build" -mindepth 1 -maxdepth 1 ! -name px4_sitl_default -exec rm -rf {} +
     fi
 
+    # Keep the real PX4 git checkout and submodule metadata intact so the
+    # runtime image stays aligned with normal PX4 source-tree expectations.
     rm -rf "$PX4_DIR/docs"
     rm -rf "$PX4_DIR/.github"
 
@@ -225,11 +225,26 @@ write_build_metadata() {
     local commit_hash
     commit_hash=$(git -C "$BASE_DIR" rev-parse --short HEAD)
 
+    local px4_branch="unknown"
+    local px4_commit="unknown"
+    local px4_describe="unknown"
+    if [ -f "$PX4_PROVENANCE_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$PX4_PROVENANCE_FILE"
+        px4_branch="${MDS_IMAGE_PX4_BRANCH:-unknown}"
+        px4_commit="${MDS_IMAGE_PX4_COMMIT:-unknown}"
+        px4_describe="${MDS_IMAGE_PX4_DESCRIBE:-unknown}"
+    fi
+
     cat > "$BASE_DIR/.mds_sitl_image_build.env" <<EOF
 MDS_IMAGE_REPO_URL=${REPO_URL}
 MDS_IMAGE_BRANCH=${BRANCH}
 MDS_IMAGE_COMMIT=${commit_hash}
+MDS_IMAGE_SYNC_MODE=mutable_latest_on_boot
 MDS_IMAGE_MAVSDK_VERSION_REQUESTED=${MDS_MAVSDK_VERSION:-}
+MDS_IMAGE_PX4_BRANCH=${px4_branch}
+MDS_IMAGE_PX4_COMMIT=${px4_commit}
+MDS_IMAGE_PX4_DESCRIBE=${px4_describe}
 MDS_IMAGE_PREPARED_AT_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
 }
@@ -244,7 +259,7 @@ main() {
     ensure_python_env
     stabilize_mavlink2rest_binary
     cleanup_runtime_baggage
-    prepare_px4_git_snapshot
+    capture_px4_provenance
     write_build_metadata
 
     log "Prepared image workspace:"

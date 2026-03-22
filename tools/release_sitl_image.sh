@@ -45,6 +45,7 @@ Options:
 Result:
   - Tags the output image as ${DEFAULT_IMAGE_REPO}:latest and ${DEFAULT_IMAGE_REPO}:${DEFAULT_VERSION_TAG}
   - Keeps the image filesystem ready for fast SITL container startup with runtime git sync enabled
+  - Preserves the real PX4 git/submodule metadata and writes PX4 provenance into image metadata files
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you want to
     pin the baked mavsdk_server binary for this release
 EOF

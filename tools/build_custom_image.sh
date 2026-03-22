@@ -36,8 +36,10 @@ Notes:
     a clean image.
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you need
     the image to bake in a specific MAVSDK server binary.
-  - The resulting image still keeps the MDS repo as a shallow git checkout so
-    each SITL container can fetch/reset to the latest branch state on startup.
+  - The resulting image keeps the MDS repo as a shallow git checkout so each
+    SITL container can fetch/reset to the latest branch state on startup.
+  - PX4 stays pinned in the image with its real git/submodule metadata intact.
+    Startup git sync is a mutable MDS-code mode, not a full image rebuild.
 EOF
 }
 

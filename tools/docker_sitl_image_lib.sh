@@ -95,6 +95,65 @@ docker_sitl_flatten_container() {
         change_args+=(--change "CMD $cmd_json")
     fi
 
+    if command -v python3 >/dev/null 2>&1; then
+        while IFS= read -r config_change; do
+            [ -n "$config_change" ] && change_args+=(--change "$config_change")
+        done < <(python3 - "$base_image" <<'PY'
+import json
+import subprocess
+import sys
+
+image = sys.argv[1]
+cfg = json.loads(subprocess.check_output(["docker", "image", "inspect", image], text=True))[0].get("Config") or {}
+
+
+def dq(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+for key, value in sorted((cfg.get("Labels") or {}).items()):
+    print(f"LABEL {dq(key)}={dq(value)}")
+
+for port in sorted((cfg.get("ExposedPorts") or {}).keys()):
+    print(f"EXPOSE {port}")
+
+for volume in sorted((cfg.get("Volumes") or {}).keys()):
+    print(f"VOLUME [{dq(volume)}]")
+
+stopsignal = cfg.get("StopSignal")
+if stopsignal:
+    print(f"STOPSIGNAL {stopsignal}")
+
+healthcheck = cfg.get("Healthcheck") or {}
+health_test = healthcheck.get("Test") or []
+if health_test:
+    if health_test == ["NONE"]:
+        print("HEALTHCHECK NONE")
+    else:
+        options = []
+        for key, flag in (
+            ("Interval", "--interval"),
+            ("Timeout", "--timeout"),
+            ("StartPeriod", "--start-period"),
+            ("Retries", "--retries"),
+        ):
+            value = healthcheck.get(key)
+            if value:
+                suffix = "ns" if key != "Retries" else ""
+                options.append(f"{flag}={value}{suffix}")
+        option_prefix = f"{' '.join(options)} " if options else ""
+
+        if health_test[0] == "CMD":
+            print(f"HEALTHCHECK {option_prefix}CMD {json.dumps(health_test[1:])}")
+        elif health_test[0] == "CMD-SHELL" and len(health_test) > 1:
+            print(f"HEALTHCHECK {option_prefix}CMD-SHELL {dq(health_test[1])}")
+
+for trigger in cfg.get("OnBuild") or []:
+    print(f"ONBUILD {trigger}")
+PY
+)
+    fi
+
     while (($# > 0)); do
         change_args+=(--change "$1")
         shift

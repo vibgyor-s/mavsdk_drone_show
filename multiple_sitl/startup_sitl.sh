@@ -87,7 +87,6 @@ PX4_RCS_PATH="$PX4_DIR/build/px4_sitl_default/etc/init.d-posix/rcS"
 PX4_BUILD_PREP_LOG="$BASE_DIR/logs/px4_build_prepare.log"
 MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
 MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
-mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
 # MAVLink Router for SITL (external routing - replaces internal MavlinkManager)
@@ -132,6 +131,9 @@ SITL_FILE_LOG_MAX_BYTES="${MDS_SITL_FILE_LOG_MAX_BYTES:-$DEFAULT_SITL_FILE_LOG_M
 SITL_FILE_LOG_BACKUP_COUNT="${MDS_SITL_FILE_LOG_BACKUP_COUNT:-$DEFAULT_SITL_FILE_LOG_BACKUP_COUNT}"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 LOG_POLICY_RUNNER="$BASE_DIR/tools/run_with_log_policy.py"
+IMAGE_BUILD_METADATA_FILE="$BASE_DIR/.mds_sitl_image_build.env"
+PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
+PX4_SUBMODULE_STATUS_FILE="$BASE_DIR/.mds_px4_submodules.txt"
 
 # Backward-compatible legacy option parsing: the launcher now always forces
 # headless Gazebo Harmonic, but older invocations may still pass `-s`.
@@ -147,6 +149,7 @@ ACTIVE_SITL_PARAM_OVERRIDES=()
 PX4_PARAM_ENV_VARS=()
 SIMULATION_ENV_VARS=()
 SIMULATION_COMMAND=()
+MAVLINK2REST_ARGS=(-c "udpin:127.0.0.1:14569" -s "0.0.0.0:8088")
 LAUNCH_WITH_LOG_POLICY_LAST_PID=""
 
 if [ "$SHELL_TRACE_ENABLED" = "1" ]; then
@@ -657,6 +660,18 @@ requirements_state_value() {
     printf "%s|python=%s\n" "$requirements_hash" "$python_version"
 }
 
+load_image_build_metadata() {
+    if [ -f "$IMAGE_BUILD_METADATA_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$IMAGE_BUILD_METADATA_FILE"
+    fi
+
+    if [ -f "$PX4_PROVENANCE_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$PX4_PROVENANCE_FILE"
+    fi
+}
+
 bootstrap_repository_checkout() {
     local repo_url="$1"
     local fallback_repo_url="$2"
@@ -689,6 +704,18 @@ bootstrap_repository_checkout() {
 
     if [ -f "$BASE_DIR/config_sitl.json" ]; then
         cp "$BASE_DIR/config_sitl.json" "$preserve_dir/config_sitl.json"
+    fi
+
+    if [ -f "$IMAGE_BUILD_METADATA_FILE" ]; then
+        cp "$IMAGE_BUILD_METADATA_FILE" "$preserve_dir/.mds_sitl_image_build.env"
+    fi
+
+    if [ -f "$PX4_PROVENANCE_FILE" ]; then
+        cp "$PX4_PROVENANCE_FILE" "$preserve_dir/.mds_px4_source_provenance.env"
+    fi
+
+    if [ -f "$PX4_SUBMODULE_STATUS_FILE" ]; then
+        cp "$PX4_SUBMODULE_STATUS_FILE" "$preserve_dir/.mds_px4_submodules.txt"
     fi
 
     if ! git clone --depth 1 --branch "$GIT_BRANCH" "$repo_url" "$clone_dir"; then
@@ -727,6 +754,18 @@ bootstrap_repository_checkout() {
 
     if [ -f "$preserve_dir/config_sitl.json" ] && [ ! -f "$BASE_DIR/config_sitl.json" ]; then
         mv "$preserve_dir/config_sitl.json" "$BASE_DIR/config_sitl.json"
+    fi
+
+    if [ -f "$preserve_dir/.mds_sitl_image_build.env" ] && [ ! -f "$IMAGE_BUILD_METADATA_FILE" ]; then
+        mv "$preserve_dir/.mds_sitl_image_build.env" "$IMAGE_BUILD_METADATA_FILE"
+    fi
+
+    if [ -f "$preserve_dir/.mds_px4_source_provenance.env" ] && [ ! -f "$PX4_PROVENANCE_FILE" ]; then
+        mv "$preserve_dir/.mds_px4_source_provenance.env" "$PX4_PROVENANCE_FILE"
+    fi
+
+    if [ -f "$preserve_dir/.mds_px4_submodules.txt" ] && [ ! -f "$PX4_SUBMODULE_STATUS_FILE" ]; then
+        mv "$preserve_dir/.mds_px4_submodules.txt" "$PX4_SUBMODULE_STATUS_FILE"
     fi
 
     rm -rf "$preserve_dir"
@@ -795,6 +834,20 @@ update_repository() {
         exit 1
     fi
 
+    log_message "Cleaning untracked repository files while preserving runtime state..."
+    if ! git clean -ffd \
+        -e venv/ \
+        -e logs/ \
+        -e '*.hwID' \
+        -e mavsdk_server \
+        -e .mds_sitl_image_build.env \
+        -e .mds_px4_source_provenance.env \
+        -e .mds_px4_submodules.txt; then
+        log_message "ERROR: Failed to clean untracked files in $BASE_DIR."
+        echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"clean_failed\"}"
+        exit 1
+    fi
+
     local commit_hash
     commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     local commit_message
@@ -808,6 +861,36 @@ update_repository() {
     local commit_message_json
     commit_message_json=$(echo "$commit_message" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')
     echo "GIT_SYNC_RESULT={\"success\":true,\"branch\":\"$GIT_BRANCH\",\"commit\":\"$commit_hash\",\"message\":\"$commit_message_json\",\"duration\":$duration}"
+}
+
+log_image_runtime_mode() {
+    load_image_build_metadata
+
+    local current_commit
+    current_commit=$(git -C "$BASE_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+    if [ -f "$IMAGE_BUILD_METADATA_FILE" ]; then
+        log_message "Image Build Metadata:"
+        log_message "  Prepared At UTC: ${MDS_IMAGE_PREPARED_AT_UTC:-unknown}"
+        log_message "  Baked Repo Branch: ${MDS_IMAGE_BRANCH:-unknown}"
+        log_message "  Baked Repo Commit: ${MDS_IMAGE_COMMIT:-unknown}"
+        log_message "  Runtime Repo Commit: ${current_commit}"
+        log_message "  Sync Mode: ${MDS_IMAGE_SYNC_MODE:-unknown}"
+        if [ -n "${MDS_IMAGE_PX4_COMMIT:-}" ]; then
+            log_message "  Baked PX4: ${MDS_IMAGE_PX4_DESCRIBE:-unknown} (${MDS_IMAGE_PX4_COMMIT})"
+        fi
+    fi
+
+    if [ "$SITL_GIT_SYNC" != "true" ]; then
+        log_message "Repository sync is disabled. Runtime stays on the baked repo commit."
+        return
+    fi
+
+    if [ -f "$IMAGE_BUILD_METADATA_FILE" ] && [ -n "${MDS_IMAGE_COMMIT:-}" ] && [ "$current_commit" != "${MDS_IMAGE_COMMIT}" ]; then
+        log_message "WARNING: Repository auto-sync moved runtime MDS code from baked commit ${MDS_IMAGE_COMMIT} to ${current_commit}."
+        log_message "WARNING: This container is running in mutable latest-on-boot mode."
+        log_message "WARNING: PX4 and mavsdk_server stay pinned in the image. Rebuild the SITL image after validation for a reproducible release."
+    fi
 }
 
 # Function to run MAVLink router for SITL (external routing)
@@ -903,7 +986,7 @@ run_mavlink2rest() {
     # Ensure the logs directory exists
     mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
 
-    launch_with_log_policy "$MAVLINK2REST_LOG" bash -lc "$mavlink2rest_CMD"
+    launch_with_log_policy "$MAVLINK2REST_LOG" mavlink2rest "${MAVLINK2REST_ARGS[@]}"
     mavlink2rest_pid="$LAUNCH_WITH_LOG_POLICY_LAST_PID"
     log_message "mavlink2rest started with PID: $mavlink2rest_pid. Output: $(describe_log_policy_target "$MAVLINK2REST_LOG")"
 }
@@ -1256,6 +1339,7 @@ log_runtime_identity
 
 # Update the repository
 update_repository
+log_image_runtime_mode
 
 # Run MAVLink2rest in the background
 #run_mavlink2rest

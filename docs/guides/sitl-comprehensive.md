@@ -174,9 +174,11 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 
 > **Current Docker SITL standard**
 > - `startup_sitl.sh` now launches **headless PX4 Gazebo Harmonic** with `HEADLESS=1 make px4_sitl gz_x500`
-> - the image keeps one prebuilt PX4 SITL build tree, a compact PX4 runtime git snapshot for `make`-based startup checks, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging
-> - each container still fetches and hard-resets to the latest configured MDS branch on startup
+> - the image keeps one prebuilt PX4 SITL build tree, the real PX4 git checkout plus submodule metadata, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging
+> - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`
 > - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup
+> - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents
+> - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
 > - runtime file logs are bounded by default so containers stay small, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
