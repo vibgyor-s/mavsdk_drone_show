@@ -18,7 +18,7 @@ MDS 5.0 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mav
 - **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
 - **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
 
-In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in.
+In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission, with robust startup sequencing and local offboard formation control over a shared reference frame.
 
 For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutorial playlist linked in the [GitHub repository](https://github.com/alireza787b/mavsdk_drone_show).
 
@@ -235,12 +235,15 @@ See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (for ex
 
 If you prefer to set things up manually:
 
+> **Important:** the manual path assumes a working Python `3.11+` interpreter.
+> On Ubuntu 22.04, `python3` is often still `3.10`, so prefer **Option A** on a fresh VPS unless you have already installed Python 3.11 or newer yourself.
+
 ```bash
 cd ~
 git clone https://github.com/alireza787b/mavsdk_drone_show
 cd mavsdk_drone_show
 git checkout main-candidate
-python3 -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -335,6 +338,13 @@ Each server should operate within a distinct Docker network subnet to prevent IP
    bash multiple_sitl/create_dockers.sh 50 --subnet 172.19.0.0/24 --start-id 51 --start-ip 2 # On server 2
   ```
 
+> **Important:** the stock SITL files in this repo define only 5 drones by default:
+> - `config_sitl.json`
+> - `swarm_sitl.json`
+>
+> Creating 50+ containers requires matching expanded SITL config/swarm files and usually a validated custom image or fork workflow. Do not assume `create_dockers.sh 50` alone is sufficient on the stock 5-drone config.
+> Use [Advanced SITL Configuration](advanced-sitl.md) for that path.
+
 - `--subnet SUBNET`: (Optional) Specify a custom Docker network subnet. Defaults to `172.18.0.0/24` if not provided.
 - `--start-id START_ID`: (Optional) Define the starting drone ID. Defaults to `1` if not specified.
 - `--start-ip START_IP`: (Optional) Set the starting IP address's last octet within the subnet. Defaults to `2` to avoid reserved IPs.
@@ -344,7 +354,11 @@ To enable communication between drones across different subnets (i.e., different
 
 
 
-### Netbird VPN Setup (Optional but Recommended for MAVLink Streaming)
+### Netbird VPN Setup (Optional for External QGroundControl / Remote GCS Streaming)
+
+This section is **not** required for the normal first-run SITL path in this guide.
+
+Docker SITL already handles the internal routing between the GCS and the drone containers through `startup_sitl.sh`. Only use the NetBird / external MAVLink routing path when you intentionally want a separate remote QGroundControl or another external GCS to receive forwarded MAVLink traffic from this server.
 
 Netbird is a zero-config VPN solution that allows you to easily and securely connect your devices, including your server and local PC. This is especially useful if you want to set up a Ground Control Station (e.g., QGroundControl) on your local PC or smartphone and monitor your drone's data in real-time. Netbird is recommended for this setup to ensure efficient and secure data transmission.
 
@@ -517,8 +531,15 @@ Current behavior summary:
 
 - single-drone commands remain scoped to the addressed drone
 - swarm-level intent should use the `Smart Swarm Runtime` controls on the `Swarm Design` page
-- followers do not silently stop just because one leader receives an individual override
+- followers do not silently stop just because one unrelated drone receives an individual override
+- if the addressed drone is a leader or relay leader, followers can still react through leader-loss logic
 - leader-loss handling now defaults to an `upstream_or_hold` policy instead of jumping across unrelated drones
+
+If you want the validated 5-drone Smart Swarm acceptance run from the command line after launching SITL, use:
+
+```bash
+python3 tools/validate_smart_swarm_runtime.py
+```
 
 
 ## Additional Resources

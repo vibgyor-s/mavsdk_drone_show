@@ -32,6 +32,12 @@ bash app/linux_dashboard_start.sh --sitl
 
 Then open `http://<host>:3030`.
 
+For the validated 5-drone Smart Swarm acceptance flow after a SITL launch, use:
+
+```bash
+python3 tools/validate_smart_swarm_runtime.py
+```
+
 If you need your own fork, custom image, or a pinned redistribution workflow, do not improvise from the demo path. Use:
 
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)**

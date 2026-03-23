@@ -52,6 +52,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - Dedicated operator/developer guide at `docs/features/smart-swarm.md`
   - Explicit command-scope model for single-drone vs swarm-level runtime controls
   - Documented leader-loss policy and extension points for future election strategies
+- **Smart Swarm Acceptance Tooling**:
+  - `tools/validate_smart_swarm_runtime.py` for branch-level 5-drone SITL validation
+  - waits for preflight readiness before takeoff so fresh-boot SITL checks do not race container startup
+  - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
@@ -69,6 +73,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Smart Swarm runtime controls now default to `Selected Drone`, with explicit `Selected Cluster` scope for formation-level actions so mixed missions stay predictable
 - Smart Swarm follower recovery now restarts offboard cleanly on follower re-entry, waits for state lock before sending setpoints, and treats stale leader telemetry as a failover condition
 - GCS swarm updates now reject follow-chain cycles both for dashboard saves and live `/request-new-leader` changes
+- Smart Swarm predictor/control internals now use corrected grouped-state Kalman process noise, incremental prediction timing, and leader-velocity feedforward to reduce formation lag
+- Smart Swarm leader-change notifications now update only `follow` in GCS so failover or runtime reassignment does not overwrite fresher operator-edited offsets/frame values
+- Drone config lookups no longer spam routine `INFO` lines during normal runtime polling
+- SITL and Smart Swarm docs now reflect Python 3.11+ manual requirements, the optional nature of external NetBird/MAVLink routing, the stock 5-drone SITL config limit, and the validated Smart Swarm acceptance flow
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)

@@ -79,7 +79,7 @@ Detailed documentation for MDS features:
 
 | Feature | Description |
 |---------|-------------|
-| **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, and operator workflow |
+| **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, first SITL flow, and validator tool |
 | **[Swarm Trajectory](features/swarm-trajectory.md)** | Processed cluster trajectories, leader-follow offsets, plotting, and KML export |
 | **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
 | **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |

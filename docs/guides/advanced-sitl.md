@@ -23,19 +23,23 @@ If you need a full release-maintenance workflow instead of just runtime override
 
 ### Step 1: Set Your Configuration
 
-Copy and paste these commands, replacing with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys.
+Copy and paste these commands, replacing them with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys.
+
+Do **not** point `MDS_DOCKER_IMAGE` at a custom tag yet unless that image already exists. The clean first pass is:
+
+1. choose repo + branch
+2. build the custom image
+3. then export `MDS_DOCKER_IMAGE` to that built tag
 
 ```bash
 # Set your custom repository configuration
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 export MDS_BRANCH="your-branch-name"
-export MDS_DOCKER_IMAGE="your-custom-image:latest"
 
 # Save to file for future use (optional)
 cat > ~/.mds_config << EOF
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 export MDS_BRANCH="your-branch-name"
-export MDS_DOCKER_IMAGE="your-custom-image:latest"
 EOF
 ```
 
@@ -94,10 +98,17 @@ Notes:
 
 ### Step 2: Build Custom Docker Image (If Needed)
 
+Before this step, make sure the official base image already exists locally as `mavsdk-drone-show-sitl:latest`.
+If it does not, follow [SITL Comprehensive Guide](sitl-comprehensive.md) first and load the official archive.
+
 ```bash
 # If you need a custom Docker image with your repository:
 cd /path/to/mavsdk_drone_show
 bash tools/build_custom_image.sh
+
+# After the image exists, point future launches at it
+export MDS_DOCKER_IMAGE="your-custom-image:latest"
+echo 'export MDS_DOCKER_IMAGE="your-custom-image:latest"' >> ~/.mds_config
 ```
 
 `tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It now really does honor exported `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` during image preparation, so you can bake a pinned MAVSDK binary into the image instead of downloading it at container boot. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container.
@@ -110,6 +121,7 @@ bash tools/build_custom_image.sh
 source ~/.mds_config
 
 # Deploy drones with your custom configuration
+# Only set MDS_DOCKER_IMAGE here if the custom image already exists.
 bash multiple_sitl/create_dockers.sh 5
 
 # Start dashboard (development mode by default)

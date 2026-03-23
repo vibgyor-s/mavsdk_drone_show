@@ -6,7 +6,10 @@
 
 ## Overview
 
-Smart Swarm is the live, cooperative formation mode in MDS. Each drone uses a saved `swarm.json` assignment:
+Smart Swarm is the live, cooperative formation mode in MDS. Each drone uses a saved swarm assignment file:
+
+- real hardware: `swarm.json`
+- SITL: `swarm_sitl.json`
 
 - `hw_id` identifies the physical drone
 - `follow` identifies the drone it should follow by **hardware ID**
@@ -14,6 +17,37 @@ Smart Swarm is the live, cooperative formation mode in MDS. Each drone uses a sa
 - `frame` controls whether offsets are interpreted in `ned` or `body`
 
 Unlike the time-synchronized **Swarm Trajectory** mode, Smart Swarm is designed for live clustered operations where operators may change leaders, offsets, frames, or relay roles while drones are airborne.
+
+The current Smart Swarm inner loop is a hybrid model:
+
+- leader telemetry arrives as global `lat/lon/alt`
+- the follower runtime converts that into a shared local NED frame
+- offsets are applied in either `ned` or leader-`body` coordinates
+- PX4 receives local offboard `VelocityNedYaw` setpoints
+
+That is intentional. Smart Swarm is a relative-control problem, so local offboard control is the primary path; global telemetry is only the outer reference.
+
+## First SITL Run
+
+For a clean first Smart Swarm demo in SITL:
+
+1. launch the fleet:
+   ```bash
+   bash multiple_sitl/create_dockers.sh 5
+   ```
+2. start the dashboard:
+   ```bash
+   bash app/linux_dashboard_start.sh --sitl
+   ```
+3. open `Swarm Design` and verify the saved SITL assignments from `swarm_sitl.json`
+4. wait until the target drones show `Ready`
+5. use `Smart Swarm Runtime` to start either a selected drone or a selected cluster
+6. if you want the full branch acceptance run from the command line, use:
+   ```bash
+   python3 tools/validate_smart_swarm_runtime.py
+   ```
+
+The shipped 5-drone SITL demo layout currently contains two clusters and mixed `ned` / `body` offsets, so formation settle time is not instantaneous after takeoff.
 
 ## Operator Model
 
@@ -28,7 +62,13 @@ Examples:
 - send `LAND` to one drone
 - send a new mission to one drone
 
-These commands stay scoped to that drone. They do **not** automatically cancel Smart Swarm on other drones.
+These commands stay scoped to that drone. They do **not** automatically cancel Smart Swarm on unrelated drones.
+
+Important caveat:
+
+- if the addressed drone is a leader or relay leader, its followers may still react through normal leader-loss logic
+- that can mean continued following, upstream reassignment, or self-hold, depending on topology and live health
+- so command scope stays local, but topology side effects can still propagate through the follow chain
 
 ### 2. Swarm runtime commands
 
@@ -70,6 +110,8 @@ During flight, the runtime periodically refreshes assignments from GCS. Supporte
 
 When a drone transitions back into follower mode, the runtime now explicitly re-establishes offboard control and restarts any missing follower tasks instead of assuming the previous follower runtime is still healthy.
 
+Leader-only failover notifications also now update only the `follow` field in GCS, so a runtime leader change does not overwrite fresher operator-edited offsets or frame settings.
+
 ### Leader-loss handling
 
 Current default policy: `upstream_or_hold`
@@ -102,7 +144,10 @@ That prevents live leader changes from silently introducing a loop into the foll
 ## Runtime Guarantees Added In This Audit
 
 - follower control waits for both own-state and leader-state lock before sending formation setpoints
+- leader-state prediction no longer double-counts elapsed time between measurements
+- follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
 - follower re-entry restarts offboard mode cleanly after leader-to-follower transitions
+- failed follower re-entry now retries instead of getting stuck half-switched
 - stale leader telemetry now participates in the same failover path as explicit request failures
 - runtime controls default to `Selected Drone`; cluster scope is opt-in
 
@@ -110,29 +155,30 @@ That prevents live leader changes from silently introducing a loop into the foll
 
 ### Runtime and failover
 
-- [smart_swarm.py](/opt/mavsdk_drone_show/smart_swarm.py)
-- [failover.py](/opt/mavsdk_drone_show/smart_swarm_src/failover.py)
-- [params.py](/opt/mavsdk_drone_show/src/params.py)
+- [smart_swarm.py](../../smart_swarm.py)
+- [failover.py](../../smart_swarm_src/failover.py)
+- [params.py](../../src/params.py)
 
 ### GCS persistence and live updates
 
-- [app_fastapi.py](/opt/mavsdk_drone_show/gcs-server/app_fastapi.py)
+- [app_fastapi.py](../../gcs-server/app_fastapi.py)
   - `GET /get-swarm-data`
   - `POST /save-swarm-data`
   - `POST /request-new-leader`
 
 ### Frontend control surfaces
 
-- [SwarmDesign.js](/opt/mavsdk_drone_show/app/dashboard/drone-dashboard/src/pages/SwarmDesign.js)
-- [SwarmRuntimeControls.js](/opt/mavsdk_drone_show/app/dashboard/drone-dashboard/src/components/SwarmRuntimeControls.js)
-- [swarmDesignUtils.js](/opt/mavsdk_drone_show/app/dashboard/drone-dashboard/src/utilities/swarmDesignUtils.js)
-- [swarmRuntimeUtils.js](/opt/mavsdk_drone_show/app/dashboard/drone-dashboard/src/utilities/swarmRuntimeUtils.js)
+- [SwarmDesign.js](../../app/dashboard/drone-dashboard/src/pages/SwarmDesign.js)
+- [SwarmRuntimeControls.js](../../app/dashboard/drone-dashboard/src/components/SwarmRuntimeControls.js)
+- [swarmDesignUtils.js](../../app/dashboard/drone-dashboard/src/utilities/swarmDesignUtils.js)
+- [swarmRuntimeUtils.js](../../app/dashboard/drone-dashboard/src/utilities/swarmRuntimeUtils.js)
 
 ## Operational Notes
 
 - Smart Swarm follow links use `hw_id`, not `pos_id`.
 - Slot swaps change the show slot, not the follow chain.
 - Start Smart Swarm only after saving the intended assignments.
+- In SITL, the default demo file is `swarm_sitl.json`; it currently defines 5 drones across two clusters.
 - Use swarm runtime controls when you want either a selected-drone override or an explicit cluster-level intent.
 - Use single-drone controls when you want a scoped override.
 
@@ -147,6 +193,12 @@ For each Smart Swarm release, validate at minimum:
 5. send a single-drone override to confirm other followers remain in Smart Swarm
 6. run `Land Swarm` or `RTL Swarm`
 7. verify all drones disarm cleanly
+
+The reusable validation tool for this flow is:
+
+```bash
+python3 tools/validate_smart_swarm_runtime.py
+```
 
 ## Known Next-Step Opportunities
 
