@@ -5,7 +5,7 @@ from src.swarm_runtime_state import write_runtime_swarm_assignment
 class DummyDroneConfig:
     def __init__(self):
         self.hw_id = 3
-        self.swarm = {
+        self._swarm = {
             "hw_id": 3,
             "follow": 1,
             "offset_x": 25.0,
@@ -15,8 +15,12 @@ class DummyDroneConfig:
         }
         self.config = {"mavlink_port": 14540}
 
+    @property
+    def swarm(self):
+        return dict(self._swarm)
+
     def read_swarm(self):
-        return dict(self.swarm)
+        return dict(self._swarm)
 
 
 class DummyParams:
@@ -45,4 +49,3 @@ def test_drone_communicator_prefers_runtime_swarm_assignment(monkeypatch, tmp_pa
     live_assignment = communicator._get_live_swarm_assignment()
 
     assert live_assignment["follow"] == 2
-    assert drone_config.swarm["follow"] == 2

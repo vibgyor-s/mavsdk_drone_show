@@ -61,7 +61,6 @@ class DroneCommunicator:
         runtime_swarm = read_runtime_swarm_assignment()
 
         if isinstance(runtime_swarm, dict) and runtime_swarm:
-            self.drone_config.swarm = runtime_swarm
             return runtime_swarm
 
         try:
@@ -75,7 +74,6 @@ class DroneCommunicator:
             latest_swarm = None
 
         if isinstance(latest_swarm, dict) and latest_swarm:
-            self.drone_config.swarm = latest_swarm
             return latest_swarm
 
         return current_swarm
