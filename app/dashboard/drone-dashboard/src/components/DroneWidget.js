@@ -1,12 +1,14 @@
 import React from 'react';
-import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaSatellite } from 'react-icons/fa';
+import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaCog, FaProjectDiagram } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
+import { useNavigate } from 'react-router-dom';
 import DroneCriticalCommands from './DroneCriticalCommands';
 import DroneReadinessReport from './DroneReadinessReport';
 import { getFlightModeTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getPromotedMissionConfigField } from '../utilities/missionConfigFields';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import '../styles/DroneWidget.css';
@@ -21,8 +23,14 @@ const DroneWidget = ({
   isExpanded,
   setSelectedDrone,
 }) => {
+  const navigate = useNavigate();
   const currentTimeInMs = Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
+  const promotedField = getPromotedMissionConfigField(drone);
+  const operatorAlias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
+    ? promotedField.displayValue
+    : '';
+  const hwId = String(drone[FIELD_NAMES.HW_ID] || drone.hw_ID || '');
 
   // Force re-render every second for live time updates
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -114,7 +122,18 @@ const DroneWidget = ({
 
   const handlePositionConfigClick = (ev) => {
     ev.stopPropagation();
-    window.location.href = '/mission-config';
+    if (!hwId) {
+      return;
+    }
+    navigate(`/mission-config?drone=${hwId}&edit=1`);
+  };
+
+  const handleSwarmDesignClick = (ev) => {
+    ev.stopPropagation();
+    if (!hwId) {
+      return;
+    }
+    navigate(`/swarm-design?drone=${hwId}`);
   };
 
   // Last update time formatting for live indicator
@@ -148,6 +167,9 @@ const DroneWidget = ({
       {/* Header */}
       <h3 onClick={(e) => {
         e.stopPropagation();
+        if (typeof setSelectedDrone === 'function') {
+          setSelectedDrone(drone);
+        }
         toggleDroneDetails(drone);
       }}>
         <div className="drone-header">
@@ -156,7 +178,32 @@ const DroneWidget = ({
             title={runtimeStatus.tooltip}
             aria-label={runtimeStatus.label}
           />
-          <span>Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
+          <div className="drone-header__titles">
+            <span className="drone-header__title">Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
+            {operatorAlias && (
+              <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
+            )}
+          </div>
+        </div>
+        <div className="drone-header__actions">
+          <button
+            type="button"
+            className="drone-header__action"
+            onClick={handlePositionConfigClick}
+            title="Open Mission Config for this drone"
+            aria-label="Open Mission Config for this drone"
+          >
+            <FaCog />
+          </button>
+          <button
+            type="button"
+            className="drone-header__action"
+            onClick={handleSwarmDesignClick}
+            title="Open Swarm Design for this drone"
+            aria-label="Open Swarm Design for this drone"
+          >
+            <FaProjectDiagram />
+          </button>
         </div>
       </h3>
 
@@ -280,17 +327,11 @@ const DroneWidget = ({
         {/* GPS Quality */}
         <div className="data-item">
           <span className="data-label">GPS Quality</span>
-          <span className={`data-value ${gpsQuality.class}`}>
-            {gpsQuality.text}
-          </span>
-        </div>
-
-        {/* Satellites */}
-        <div className="data-item">
-          <span className="data-label">Satellites</span>
-          <div className="gps-status">
-            <FaSatellite style={{ fontSize: '0.7em', color: '#6b7280' }} />
-            <span className="data-value">{satellitesVisible}</span>
+          <div className="data-value-stack">
+            <span className={`data-value ${gpsQuality.class}`}>
+              {gpsQuality.text}
+            </span>
+            <span className="data-subvalue">{satellitesVisible} sats</span>
           </div>
         </div>
       </div>

@@ -85,6 +85,22 @@
   font-weight: var(--font-weight-medium);
 }
 
+.swarm-drone-card__alias-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  background: rgba(58, 188, 255, 0.12);
+  border: 1px solid rgba(58, 188, 255, 0.28);
+  color: #83ecff;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  max-width: min(220px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .swarm-drone-card__summary {
   margin: 0;
   color: var(--color-text-secondary);

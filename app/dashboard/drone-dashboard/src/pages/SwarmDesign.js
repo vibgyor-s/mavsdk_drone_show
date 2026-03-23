@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Papa from 'papaparse';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaCloudUploadAlt,
   FaDownload,
@@ -56,8 +57,11 @@ function getSelectedSearchFields(drone) {
 }
 
 function SwarmDesign() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const backendURL = getBackendURL();
   const cardRefs = useRef({});
+  const handledRouteDroneRef = useRef('');
 
   const [configData, setConfigData] = useState([]);
   const [serverSwarmData, setServerSwarmData] = useState([]);
@@ -68,6 +72,7 @@ function SwarmDesign() {
   const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const requestedDroneId = String(searchParams.get('drone') || '').trim();
 
   const viewModel = buildSwarmViewModel(workingAssignments, configData);
   const dirtyIds = getDirtyAssignmentIds(workingAssignments, baselineAssignments);
@@ -181,6 +186,26 @@ function SwarmDesign() {
     targetNode.focus({ preventScroll: true });
     setPendingCardFocusId(null);
   }, [filteredClusters, pendingCardFocusId]);
+
+  useEffect(() => {
+    if (!requestedDroneId) {
+      handledRouteDroneRef.current = '';
+      return;
+    }
+
+    if (!viewModel.dronesById[requestedDroneId] || handledRouteDroneRef.current === requestedDroneId) {
+      return;
+    }
+
+    if (searchValue && !filteredDroneIds.has(requestedDroneId)) {
+      setSearchTerm('');
+    }
+
+    handledRouteDroneRef.current = requestedDroneId;
+    setSelectedDroneId(requestedDroneId);
+    setExpandedDroneId(requestedDroneId);
+    setPendingCardFocusId(requestedDroneId);
+  }, [filteredDroneIds, requestedDroneId, searchValue, viewModel.dronesById]);
 
   const refreshFromServer = async () => {
     const [swarmResponse, configResponse] = await Promise.all([
@@ -541,6 +566,8 @@ function SwarmDesign() {
         hasBlockingIssues={hasBlockingIssues}
         hasPendingSync={hasPendingSync}
         hasStagedChanges={hasStagedChanges}
+        onReviewSelection={(droneId) => handleSelectDrone(droneId)}
+        onOpenMissionConfig={(droneId) => navigate(`/mission-config?drone=${droneId}&edit=1`)}
       />
 
       <div className="swarm-operations-layout">
@@ -658,6 +685,7 @@ function SwarmDesign() {
                     <div>
                       <span className="swarm-selection-panel__eyebrow">Selected Drone</span>
                       <h3>{selectedDrone.title}</h3>
+                      {selectedDrone.alias && <p className="swarm-selection-panel__alias">{selectedDrone.aliasLabel || 'Alias'}: {selectedDrone.alias}</p>}
                     </div>
                     <span className={`swarm-role-badge ${selectedDrone.role}`}>{selectedDrone.roleLabel}</span>
                   </div>

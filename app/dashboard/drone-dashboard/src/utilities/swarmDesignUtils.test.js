@@ -38,7 +38,7 @@ describe('swarmDesignUtils', () => {
   test('buildSwarmViewModel exposes roles, role swaps, and blocking warnings', () => {
     const config = [
       { hw_id: 1, pos_id: 1 },
-      { hw_id: 2, pos_id: 9 },
+      { hw_id: 2, pos_id: 9, callsign: 'VIPER-2' },
       { hw_id: 3, pos_id: 3 },
       { hw_id: 4, pos_id: 4 },
       { hw_id: 5, pos_id: 5 },
@@ -61,6 +61,7 @@ describe('swarmDesignUtils', () => {
     expect(viewModel.dronesById['2'].isRoleSwap).toBe(true);
     expect(viewModel.dronesById['2'].title).toBe('Drone 2');
     expect(viewModel.dronesById['2'].subtitle).toBe('Show Slot 9');
+    expect(viewModel.dronesById['2'].alias).toBe('VIPER-2');
     expect(viewModel.followOptions[0].label).toContain('Drone 1');
     expect(viewModel.dronesById['4'].warnings.map((warning) => warning.code)).toContain('missing-leader');
     expect(viewModel.dronesById['4'].warnings[0].message).toContain('Drone 99');
@@ -99,6 +100,39 @@ describe('swarmDesignUtils', () => {
       x: 2,
       y: 6,
       z: 3,
+    });
+  });
+
+  test('calculateClusterPlotData supports all executable clusters overlay', () => {
+    const config = [
+      { hw_id: 1, pos_id: 1 },
+      { hw_id: 2, pos_id: 2 },
+      { hw_id: 4, pos_id: 4 },
+      { hw_id: 5, pos_id: 5 },
+    ];
+    const assignments = [
+      { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+      { hw_id: 2, follow: 1, offset_x: 3, offset_y: 1, offset_z: 0, frame: 'ned' },
+      { hw_id: 4, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+      { hw_id: 5, follow: 4, offset_x: -2, offset_y: 4, offset_z: 1, frame: 'body' },
+    ];
+
+    const result = calculateClusterPlotData(assignments, config, 'all');
+
+    expect(result.clusterId).toBe('all');
+    expect(result.data).toHaveLength(4);
+    expect(result.description).toContain('2 clusters');
+    expect(result.data.find((point) => point.hw_id === '2')).toMatchObject({
+      clusterId: '1',
+      x: 1,
+      y: 3,
+      z: 0,
+    });
+    expect(result.data.find((point) => point.hw_id === '5')).toMatchObject({
+      clusterId: '4',
+      x: 4,
+      y: -2,
+      z: 1,
     });
   });
 

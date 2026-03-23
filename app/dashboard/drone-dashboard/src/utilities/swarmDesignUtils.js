@@ -1,3 +1,4 @@
+import { getPromotedMissionConfigField } from './missionConfigFields';
 import { formatDroneLabel, formatShowSlotLabel } from './missionIdentityUtils';
 
 export const TOP_LEADER_FOLLOW_VALUE = '0';
@@ -454,6 +455,10 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
     const isRoleSwap = posId !== drone.hw_id;
     const followTarget = assignmentMap.get(drone.follow);
     const depth = getDepth(drone, assignmentMap, cycleIds, depthCache);
+    const promotedField = getPromotedMissionConfigField(configEntry);
+    const alias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
+      ? promotedField.displayValue
+      : '';
 
     return {
       ...drone,
@@ -479,6 +484,8 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       clusterRootId: clusterResolution.clusterRootId,
       clusterType: clusterResolution.clusterType,
       depth,
+      alias,
+      aliasLabel: promotedField?.label || null,
       title: formatDroneLabel(drone.hw_id),
       subtitle: formatShowSlotLabel(posId),
     };
@@ -590,15 +597,54 @@ function calculateClusterOffset(droneId, assignmentMap, visited = new Set()) {
 
 export function calculateClusterPlotData(assignments = [], configData = [], clusterId = null) {
   const viewModel = buildSwarmViewModel(assignments, configData);
-  const cluster = viewModel.clusters.find((candidate) => candidate.id === clusterId && candidate.type === 'cluster')
-    || viewModel.clusters.find((candidate) => candidate.type === 'cluster')
+  const executableClusters = viewModel.clusters.filter((candidate) => candidate.type === 'cluster');
+  const cluster = executableClusters.find((candidate) => candidate.id === clusterId)
+    || executableClusters[0]
     || null;
 
   if (!cluster) {
     return {
       clusterId: null,
       data: [],
-      clusters: viewModel.clusters.filter((candidate) => candidate.type === 'cluster'),
+      clusters: executableClusters,
+      title: '',
+      description: '',
+    };
+  }
+
+  if (clusterId === 'all') {
+    const data = executableClusters.flatMap((currentCluster) => {
+      const assignmentMap = new Map(
+        currentCluster.drones
+          .map((drone) => normalizeSwarmAssignment(drone))
+          .filter(Boolean)
+          .map((drone) => [drone.hw_id, drone])
+      );
+
+      return currentCluster.drones.map((drone) => {
+        const offset = calculateClusterOffset(drone.hw_id, assignmentMap);
+        return {
+          hw_id: drone.hw_id,
+          pos_id: drone.pos_id,
+          follow: drone.follow,
+          role: drone.role,
+          clusterId: currentCluster.id,
+          clusterTitle: currentCluster.title,
+          x: offset.east,
+          y: offset.north,
+          z: offset.up,
+        };
+      });
+    });
+
+    const totalDrones = executableClusters.reduce((sum, currentCluster) => sum + currentCluster.counts.total, 0);
+
+    return {
+      clusterId: 'all',
+      data,
+      clusters: executableClusters,
+      title: 'All executable clusters',
+      description: `${executableClusters.length} clusters · ${totalDrones} drones · overlaid on shared leader origin`,
     };
   }
 
@@ -625,7 +671,9 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
   return {
     clusterId: cluster.id,
     data,
-    clusters: viewModel.clusters.filter((candidate) => candidate.type === 'cluster'),
+    clusters: executableClusters,
+    title: cluster.title,
+    description: cluster.subtitle,
   };
 }
 

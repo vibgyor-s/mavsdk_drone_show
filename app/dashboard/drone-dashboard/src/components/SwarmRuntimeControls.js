@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-toastify';
 
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { formatDroneLabel } from '../utilities/missionIdentityUtils';
 import {
   buildSwarmRuntimeCommand,
   resolveSwarmRuntimeTargets,
@@ -24,6 +25,53 @@ const ACTION_ICONS = {
   LAND: <FaPlaneArrival />,
   RTL: <FaHome />,
 };
+
+function buildRuntimeBrief(targetDrones = []) {
+  const roleCounts = targetDrones.reduce((counts, drone) => {
+    if (drone?.role === 'topLeader') {
+      counts.topLeaders += 1;
+    } else if (drone?.role === 'relayLeader') {
+      counts.relayLeaders += 1;
+    } else if (drone?.role === 'follower') {
+      counts.followers += 1;
+    }
+    return counts;
+  }, {
+    topLeaders: 0,
+    relayLeaders: 0,
+    followers: 0,
+  });
+
+  const followerFrames = [...new Set(
+    targetDrones
+      .filter((drone) => drone?.follow !== '0')
+      .map((drone) => drone?.frame)
+      .filter(Boolean)
+  )];
+
+  const warningCount = targetDrones.reduce(
+    (count, drone) => count + (Array.isArray(drone?.warnings) ? drone.warnings.length : 0),
+    0
+  );
+
+  let frameSummary = 'Leader-only scope';
+  if (followerFrames.length === 1) {
+    frameSummary = followerFrames[0] === 'body'
+      ? 'Body-relative offsets'
+      : 'Geographic NED offsets';
+  } else if (followerFrames.length > 1) {
+    frameSummary = 'Mixed NED + body offsets';
+  }
+
+  return {
+    roleCounts,
+    warningCount,
+    frameSummary,
+    hasBodyFrameFollowers: followerFrames.includes('body'),
+    previewDrones: targetDrones.slice(0, 4),
+    remainingCount: Math.max(targetDrones.length - 4, 0),
+  };
+}
 
 function getStartBlockerReason({
   scope,
@@ -68,6 +116,8 @@ const SwarmRuntimeControls = ({
   hasBlockingIssues,
   hasPendingSync,
   hasStagedChanges,
+  onReviewSelection,
+  onOpenMissionConfig,
 }) => {
   const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
   const [pendingActionKey, setPendingActionKey] = useState(null);
@@ -79,6 +129,13 @@ const SwarmRuntimeControls = ({
     scopeLabel,
     targetSummary,
   } = resolveSwarmRuntimeTargets(viewModel, scope, selectedDroneId, selectedClusterId);
+  const targetDrones = targetIds
+    .map((targetId) => viewModel?.dronesById?.[targetId])
+    .filter(Boolean);
+  const runtimeBrief = buildRuntimeBrief(targetDrones);
+  const reviewDroneId = scope === SWARM_RUNTIME_SCOPE.CLUSTER
+    ? (selectedCluster?.leaderId || selectedDrone?.hw_id || null)
+    : (selectedDrone?.hw_id || null);
 
   const startBlockerReason = getStartBlockerReason({
     scope,
@@ -183,6 +240,73 @@ const SwarmRuntimeControls = ({
         ) : null}
       </div>
 
+      {targetDrones.length > 0 && (
+        <div className="swarm-runtime-brief">
+          <div className="swarm-runtime-brief__header">
+            <div>
+              <span className="swarm-selection-panel__eyebrow">Last-Second Check</span>
+              <strong>Verify the intended live formation before sending runtime commands.</strong>
+            </div>
+            <div className="swarm-runtime-brief__actions">
+              {reviewDroneId && onReviewSelection && (
+                <button
+                  type="button"
+                  className="swarm-runtime-brief__action-button"
+                  onClick={() => onReviewSelection(reviewDroneId)}
+                >
+                  Review selection
+                </button>
+              )}
+              {selectedDrone?.hw_id && onOpenMissionConfig && (
+                <button
+                  type="button"
+                  className="swarm-runtime-brief__action-button ghost"
+                  onClick={() => onOpenMissionConfig(selectedDrone.hw_id)}
+                >
+                  Mission Config
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="swarm-runtime-brief__stats">
+            <span>{targetDrones.length} drone{targetDrones.length === 1 ? '' : 's'}</span>
+            <span>{runtimeBrief.roleCounts.topLeaders} top leader{runtimeBrief.roleCounts.topLeaders === 1 ? '' : 's'}</span>
+            <span>{runtimeBrief.roleCounts.relayLeaders} relay</span>
+            <span>{runtimeBrief.roleCounts.followers} follower{runtimeBrief.roleCounts.followers === 1 ? '' : 's'}</span>
+            <span>{runtimeBrief.frameSummary}</span>
+            {runtimeBrief.warningCount > 0 && (
+              <span>{runtimeBrief.warningCount} design warning{runtimeBrief.warningCount === 1 ? '' : 's'}</span>
+            )}
+          </div>
+
+          <div className="swarm-runtime-brief__roster">
+            {runtimeBrief.previewDrones.map((drone) => (
+              <div key={drone.hw_id} className="swarm-runtime-brief__roster-item">
+                <strong>{drone.title}{drone.alias ? ` · ${drone.alias}` : ''}</strong>
+                <span>
+                  {drone.follow === '0'
+                    ? 'Independent leader'
+                    : `Follows ${formatDroneLabel(drone.follow)} · ${drone.offsetSummary}`}
+                </span>
+              </div>
+            ))}
+            {runtimeBrief.remainingCount > 0 && (
+              <div className="swarm-runtime-brief__roster-item more">
+                <strong>+{runtimeBrief.remainingCount} more target drones</strong>
+                <span>Use Review selection if you need to inspect the full chain before launch.</span>
+              </div>
+            )}
+          </div>
+
+          {runtimeBrief.hasBodyFrameFollowers && (
+            <div className="swarm-runtime-target__note">
+              Body-frame followers rotate with leader heading in flight. Confirm that this is intentional before start.
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="swarm-runtime-actions">
         {actions.map((action) => {
           const isDisabled = pendingActionKey !== null
@@ -221,11 +345,15 @@ SwarmRuntimeControls.propTypes = {
   hasBlockingIssues: PropTypes.bool.isRequired,
   hasPendingSync: PropTypes.bool.isRequired,
   hasStagedChanges: PropTypes.bool.isRequired,
+  onReviewSelection: PropTypes.func,
+  onOpenMissionConfig: PropTypes.func,
 };
 
 SwarmRuntimeControls.defaultProps = {
   selectedDroneId: null,
   selectedClusterId: null,
+  onReviewSelection: null,
+  onOpenMissionConfig: null,
 };
 
 export default SwarmRuntimeControls;

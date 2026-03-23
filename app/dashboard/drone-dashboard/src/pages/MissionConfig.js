@@ -1,7 +1,8 @@
 // src/pages/MissionConfig.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/MissionConfig.css';
+import { useSearchParams } from 'react-router-dom';
 
 // Components
 import PositionTabs from '../components/PositionTabs';
@@ -48,6 +49,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamationTriangle, faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
+  const [searchParams] = useSearchParams();
+  const cardRefs = useRef({});
+  const handledRouteDroneRef = useRef('');
+
   // -----------------------------------------------------
   // Heading slider: single source of truth
   // -----------------------------------------------------
@@ -94,6 +99,8 @@ const MissionConfig = () => {
   const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
   const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
   const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
+  const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
+  const requestedEditMode = searchParams.get('edit') === '1';
 
   const applyNormalizedConfigData = (nextConfig) => {
     setConfigData(normalizeDroneConfigData(nextConfig));
@@ -556,6 +563,36 @@ const MissionConfig = () => {
     (left, right) => compareMissionIds(left.pos_id, right.pos_id)
   );
 
+  useEffect(() => {
+    if (!requestedDroneId) {
+      handledRouteDroneRef.current = '';
+      return;
+    }
+
+    const matchingDrone = configData.find(
+      (drone) => normalizeComparableId(drone.hw_id) === requestedDroneId
+    );
+
+    if (!matchingDrone || handledRouteDroneRef.current === requestedDroneId) {
+      return;
+    }
+
+    handledRouteDroneRef.current = requestedDroneId;
+    if (requestedEditMode) {
+      setEditingDroneId(requestedDroneId);
+    }
+
+    const targetNode = cardRefs.current[requestedDroneId];
+    if (!targetNode) {
+      return;
+    }
+
+    targetNode.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [configData, requestedDroneId, requestedEditMode]);
+
   // -----------------------------------------------------
   // Render
   // -----------------------------------------------------
@@ -808,29 +845,45 @@ const MissionConfig = () => {
         <div className="drone-cards slide-in-left">
           {sortedConfigData.length > 0 ? (
             sortedConfigData.map((drone, index) => (
-              <DroneConfigCard
+              <div
                 key={drone.hw_id}
-                drone={drone}
-                gitStatus={gitStatusData[drone.hw_id] || null}
-                gcsGitStatus={gcsGitStatus}
-                configData={configData}
-                availableHwIds={availableHwIds}
-                editingDroneId={editingDroneId}
-                setEditingDroneId={setEditingDroneId}
-                saveChanges={saveChanges}
-                removeDrone={removeDrone}
-                onReplace={(hwId) => {
-                  setReplaceDroneTarget(normalizeComparableId(hwId));
-                  setReplaceDroneModalOpen(true);
+                id={`mission-config-drone-${drone.hw_id}`}
+                ref={(node) => {
+                  const normalizedHwId = normalizeComparableId(drone.hw_id);
+                  if (!normalizedHwId) {
+                    return;
+                  }
+
+                  if (node) {
+                    cardRefs.current[normalizedHwId] = node;
+                  } else {
+                    delete cardRefs.current[normalizedHwId];
+                  }
                 }}
-                networkInfo={
-                  networkInfo.find(
-                    (info) => normalizeComparableId(info.hw_id) === normalizeComparableId(drone.hw_id)
-                  )
-                }
-                heartbeatData={heartbeats[drone.hw_id] || null}
-                style={{ animationDelay: `${index * 0.1}s` }}
-              />
+              >
+                <DroneConfigCard
+                  drone={drone}
+                  gitStatus={gitStatusData[drone.hw_id] || null}
+                  gcsGitStatus={gcsGitStatus}
+                  configData={configData}
+                  availableHwIds={availableHwIds}
+                  editingDroneId={editingDroneId}
+                  setEditingDroneId={setEditingDroneId}
+                  saveChanges={saveChanges}
+                  removeDrone={removeDrone}
+                  onReplace={(hwId) => {
+                    setReplaceDroneTarget(normalizeComparableId(hwId));
+                    setReplaceDroneModalOpen(true);
+                  }}
+                  networkInfo={
+                    networkInfo.find(
+                      (info) => normalizeComparableId(info.hw_id) === normalizeComparableId(drone.hw_id)
+                    )
+                  }
+                  heartbeatData={heartbeats[drone.hw_id] || null}
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                />
+              </div>
             ))
           ) : (
             <p>No drones connected. Please add a drone or connect one to proceed.</p>

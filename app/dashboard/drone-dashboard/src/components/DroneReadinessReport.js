@@ -39,6 +39,10 @@ const DroneReadinessReport = ({ drone, runtimeStatus, variant }) => {
   const readiness = getDroneReadinessModel(drone, runtimeStatus);
   const hasDetails = readiness.issueCount > 0 || readiness.recentMessages.length > 0 || readiness.checks.length > 0;
 
+  if (variant === 'compact' && readiness.isReady && !hasDetails) {
+    return null;
+  }
+
   if (variant === 'detail') {
     return (
       <section className={`drone-readiness drone-readiness--detail ${readiness.status}`}>

@@ -70,11 +70,12 @@ function getBaseLayout(colors, isThreeDimensional = false) {
 
 function buildHoverText(points) {
   return points.map((point) => {
+    const clusterPrefix = point.clusterTitle ? `${point.clusterTitle} · ` : '';
     if (point.follow === '0') {
-      return `${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Top leader`;
+      return `${clusterPrefix}${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Top leader`;
     }
 
-    return `${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Follows ${formatDroneLabel(point.follow)}`;
+    return `${clusterPrefix}${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Follows ${formatDroneLabel(point.follow)}`;
   });
 }
 
@@ -278,7 +279,19 @@ function NorthAltitudePlot({ points }) {
 
 function SwarmPlots({ swarmData, configData, selectedClusterId }) {
   const [activeClusterId, setActiveClusterId] = useState(selectedClusterId || null);
-  const { data, clusters } = calculateClusterPlotData(swarmData, configData, activeClusterId);
+  const { data, clusters, description } = calculateClusterPlotData(swarmData, configData, activeClusterId);
+  const clusterOptions = clusters.length > 0
+    ? [
+        {
+          id: 'all',
+          title: 'All executable clusters',
+          counts: {
+            total: clusters.reduce((sum, cluster) => sum + cluster.counts.total, 0),
+          },
+        },
+        ...clusters,
+      ]
+    : [];
 
   useEffect(() => {
     if (!clusters.length) {
@@ -289,32 +302,32 @@ function SwarmPlots({ swarmData, configData, selectedClusterId }) {
     }
 
     const nextClusterId = (
-      (selectedClusterId && clusters.some((cluster) => cluster.id === selectedClusterId) && selectedClusterId)
-      || (activeClusterId && clusters.some((cluster) => cluster.id === activeClusterId) && activeClusterId)
+      (activeClusterId && clusterOptions.some((cluster) => cluster.id === activeClusterId) && activeClusterId)
+      || (selectedClusterId && clusterOptions.some((cluster) => cluster.id === selectedClusterId) && selectedClusterId)
       || clusters[0].id
     );
 
     if (nextClusterId !== activeClusterId) {
       setActiveClusterId(nextClusterId);
     }
-  }, [activeClusterId, clusters, selectedClusterId]);
+  }, [activeClusterId, clusterOptions, clusters, selectedClusterId]);
 
   return (
     <div className="swarm-plots-container">
       <div className="cluster-selection">
         <div className="cluster-selection__text">
           <strong>Formation Analysis Cluster</strong>
-          <span>Preview offsets relative to the selected top leader.</span>
+          <span>{description || 'Preview offsets relative to the selected top leader.'}</span>
         </div>
         <select
           value={activeClusterId || ''}
           onChange={(event) => setActiveClusterId(event.target.value)}
-          disabled={clusters.length === 0}
+          disabled={clusterOptions.length === 0}
         >
-          {clusters.length === 0 ? (
+          {clusterOptions.length === 0 ? (
             <option value="">No valid cluster available</option>
           ) : (
-            clusters.map((cluster) => (
+            clusterOptions.map((cluster) => (
               <option key={cluster.id} value={cluster.id}>
                 {cluster.title} · {cluster.counts.total} drones
               </option>

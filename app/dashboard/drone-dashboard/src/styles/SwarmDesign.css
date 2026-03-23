@@ -243,6 +243,101 @@
   color: #ffd067;
 }
 
+.swarm-runtime-brief {
+  display: grid;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-lg);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border-primary);
+}
+
+.swarm-runtime-brief__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  align-items: flex-start;
+}
+
+.swarm-runtime-brief__header strong {
+  display: block;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.swarm-runtime-brief__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.swarm-runtime-brief__action-button {
+  min-height: 34px;
+  padding: 0 var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  border: 1px solid rgba(58, 188, 255, 0.35);
+  background: rgba(58, 188, 255, 0.12);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition: var(--transition-all);
+}
+
+.swarm-runtime-brief__action-button.ghost {
+  background: transparent;
+  border-color: var(--color-border-secondary);
+  color: var(--color-text-secondary);
+}
+
+.swarm-runtime-brief__action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.swarm-runtime-brief__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.swarm-runtime-brief__stats span {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.swarm-runtime-brief__roster {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.swarm-runtime-brief__roster-item {
+  display: grid;
+  gap: 2px;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+}
+
+.swarm-runtime-brief__roster-item strong {
+  font-size: var(--font-size-sm);
+}
+
+.swarm-runtime-brief__roster-item span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.swarm-runtime-brief__roster-item.more {
+  border-style: dashed;
+}
+
 .swarm-runtime-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -570,6 +665,13 @@
   font-size: var(--font-size-lg);
 }
 
+.swarm-selection-panel__alias {
+  margin: var(--spacing-xs) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
 .swarm-selection-panel__details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -684,6 +786,10 @@
 
   .swarm-panel__header,
   .swarm-cluster-section__header {
+    flex-direction: column;
+  }
+
+  .swarm-runtime-brief__header {
     flex-direction: column;
   }
 
