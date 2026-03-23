@@ -92,6 +92,7 @@ import subprocess
 import socket
 import psutil
 import argparse
+from typing import Optional
 from datetime import datetime
 from collections import namedtuple
 from mavsdk import System
@@ -407,32 +408,90 @@ def read_swarm(filename: str):
         filename (str): Path to the swarm JSON file.
     """
     logger = logging.getLogger(__name__)
-    global SWARM_CONFIG
     try:
         import json
         with open(filename, 'r') as f:
             data = json.load(f)
         entries = data.get('assignments', data) if isinstance(data, dict) else data
-        for entry in entries:
-            try:
-                hw_id = str(int(entry["hw_id"]))
-                SWARM_CONFIG[hw_id] = {
-                    'hw_id': hw_id,
-                    'follow': int(entry["follow"]),
-                    'offset_x': float(entry["offset_x"]),
-                    'offset_y': float(entry["offset_y"]),
-                    'offset_z': float(entry["offset_z"]),
-                    'frame': str(entry.get("frame", "ned")),
-                }
-            except ValueError as ve:
-                logger.error(f"Invalid data type in swarm file entry: {entry}. Error: {ve}")
-        logger.info(f"Read {len(SWARM_CONFIG)} swarm configurations from '{filename}'.")
+        replace_swarm_config(entries, source_name=f"local file '{filename}'", announce_level=logging.INFO)
     except FileNotFoundError:
         logger.exception(f"Swarm file '{filename}' not found.")
         sys.exit(1)
     except Exception:
         logger.exception(f"Error reading swarm file '{filename}'.")
         sys.exit(1)
+
+
+def parse_swarm_entries(entries):
+    """Parse raw swarm assignment entries into the normalized in-memory map."""
+    logger = logging.getLogger(__name__)
+    parsed = {}
+    for entry in entries:
+        try:
+            hw_id = str(int(entry["hw_id"]))
+            parsed[hw_id] = {
+                'hw_id': hw_id,
+                'follow': int(entry["follow"]),
+                'offset_x': float(entry["offset_x"]),
+                'offset_y': float(entry["offset_y"]),
+                'offset_z': float(entry["offset_z"]),
+                'frame': str(entry.get("frame", "ned")),
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.error("Invalid swarm entry %s. Error: %s", entry, exc)
+    return parsed
+
+
+def replace_swarm_config(entries, source_name: str, announce_level=logging.DEBUG):
+    """Replace the global swarm assignment map from a raw entry list."""
+    global SWARM_CONFIG
+
+    SWARM_CONFIG.clear()
+    SWARM_CONFIG.update(parse_swarm_entries(entries))
+    logging.getLogger(__name__).log(
+        announce_level,
+        "Loaded %d swarm configurations from %s.",
+        len(SWARM_CONFIG),
+        source_name,
+    )
+
+
+async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Optional[aiohttp.ClientSession] = None):
+    """
+    Refresh swarm assignments from GCS.
+
+    Returns True when the GCS snapshot was fetched and applied, False when the
+    local swarm file remains in effect.
+    """
+    state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/get-swarm-data"
+    owns_session = session is None
+    active_session = session
+
+    try:
+        if active_session is None:
+            timeout = aiohttp.ClientTimeout(total=2)
+            active_session = aiohttp.ClientSession(timeout=timeout)
+
+        async with active_session.get(state_url) as resp:
+            resp.raise_for_status()
+            api_data = await resp.json()
+
+        replace_swarm_config(
+            api_data,
+            source_name=f"GCS API ({source_label})",
+            announce_level=logging.INFO if source_label == "startup" else logging.DEBUG,
+        )
+        return True
+    except Exception as exc:
+        logger.warning(
+            "[%s] Failed to refresh swarm configuration from GCS; continuing with local swarm file. Error: %s",
+            source_label,
+            exc,
+        )
+        return False
+    finally:
+        if owns_session and active_session is not None:
+            await active_session.close()
 
 def get_mavsdk_server_path():
     """
@@ -630,43 +689,24 @@ async def update_swarm_config_periodically(drone):
 
     logger = logging.getLogger(__name__)
 
-    # Resolve the GCS endpoint using centralized GCS IP from Params
-    str_HW_ID = str(HW_ID)
-    drone_cfg = DRONE_CONFIG.get(str_HW_ID)
-    if not drone_cfg:
+    str_hw_id = str(HW_ID)
+    if not DRONE_CONFIG.get(str_hw_id):
         logger.error(f"[Periodic Update] Cannot resolve drone config for HW_ID={HW_ID}")
         return
-
-    gcs_ip = Params.GCS_IP
-    state_url = f"http://{gcs_ip}:{Params.gcs_api_port}/get-swarm-data"
 
     # Shared session for connection reuse
     async with aiohttp.ClientSession() as session:
         while True:
             try:
                 logger.debug("[Periodic Update] Checking swarm configuration")
-                # Fetch JSON list of swarm entries
-                async with session.get(state_url) as resp:
-                    resp.raise_for_status()
-                    api_data = await resp.json()
-
-                # Rebuild our in-memory SWARM_CONFIG
-                SWARM_CONFIG.clear()
-                for entry in api_data:
-                    hw_str = str(entry['hw_id'])
-
-                    # Safely parse each offset
-                    offset_x_val   = parse_float(entry.get('offset_x', None), default=0.0)
-                    offset_y_val   = parse_float(entry.get('offset_y', None), default=0.0)
-                    offset_z_val   = parse_float(entry.get('offset_z', None), default=0.0)
-
-                    SWARM_CONFIG[hw_str] = {
-                        'follow':     int(entry.get('follow', 0)),
-                        'offset_x':   offset_x_val,
-                        'offset_y':   offset_y_val,
-                        'offset_z':   offset_z_val,
-                        'frame':      str(entry.get('frame', 'ned')),
-                    }
+                refreshed = await refresh_swarm_config_from_gcs(
+                    logger,
+                    source_label="periodic update",
+                    session=session,
+                )
+                if not refreshed:
+                    await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)
+                    continue
 
                 # Grab this drone's new config
                 new_cfg = SWARM_CONFIG.get(str(HW_ID))
@@ -1200,6 +1240,7 @@ async def run_smart_swarm():
     swarm_filename = Params.swarm_file_name
     read_config(config_filename)
     read_swarm(swarm_filename)
+    await refresh_swarm_config_from_gcs(logger, source_label="startup")
 
     # Get own drone configuration
     hw_id_str = str(HW_ID)
