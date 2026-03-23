@@ -3,13 +3,12 @@
 
 ## Introduction
 
-Welcome to the MDS Simulation Server Setup Guide. This document provides a **basic demonstration setup** for evaluation and learning purposes.
+Welcome to the MDS Simulation Server Setup Guide. This is the validated first-run path for loading the official SITL image, bootstrapping the GCS, and launching a quick demo on a fresh Ubuntu VPS.
 
-> **🎯 This guide is for DEMO and EVALUATION only**
+> **Scope**
 >
-> For production deployments, custom features, or real hardware implementation:
-> - **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
-> - **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
+> This guide is the official quick-start for evaluation, demos, and repeatable SITL validation on a clean server.
+> For custom images, fork maintenance, or customer-specific redistribution, use [Advanced SITL Configuration](advanced-sitl.md) and [SITL Custom Release Workflow](sitl-custom-release-workflow.md).
 
 This document provides a complete, all-in-one framework for setting up and running either:
 - **Decentralized Drone Shows** (offline, pre-planned trajectories), and
@@ -26,7 +25,7 @@ For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutor
 
 ## Watch the Setup Video
 
-Check out our detailed **100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2** video for a visual guide on setting up and running the simulation.
+Check out our detailed **100-Drone SITL Test in Clustered Cloud Servers** video for a visual guide on setting up and running the simulation.
 
 [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
@@ -152,6 +151,12 @@ docker image ls mavsdk-drone-show-sitl
 You should see the current official tags, including:
 - `mavsdk-drone-show-sitl:latest`
 - `mavsdk-drone-show-sitl:v5`
+
+After a successful `docker load`, you can reclaim several GB on smaller VPSes by deleting the temporary archive files:
+
+```bash
+rm -f ~/mavsdk-drone-show-sitl-image.tar ~/mavsdk-drone-show-sitl-image.7z
+```
 
 > **Important:** `create_dockers.sh` now defaults to `mavsdk-drone-show-sitl:latest`, so no manual retagging is required when you use the official archive. The archive filename stays stable; Docker tags carry the release version.
 >

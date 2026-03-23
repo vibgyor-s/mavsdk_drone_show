@@ -99,7 +99,6 @@ from mavsdk.offboard import PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
-import requests
 import numpy as np  # Added for numerical computations
 
 from src.drone_config import ConfigLoader
@@ -180,6 +179,119 @@ def parse_float(field_value, default=0.0):
     except (TypeError, ValueError):
         logger.warning(f"parse_float: Invalid or missing value '{field_value}', using default={default}")
         return default
+
+
+def normalize_hw_id(hw_id):
+    """Normalize a hardware ID for dict lookups. Returns None for leader/no-follow."""
+    try:
+        normalized = int(hw_id)
+    except (TypeError, ValueError):
+        return None
+
+    if normalized <= 0:
+        return None
+    return str(normalized)
+
+
+def get_drone_config_for_hw_id(hw_id):
+    """Resolve a drone config entry regardless of string/int HW ID input."""
+    normalized = normalize_hw_id(hw_id)
+    if normalized is None:
+        return None
+    return DRONE_CONFIG.get(normalized)
+
+
+def reset_leader_tracking():
+    """Drop leader-estimation state when the follow target changes."""
+    global LEADER_STATE, LEADER_KALMAN_FILTER, leader_unreachable_count
+    LEADER_STATE.clear()
+    LEADER_KALMAN_FILTER = LeaderKalmanFilter()
+    leader_unreachable_count = 0
+
+
+def assign_leader_target(new_leader_hw_id):
+    """Apply a new follow target and reset estimation state."""
+    global LEADER_HW_ID, LEADER_IP
+
+    normalized = normalize_hw_id(new_leader_hw_id)
+    if normalized is None:
+        LEADER_HW_ID = None
+        LEADER_IP = None
+        reset_leader_tracking()
+        return None
+
+    leader_cfg = get_drone_config_for_hw_id(normalized)
+    if leader_cfg is None:
+        return None
+
+    LEADER_HW_ID = normalized
+    LEADER_IP = leader_cfg['ip']
+    reset_leader_tracking()
+    return leader_cfg
+
+
+async def cancel_follower_tasks(logger):
+    """Cancel follower-mode tasks without leaking unfinished coroutines."""
+    global FOLLOWER_TASKS
+
+    if not FOLLOWER_TASKS:
+        return
+
+    for task_name, task in list(FOLLOWER_TASKS.items()):
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logger.debug("Cancelled follower task: %s", task_name)
+        except Exception:
+            logger.exception("Follower task %s exited with an error during cancellation", task_name)
+    FOLLOWER_TASKS.clear()
+
+
+async def transition_to_leader_mode(drone: System, logger, reason: str):
+    """Stop follower control and leave the vehicle in an explicit leader-safe HOLD state."""
+    global IS_LEADER
+
+    IS_LEADER = True
+    assign_leader_target(0)
+    await cancel_follower_tasks(logger)
+
+    try:
+        await drone.offboard.stop()
+        logger.info("Stopped offboard control while switching to leader mode (%s).", reason)
+    except OffboardError as exc:
+        logger.debug("Offboard was not active during leader transition (%s): %s", reason, exc)
+    except Exception as exc:
+        logger.warning("Failed to stop offboard during leader transition (%s): %s", reason, exc)
+
+    try:
+        await drone.action.hold()
+        logger.info("Drone transitioned to leader mode and entered HOLD (%s).", reason)
+    except ActionError as exc:
+        logger.warning("Failed to command HOLD during leader transition (%s): %s", reason, exc)
+    except Exception as exc:
+        logger.warning("Unexpected error while entering HOLD during leader transition (%s): %s", reason, exc)
+
+
+async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, reason: str):
+    """Start follower-mode tasks against a validated leader target."""
+    global IS_LEADER, FOLLOWER_TASKS
+
+    leader_cfg = assign_leader_target(new_leader_hw_id)
+    if leader_cfg is None:
+        logger.error("[Periodic Update] Leader config missing for HW_ID=%s", new_leader_hw_id)
+        return False
+
+    IS_LEADER = False
+    if FOLLOWER_TASKS:
+        return True
+
+    logger.info("[Periodic Update] Launching follower tasks (%s).", reason)
+    FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
+    FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
+    FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
+    return True
 
 # Legacy configure_logging function - now using shared one from drone_show_src.utils
 # def configure_logging():
@@ -532,7 +644,7 @@ async def update_swarm_config_periodically(drone):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                logger.info("[Periodic Update] Checking swarm configuration")
+                logger.debug("[Periodic Update] Checking swarm configuration")
                 # Fetch JSON list of swarm entries
                 async with session.get(state_url) as resp:
                     resp.raise_for_status()
@@ -578,46 +690,22 @@ async def update_swarm_config_periodically(drone):
                             "Leader" if IS_LEADER else "Follower",
                             "Leader" if new_is_leader else "Follower"
                         )
-                        IS_LEADER = new_is_leader
 
-                        if IS_LEADER:
-                            # Cancel any running follower tasks
-                            if FOLLOWER_TASKS:
-                                logger.info("[Periodic Update] Cancelling follower tasks.")
-                                for task in FOLLOWER_TASKS.values():
-                                    if not task.done():
-                                        task.cancel()
-                                FOLLOWER_TASKS.clear()
+                        if new_is_leader:
+                            await transition_to_leader_mode(drone, logger, "config update")
                         else:
-                            # Start follower tasks under new leader
-                            if not FOLLOWER_TASKS:
-                                LEADER_HW_ID = new_cfg['follow']
-                                leader_cfg = DRONE_CONFIG.get(LEADER_HW_ID)
-                                if not leader_cfg:
-                                    logger.error(
-                                        "[Periodic Update] Leader config missing for HW_ID=%s",
-                                        LEADER_HW_ID
-                                    )
-                                else:
-                                    LEADER_IP             = leader_cfg['ip']
-                                    LEADER_KALMAN_FILTER  = LeaderKalmanFilter()
-                                    logger.info("[Periodic Update] Launching follower tasks.")
-                                    FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
-                                    FOLLOWER_TASKS['own_state_task']    = asyncio.create_task(update_own_state(drone))
-                                    FOLLOWER_TASKS['control_task']      = asyncio.create_task(control_loop(drone))
+                            await transition_to_follower_mode(drone, new_leader, logger, "config update")
 
                     # Handle leader change if drone is a follower
                     if not new_is_leader:
-                        if new_leader != LEADER_HW_ID:
+                        new_leader_hw_id = normalize_hw_id(new_leader)
+                        if new_leader_hw_id != LEADER_HW_ID:
                             logger.info(f"[Periodic Update] Leader change detected. Following new leader {new_leader}.")
-                            LEADER_HW_ID = new_leader
-                            leader_cfg = DRONE_CONFIG.get(LEADER_HW_ID)
+                            leader_cfg = assign_leader_target(new_leader)
                             if not leader_cfg:
                                 logger.error("[Periodic Update] Leader config missing for HW_ID=%s", LEADER_HW_ID)
                             else:
-                                LEADER_IP = leader_cfg['ip']
                                 logger.info(f"[Periodic Update] Following new leader at {LEADER_IP}")
-                                # You can add any logic to update tasks or behavior based on new leader here.
 
                     # OFFSET CHANGE?
                     if new_offsets != OFFSETS:
@@ -658,15 +746,25 @@ async def update_leader_state():
     update_interval = 1.0 / Params.LEADER_UPDATE_FREQUENCY
     last_update_time = None
 
-    while True:
-        try:
-            state_url = f"http://{LEADER_IP}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
-            response = requests.get(state_url, timeout=1)
-            if response.status_code == 200:
+    timeout = aiohttp.ClientTimeout(total=1)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        while True:
+            try:
+                state_url = f"http://{LEADER_IP}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
+                async with session.get(state_url) as response:
+                    if response.status != 200:
+                        raise aiohttp.ClientResponseError(
+                            response.request_info,
+                            response.history,
+                            status=response.status,
+                            message=f"Leader state fetch failed with HTTP {response.status}",
+                            headers=response.headers,
+                        )
+                    data = await response.json()
+
                 # reset on success
                 leader_unreachable_count = 0
 
-                data = response.json()
                 leader_update_time = data.get('update_time', None)
                 if leader_update_time and leader_update_time != last_update_time:
                     last_update_time = leader_update_time
@@ -685,7 +783,7 @@ async def update_leader_state():
                         'vel_n': data['velocity_north'],
                         'vel_e': data['velocity_east'],
                         'vel_d': data['velocity_down'],
-                        'yaw':   data.get('yaw', 0.0),
+                        'yaw': data.get('yaw', 0.0),
                         'update_time': leader_update_time
                     })
 
@@ -703,25 +801,17 @@ async def update_leader_state():
                     logger.debug(f"Leader @ {leader_update_time:.3f}s: {measurement}")
                     logger.debug(f"Kalman state: {LEADER_KALMAN_FILTER.get_state()}")
                 else:
-                    logger.error("Leader response missing or unchanged 'update_time'.")
-            else:
-                logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
+                    logger.debug("Leader response missing a fresh 'update_time'.")
+            except Exception as e:
                 leader_unreachable_count += 1
+                logger.debug("Leader state fetch failed (%s/%s): %s", leader_unreachable_count, max_unreachable_attempts, e)
                 if leader_unreachable_count >= max_unreachable_attempts:
                     logger.warning(
                         f"Leader unreachable for {leader_unreachable_count} attempts. Electing new leader."
                     )
                     await elect_new_leader()
 
-        except Exception as e:
-            leader_unreachable_count += 1
-            if leader_unreachable_count >= max_unreachable_attempts:
-                logger.warning(
-                    f"Leader unreachable for {leader_unreachable_count} attempts. Electing new leader."
-                )
-                await elect_new_leader()
-
-        await asyncio.sleep(update_interval)
+            await asyncio.sleep(update_interval)
 
         
 async def elect_new_leader():
@@ -751,7 +841,7 @@ async def elect_new_leader():
 
     logger = logging.getLogger(__name__)
     old_leader = LEADER_HW_ID
-    old_follow  = SWARM_CONFIG[str(HW_ID)]['follow']
+    old_follow = SWARM_CONFIG[str(HW_ID)]['follow']
 
     # Build sorted list of all drone IDs
     all_ids = sorted(int(k) for k in SWARM_CONFIG.keys())
@@ -767,46 +857,30 @@ async def elect_new_leader():
     if candidate == HW_ID:
         logger.info("Candidate is self → self-promoting to leader and entering HOLD mode.")
         # Update manifest
-        SWARM_CONFIG[str(HW_ID)]['follow'] = '0'
+        SWARM_CONFIG[str(HW_ID)]['follow'] = 0
         # Notify GCS (best-effort)
         try:
-            await notify_gcs_of_leader_change('0')
+            await notify_gcs_of_leader_change(0)
         except Exception:
             logger.warning("GCS notify failed for self-promotion.")
-        # Flip role
-        IS_LEADER = True
-        LEADER_HW_ID = None
-        LEADER_IP     = None
-        leader_unreachable_count = 0
-        # Cancel follower tasks
-        for task in FOLLOWER_TASKS.values():
-            if not task.done():
-                task.cancel()
-        FOLLOWER_TASKS.clear()
-        # Stop offboard and HOLD
-        try:
-            await DRONE_INSTANCE.offboard.stop()
-            await DRONE_INSTANCE.action.hold()
-            logger.info("Offboard stopped; drone set to HOLD.")
-        except Exception as e:
-            logger.error(f"Error during HOLD mode: {e}")
+        await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader election")
         return
 
     # Otherwise, propose this candidate as new leader
-    new_leader = str(candidate)
+    new_leader = candidate
     logger.info(f"Proposed new leader: {new_leader}")
 
     # Stage locally
-    SWARM_CONFIG[str(HW_ID)]['follow'] = new_leader
+    SWARM_CONFIG[str(HW_ID)]['follow'] = int(new_leader)
 
     # Notify GCS
     accepted = await notify_gcs_of_leader_change(new_leader)
     if accepted:
         # Commit: switch IP, reset Kalman filter & counter
-        LEADER_HW_ID = new_leader
-        LEADER_IP     = DRONE_CONFIG[new_leader]['ip']
-        leader_unreachable_count = 0
-        LEADER_KALMAN_FILTER     = LeaderKalmanFilter()
+        if assign_leader_target(new_leader) is None:
+            logger.error("Leader election selected HW_ID=%s but no matching config was found.", new_leader)
+            SWARM_CONFIG[str(HW_ID)]['follow'] = old_follow
+            return
         logger.info(f"Leader election committed: now following {new_leader} @ {LEADER_IP}")
     else:
         # Revert on rejection
@@ -817,7 +891,7 @@ async def elect_new_leader():
 
     
     
-async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
+async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     """
     Notify the GCS of our updated leader by sending only our own swarm entry.
     Returns True if the GCS accepted the change, False otherwise.
@@ -833,8 +907,8 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
         return False
 
     payload = {
-        'hw_id':       str(HW_ID),
-        'follow':      new_leader_hw_id,
+        'hw_id':       int(HW_ID),
+        'follow':      int(new_leader_hw_id),
         'offset_x':    current['offset_x'],
         'offset_y':    current['offset_y'],
         'offset_z':    current['offset_z'],
@@ -855,8 +929,6 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
     except Exception as e:
         logger.error(f"Error notifying GCS of leader change for HW_ID={HW_ID}: {e}")
         return False
-
-        logger.error(f"Error notifying GCS of leader change for HW_ID {HW_ID}: {e}")
 
 
 
@@ -1152,8 +1224,8 @@ async def run_smart_swarm():
 
     # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
     if not IS_LEADER:
-        LEADER_HW_ID = swarm_config['follow']
-        leader_config = DRONE_CONFIG.get(LEADER_HW_ID)
+        LEADER_HW_ID = normalize_hw_id(swarm_config['follow'])
+        leader_config = get_drone_config_for_hw_id(LEADER_HW_ID)
         if leader_config is None:
             logger.error(f"Leader configuration for HW_ID {LEADER_HW_ID} not found.")
             sys.exit(1)
@@ -1269,12 +1341,7 @@ async def run_smart_swarm():
             pass
 
         # Cancel follower tasks if any exist
-        for task in FOLLOWER_TASKS.values():
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        await cancel_follower_tasks(logger)
 
         # Attempt safe shutdown of drone (e.g., stop offboard mode)
         try:

@@ -605,6 +605,29 @@ class TestActionMissionHandlerRouting:
         )
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("follow_value", ["0", "2"])
+    async def test_smart_swarm_handler_always_launches_runtime(self, follow_value):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.smart_swarm_executer = "smart_swarm.py"
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.trigger_time = 25
+        drone_config.swarm = {"follow": follow_value}
+
+        setup = DroneSetup(params, drone_config)
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))) as mock_execute:
+            result = await setup._execute_smart_swarm(current_time=100, earlier_trigger_time=0)
+
+        assert result == (True, "started")
+        assert drone_config.state == State.MISSION_EXECUTING.value
+        assert drone_config.trigger_time == 0
+        mock_execute.assert_awaited_once_with("smart_swarm.py", "")
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("reboot_after", "expected_action"),
         [

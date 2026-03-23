@@ -2381,15 +2381,73 @@ async def get_network_info():
 
 @app.post("/request-new-leader", tags=["Swarm"])
 async def request_new_leader(request: Request):
-    """Request new swarm leader assignment"""
+    """Persist a live Smart Swarm leader reassignment for a single drone."""
     try:
         data = await request.json()
-        # Placeholder - actual implementation would handle leader election
+
+        if not data:
+            raise HTTPException(status_code=400, detail="No leader update data provided")
+
+        try:
+            hw_id = int(data.get('hw_id'))
+            follow = int(data.get('follow', 0))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="hw_id and follow must be integers")
+
+        if hw_id <= 0:
+            raise HTTPException(status_code=400, detail="hw_id must be a positive integer")
+        if follow < 0:
+            raise HTTPException(status_code=400, detail="follow must be zero or a valid leader hw_id")
+        if follow == hw_id:
+            raise HTTPException(status_code=400, detail="A drone cannot follow itself")
+
+        swarm_data = load_swarm()
+        if not swarm_data:
+            raise HTTPException(status_code=404, detail="Swarm configuration is empty")
+
+        assignment_index = next(
+            (idx for idx, entry in enumerate(swarm_data) if int(entry.get('hw_id', 0)) == hw_id),
+            None,
+        )
+        if assignment_index is None:
+            raise HTTPException(status_code=404, detail=f"Swarm assignment for hw_id={hw_id} not found")
+
+        if follow != 0 and not any(int(entry.get('hw_id', 0)) == follow for entry in swarm_data):
+            raise HTTPException(status_code=400, detail=f"Leader hw_id={follow} is not present in swarm config")
+
+        updated_assignment = dict(swarm_data[assignment_index])
+        updated_assignment['follow'] = follow
+
+        try:
+            if 'offset_x' in data:
+                updated_assignment['offset_x'] = float(data['offset_x'])
+            if 'offset_y' in data:
+                updated_assignment['offset_y'] = float(data['offset_y'])
+            if 'offset_z' in data:
+                updated_assignment['offset_z'] = float(data['offset_z'])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="offset_x, offset_y, and offset_z must be numeric")
+        if 'frame' in data:
+            frame = str(data['frame']).strip().lower()
+            if frame not in {'ned', 'body'}:
+                raise HTTPException(status_code=400, detail="frame must be 'ned' or 'body'")
+            updated_assignment['frame'] = frame
+
+        swarm_data[assignment_index] = updated_assignment
+        save_swarm(swarm_data)
+        log_system_event(
+            f"Smart Swarm leader update saved for hw_id={hw_id}: follow={follow}",
+            "INFO",
+            "swarm",
+        )
+
         return JSONResponse(content={
-            'success': True,
+            'status': 'success',
             'message': 'Leader request processed',
-            'new_leader': data.get('proposed_leader')
+            'assignment': updated_assignment
         })
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

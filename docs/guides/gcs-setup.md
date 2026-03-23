@@ -54,7 +54,7 @@ github.com/alireza787b/mavsdk_drone_show
 
 **Limitations:**
 - Read-only access (unless you're a collaborator)
-- No git sync features for drones
+- Pulling updates still works, but write-backed custom git sync workflows are not enabled
 - Suitable for SITL and testing only
 
 ### Option 2: Your Own Fork (Production)
@@ -113,7 +113,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/alireza787b/mavsdk_drone_show.git
+   git clone -b main-candidate https://github.com/alireza787b/mavsdk_drone_show.git
    cd mavsdk_drone_show
    ```
 
@@ -499,4 +499,4 @@ GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
 
 ---
 
-**Last Updated:** February 2026 (Version 4.4.0)
+**Last Updated:** March 2026 (Version 5.0)

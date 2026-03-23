@@ -44,7 +44,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Frontend UI   │────│  Backend API    │────│   Processing    │
-│  (React + CSS)  │    │  (Flask REST)   │    │   Pipeline      │
+│  (React + CSS)  │    │ (FastAPI REST)  │    │   Pipeline      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │                        │
                                 ▼                        ▼

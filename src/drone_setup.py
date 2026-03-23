@@ -805,16 +805,8 @@ class DroneSetup:
                 logger.error("No 'smart_swarm_executer' specified for smart swarm mission.")
                 return await self._fail_pending_command("No executer script specified.")
 
-            follow_mode = int(self.drone_config.swarm.get('follow', 0))
-            if follow_mode != 0:
-                logger.info("Starting Smart Swarm mission in follow mode.")
-                return await self.execute_mission_script(smart_swarm_executer, "")
-
-            # If no follow mode, treat as success but no action
-            logger.info("Smart Swarm mission did not require follow mode; marking success.")
-            return await self._complete_pending_command_without_process(
-                "Smart Swarm Mission initiated (no follow mode)."
-            )
+            logger.info("Starting Smart Swarm mission runtime.")
+            return await self.execute_mission_script(smart_swarm_executer, "")
 
         logger.debug("Conditions NOT met for Smart Swarm.")
         return (False, "Conditions not met for Smart Swarm.")

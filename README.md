@@ -19,12 +19,12 @@ MDS combines the drone-side runtime, GCS/backend services, and React operator da
 
 For a normal first run, use the official SITL archive and the full guide:
 
-- **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)** for the current MEGA download, checksum, extraction, and environment setup
+- **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)** for the current MEGA download, archive validation, extraction, GCS bootstrap, and container launch flow
 
-Once the official image is loaded, a minimal 2-drone demo path is:
+Once the official image is loaded and the GCS bootstrap is complete, a minimal 2-drone demo path is:
 
 ```bash
-git clone https://github.com/alireza787b/mavsdk_drone_show.git
+git clone -b main-candidate https://github.com/alireza787b/mavsdk_drone_show.git
 cd mavsdk_drone_show
 bash multiple_sitl/create_dockers.sh 2
 bash app/linux_dashboard_start.sh --sitl

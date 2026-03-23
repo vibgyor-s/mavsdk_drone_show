@@ -42,8 +42,8 @@ enable_ufw() {
     ufw default deny incoming 2>/dev/null
     ufw default allow outgoing 2>/dev/null
 
-    # Enable UFW (non-interactive)
-    if echo "y" | ufw enable 2>/dev/null; then
+    # Enable UFW without leaving a prompt hanging in non-interactive runs.
+    if ufw --force enable 2>/dev/null; then
         log_success "UFW enabled"
         return 0
     else

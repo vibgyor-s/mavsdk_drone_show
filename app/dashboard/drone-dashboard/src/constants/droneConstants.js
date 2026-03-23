@@ -72,7 +72,7 @@ export const getMissionDescription = (missionType) => {
         case DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW:
             return 'Initiates a custom drone show sequence from a user-defined CSV file. This mission allows for flexibility in the drone choreography, utilizing MAVSDK for offboard control to follow intricate trajectories specified in the CSV.';
         case DRONE_MISSION_TYPES.SMART_SWARM:
-            return 'Implements a smart swarm formation with leader-follower dynamics. This mission is designed for scenarios requiring coordinated movements across multiple drones, where MAVSDK ensures seamless communication and control within the swarm (currently in development).';
+            return 'Implements a live smart swarm formation with leader-follower dynamics, runtime role changes, and configurable geographic or body-frame offsets. Use it when multiple drones must maintain formation while operators adjust the cluster in flight.';
         case DRONE_MISSION_TYPES.SWARM_TRAJECTORY:
             return 'Executes coordinated swarm trajectories where leaders follow uploaded waypoint paths and followers maintain formation using configured offsets. Each drone follows a time-synchronized global trajectory with precise positioning and formation integrity.';
         case DRONE_MISSION_TYPES.NONE:
