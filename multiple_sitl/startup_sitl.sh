@@ -1232,10 +1232,10 @@ calculate_new_coordinates() {
     fi
 
     if ! coord_output=$(python3 "$coord_helper" \
-        --lat "$DEFAULT_LAT" \
-        --lon "$DEFAULT_LON" \
-        --offset-north "$OFFSET_X" \
-        --offset-east "$OFFSET_Y" 2>&1); then
+        --lat="$DEFAULT_LAT" \
+        --lon="$DEFAULT_LON" \
+        --offset-north="$OFFSET_X" \
+        --offset-east="$OFFSET_Y" 2>&1); then
         log_message "ERROR: Failed to calculate spawn coordinates: $coord_output"
         exit 1
     fi
