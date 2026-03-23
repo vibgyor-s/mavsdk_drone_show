@@ -546,6 +546,29 @@ class TestSwarmEndpoints:
         assert saved_swarm[1]['offset_z'] == 2.0
         assert saved_swarm[1]['frame'] == 'ned'
 
+    @patch('app_fastapi.save_swarm')
+    @patch('app_fastapi.load_swarm')
+    def test_request_new_leader_partial_update_preserves_offsets(self, mock_load, mock_save, test_client):
+        """Test POST /request-new-leader keeps existing offsets/frame when only follow changes."""
+        mock_load.return_value = [
+            {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 2, 'follow': 1, 'offset_x': 5, 'offset_y': 2, 'offset_z': 3, 'frame': 'body'},
+        ]
+
+        response = test_client.post(
+            "/request-new-leader",
+            json={'hw_id': 2, 'follow': 0},
+        )
+
+        assert response.status_code == 200
+        saved_swarm = mock_save.call_args[0][0]
+        assert saved_swarm[1]['hw_id'] == 2
+        assert saved_swarm[1]['follow'] == 0
+        assert saved_swarm[1]['offset_x'] == 5
+        assert saved_swarm[1]['offset_y'] == 2
+        assert saved_swarm[1]['offset_z'] == 3
+        assert saved_swarm[1]['frame'] == 'body'
+
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_rejects_self_follow(self, mock_load, test_client):
         """Test POST /request-new-leader rejects invalid self-follow changes."""

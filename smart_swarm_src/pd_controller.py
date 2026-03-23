@@ -17,18 +17,20 @@ class PDController:
         self.max_velocity = max_velocity
         self.previous_error = None
 
-    def compute(self, position_error, dt):
+    def compute(self, position_error, dt, velocity_feedforward=None):
         """
         Computes the velocity command based on position error.
 
         Args:
             position_error (np.ndarray): Position error [n, e, d].
             dt (float): Time since last update (seconds).
+            velocity_feedforward (np.ndarray | None): Optional leader velocity
+                term to add before saturation.
 
         Returns:
             np.ndarray: Velocity command [vel_n, vel_e, vel_d].
         """
-        if self.previous_error is None:
+        if self.previous_error is None or dt <= 0:
             derivative = np.zeros_like(position_error)
         else:
             derivative = (position_error - self.previous_error) / dt
@@ -36,6 +38,8 @@ class PDController:
         self.previous_error = position_error
 
         velocity_command = self.kp * position_error + self.kd * derivative
+        if velocity_feedforward is not None:
+            velocity_command = velocity_command + velocity_feedforward
 
         # Limit the velocity to max_velocity
         speed = np.linalg.norm(velocity_command)

@@ -4,6 +4,7 @@ import numpy as np
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 
+
 class LeaderKalmanFilter:
     def __init__(self):
         """
@@ -39,6 +40,23 @@ class LeaderKalmanFilter:
         # Initial state
         self.kf.x = np.zeros((6, 1))
 
+    def _set_dynamics(self, dt):
+        """Update transition and process-noise matrices for grouped [pos, vel] state ordering."""
+        self.kf.F = np.array([
+            [1, 0, 0, dt, 0,  0],
+            [0, 1, 0, 0,  dt, 0],
+            [0, 0, 1, 0,  0,  dt],
+            [0, 0, 0, 1,  0,  0],
+            [0, 0, 0, 0,  1,  0],
+            [0, 0, 0, 0,  0,  1],
+        ])
+
+        q = Q_discrete_white_noise(dim=2, dt=dt, var=self.q_variance)
+        self.kf.Q = np.block([
+            [np.eye(3) * q[0, 0], np.eye(3) * q[0, 1]],
+            [np.eye(3) * q[1, 0], np.eye(3) * q[1, 1]],
+        ])
+
     def reset(self):
         """
         Resets the Kalman filter to its initial state.
@@ -57,31 +75,13 @@ class LeaderKalmanFilter:
             np.ndarray: Predicted state vector [pos_n, pos_e, pos_d, vel_n, vel_e, vel_d].
         """
         if self.last_update_time is None:
-            dt = 0.0
-        else:
-            dt = current_time - self.last_update_time
-            if dt < 0.0:
-                dt = 0.0  # Ensure non-negative time difference
+            return self.kf.x.flatten()
 
-        # Update the state transition matrix with dt
-        self.kf.F = np.array([
-            [1, 0, 0, dt, 0,  0],
-            [0, 1, 0, 0,  dt, 0],
-            [0, 0, 1, 0,  0,  dt],
-            [0, 0, 0, 1,  0,  0],
-            [0, 0, 0, 0,  1,  0],
-            [0, 0, 0, 0,  0,  1],
-        ])
-
-        # Update the process noise covariance matrix with dt
-        q = Q_discrete_white_noise(dim=2, dt=dt, var=self.q_variance)
-        self.kf.Q = np.block([
-            [q, np.zeros((2, 4))],
-            [np.zeros((4, 2)), np.zeros((4, 4))]
-        ])
-        self.kf.Q = np.kron(np.eye(3), q)
-
-        self.kf.predict()
+        dt = max(0.0, current_time - self.last_update_time)
+        self._set_dynamics(dt)
+        if dt > 0.0:
+            self.kf.predict()
+            self.last_update_time = current_time
         return self.kf.x.flatten()
 
     def update(self, measurement, measurement_time):
@@ -96,46 +96,29 @@ class LeaderKalmanFilter:
         Returns:
             None
         """
-        if self.last_update_time is None or measurement_time > self.last_update_time:
-            dt = measurement_time - self.last_update_time if self.last_update_time else 0.0
-            if dt < 0.0:
-                dt = 0.0  # Ensure non-negative time difference
+        if self.last_update_time is not None and measurement_time <= self.last_update_time:
+            return
 
-            # Update last update time
+        z = np.array([
+            measurement['pos_n'],
+            measurement['pos_e'],
+            measurement['pos_d'],
+            measurement['vel_n'],
+            measurement['vel_e'],
+            measurement['vel_d']
+        ]).reshape(6, 1)
+
+        if self.last_update_time is None:
+            self.kf.x = z
             self.last_update_time = measurement_time
+            return
 
-            # Prepare measurement vector
-            z = np.array([
-                measurement['pos_n'],
-                measurement['pos_e'],
-                measurement['pos_d'],
-                measurement['vel_n'],
-                measurement['vel_e'],
-                measurement['vel_d']
-            ]).reshape(6, 1)
-
-            # Update the state transition matrix with dt
-            self.kf.F = np.array([
-                [1, 0, 0, dt, 0,  0],
-                [0, 1, 0, 0,  dt, 0],
-                [0, 0, 1, 0,  0,  dt],
-                [0, 0, 0, 1,  0,  0],
-                [0, 0, 0, 0,  1,  0],
-                [0, 0, 0, 0,  0,  1],
-            ])
-
-            # Update process noise covariance with dt
-            q = Q_discrete_white_noise(dim=2, dt=dt, var=self.q_variance)
-            self.kf.Q = np.kron(np.eye(3), q)
-
-            # Predict to current time
+        dt = max(0.0, measurement_time - self.last_update_time)
+        self._set_dynamics(dt)
+        if dt > 0.0:
             self.kf.predict()
-
-            # Update with new measurement
-            self.kf.update(z)
-        else:
-            # Duplicate or outdated measurement; ignore
-            pass
+        self.kf.update(z)
+        self.last_update_time = measurement_time
 
     def get_state(self):
         """

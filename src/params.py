@@ -367,6 +367,7 @@ class Params:
     PD_KP = 0.5            # Proportional gain
     PD_KD = 0.1            # Derivative gain
     MAX_VELOCITY = 3.0     # Maximum velocity in m/s
+    SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD = 1.0  # Scale factor for leader velocity feedforward
 
     # Low-Pass Filter Parameter
     LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1

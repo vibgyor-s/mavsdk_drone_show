@@ -356,10 +356,19 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
         logger.error("[Periodic Update] Leader config missing for HW_ID=%s", new_leader_hw_id)
         return False
 
+    logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
+    if not await ensure_follower_runtime(drone, logger, reason):
+        IS_LEADER = True
+        logger.warning(
+            "[Periodic Update] Follower runtime unavailable for leader %s (%s); keeping leader-mode flag so the runtime retries.",
+            new_leader_hw_id,
+            reason,
+        )
+        return False
+
     IS_LEADER = False
     persist_current_swarm_assignment(logger)
-    logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
-    return await ensure_follower_runtime(drone, logger, reason)
+    return True
 
 # Legacy configure_logging function - now using shared one from drone_show_src.utils
 # def configure_logging():
@@ -1019,18 +1028,9 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     gcs_ip = Params.GCS_IP
     notify_url = f"http://{gcs_ip}:{Params.gcs_api_port}/request-new-leader"
 
-    current = SWARM_CONFIG.get(str(HW_ID))
-    if not current:
-        logger.error(f"No SWARM_CONFIG entry for HW_ID={HW_ID}")
-        return False
-
     payload = {
         'hw_id':       int(HW_ID),
         'follow':      int(new_leader_hw_id),
-        'offset_x':    current['offset_x'],
-        'offset_y':    current['offset_y'],
-        'offset_z':    current['offset_z'],
-        'frame':       current['frame']
     }
 
     try:
@@ -1177,7 +1177,16 @@ async def control_loop(drone: System):
                 ])
 
                 # Compute velocity command using PD controller
-                velocity_command = pd_controller.compute(position_error, dt)
+                velocity_feedforward = np.array([
+                    leader_vel_n,
+                    leader_vel_e,
+                    leader_vel_d,
+                ]) * Params.SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD
+                velocity_command = pd_controller.compute(
+                    position_error,
+                    dt,
+                    velocity_feedforward=velocity_feedforward,
+                )
 
                 # Filter the velocity command
                 filtered_velocity = velocity_filter.filter(velocity_command)

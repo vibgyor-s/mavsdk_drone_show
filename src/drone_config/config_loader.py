@@ -138,7 +138,7 @@ class ConfigLoader:
                 raise ValueError(f"Expected a list of entries in {filename}")
             for entry in entries:
                 if int(entry.get('hw_id', -1)) == hw_id:
-                    logger.info(f"Configuration for HW_ID {hw_id} found in {source}.")
+                    logger.debug(f"Configuration for HW_ID {hw_id} found in {source}.")
                     return dict(entry)
             logger.warning(f"hw_id {hw_id} not found in {filename}")
             return None
