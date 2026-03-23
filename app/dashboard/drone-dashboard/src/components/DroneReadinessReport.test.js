@@ -49,6 +49,6 @@ describe('DroneReadinessReport', () => {
     );
 
     expect(screen.getByText('Review Warnings')).toBeInTheDocument();
-    expect(screen.getByText('GPS quality needs review.')).toBeInTheDocument();
+    expect(screen.getAllByText('GPS quality needs review.')).toHaveLength(2);
   });
 });

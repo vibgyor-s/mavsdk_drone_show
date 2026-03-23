@@ -35,7 +35,7 @@ function renderMessageList(messages, emptyLabel) {
   );
 }
 
-const DroneReadinessReport = ({ drone, runtimeStatus, variant }) => {
+const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'compact' }) => {
   const readiness = getDroneReadinessModel(drone, runtimeStatus);
   const hasDetails = readiness.issueCount > 0 || readiness.recentMessages.length > 0 || readiness.checks.length > 0;
 
@@ -136,12 +136,6 @@ DroneReadinessReport.propTypes = {
   drone: PropTypes.object,
   runtimeStatus: PropTypes.object,
   variant: PropTypes.oneOf(['compact', 'detail']),
-};
-
-DroneReadinessReport.defaultProps = {
-  drone: {},
-  runtimeStatus: null,
-  variant: 'compact',
 };
 
 export default DroneReadinessReport;
