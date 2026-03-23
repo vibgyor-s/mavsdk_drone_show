@@ -135,6 +135,16 @@ def wait_for(predicate, *, label: str, timeout: int = 90, interval: float = 1.0)
     raise RuntimeError(f"Timed out waiting for {label}. Last value: {last_value!r}")
 
 
+def wait_api_ready(client: ApiClient, timeout: int = 60):
+    def _ready():
+        try:
+            return client.get_json("/health")
+        except urllib.error.URLError:
+            return False
+
+    return wait_for(_ready, label="GCS API health endpoint", timeout=timeout, interval=2.0)
+
+
 def wait_for_command(client: ApiClient, command_id: str, *, desired_phase: str | None = None, terminal: bool = False, timeout: int = 90):
     deadline = time.time() + timeout
     last = None
@@ -314,7 +324,10 @@ def wait_altitude(client: ApiClient, ids: list[int], base_altitudes: dict[str, f
 
 def wait_fleet_ready(client: ApiClient, ids: list[int], timeout: int = 90):
     def _ready():
-        telemetry = client.get_telemetry()
+        try:
+            telemetry = client.get_telemetry()
+        except urllib.error.URLError:
+            return False
         if not _telemetry_has_ids(telemetry, ids):
             return False
         for drone_id in ids:
@@ -467,6 +480,7 @@ def main() -> None:
     ids = [int(part.strip()) for part in args.drones.split(",") if part.strip()]
     require(ids, "No drone IDs supplied.")
 
+    wait_api_ready(client, timeout=60)
     telemetry = wait_fleet_ready(client, ids, timeout=120)
     base_altitudes = {str(idx): telemetry[str(idx)]["position_alt"] for idx in ids}
     log(f"BASE ALTITUDES: {base_altitudes}")
