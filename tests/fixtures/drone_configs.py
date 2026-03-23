@@ -129,6 +129,7 @@ class DroneConfigData:
             'system_status': self.system_status,
             'is_armed': self.is_armed,
             'is_ready_to_arm': self.is_ready_to_arm,
+            'home_position_set': True,
             'readiness_status': 'ready' if self.is_ready_to_arm else 'blocked',
             'readiness_summary': 'Ready to fly' if self.is_ready_to_arm else 'Preflight checks are not complete.',
             'readiness_checks': [],

@@ -169,6 +169,27 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def _is_idle_baseline_row(row: dict) -> bool:
+    mission = int(row.get("mission", 0) or 0)
+    state = int(row.get("state", 0) or 0)
+    home_position_set = row.get("home_position_set")
+    return (
+        row.get("update_time") is not None
+        and bool(row.get("is_ready_to_arm"))
+        and row.get("readiness_status") == "ready"
+        and not bool(row.get("is_armed"))
+        and mission == 0
+        and state == 0
+        and (home_position_set is None or bool(home_position_set))
+    )
+
+
+def _is_idle_reset_row(row: dict) -> bool:
+    mission = int(row.get("mission", 0) or 0)
+    state = int(row.get("state", 0) or 0)
+    return not bool(row.get("is_armed")) and mission == 0 and state == 0
+
+
 def build_clusters(assignments: list[dict], allowed_ids: set[int]) -> list[list[int]]:
     by_hw = {int(entry["hw_id"]): entry for entry in assignments if int(entry["hw_id"]) in allowed_ids}
 
@@ -273,15 +294,11 @@ def wait_fleet_ready(client: ApiClient, ids: list[int], timeout: int = 90):
         telemetry = snapshot(client, ids)
         for drone_id in ids:
             row = telemetry[str(drone_id)]
-            if not row.get("is_ready_to_arm"):
-                return False
-            if row.get("readiness_status") != "ready":
-                return False
-            if row.get("update_time") is None:
+            if not _is_idle_baseline_row(row):
                 return False
         return telemetry
 
-    return wait_for(_ready, label=f"drones {ids} preflight ready", timeout=timeout, interval=2.0)
+    return wait_for(_ready, label=f"drones {ids} grounded, idle, and preflight ready", timeout=timeout, interval=2.0)
 
 
 def wait_mission(client: ApiClient, ids: list[int], mission_type: int, timeout: int = 60):
@@ -376,15 +393,15 @@ def wait_formation(
     )
 
 
-def wait_disarmed(client: ApiClient, ids: list[int], timeout: int = 180):
+def wait_idle_reset(client: ApiClient, ids: list[int], timeout: int = 180):
     def _ready():
         telemetry = snapshot(client, ids)
         for drone_id in ids:
-            if telemetry[str(drone_id)].get("is_armed"):
+            if not _is_idle_reset_row(telemetry[str(drone_id)]):
                 return False
         return telemetry
 
-    return wait_for(_ready, label=f"drones {ids} disarmed", timeout=timeout, interval=2.0)
+    return wait_for(_ready, label=f"drones {ids} disarmed and reset idle", timeout=timeout, interval=2.0)
 
 
 def require_full_acceptance(status: dict, expected_targets: int, label: str) -> None:
@@ -504,7 +521,7 @@ def main() -> None:
     require_full_acceptance(status, len(land_targets), "Land")
     require_full_execution(status, len(land_targets), "Land")
 
-    final_telemetry = wait_disarmed(client, ids, timeout=240)
+    final_telemetry = wait_idle_reset(client, ids, timeout=240)
     log(f"FINAL TELEMETRY: {json.dumps(final_telemetry, indent=2)}")
     log("SMART SWARM VALIDATION PASSED")
 

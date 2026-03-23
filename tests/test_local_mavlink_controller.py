@@ -51,6 +51,35 @@ def test_update_pre_arm_status_reports_ready(mock_drone_config):
     assert mock_drone_config.preflight_blockers == []
 
 
+def test_update_pre_arm_status_requires_home_position_before_takeoff(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.home_position = None
+    mock_drone_config.is_armed = False
+    mock_drone_config.custom_mode = 50593792
+
+    controller._update_pre_arm_status()
+
+    assert mock_drone_config.is_ready_to_arm is False
+    assert mock_drone_config.readiness_status == "blocked"
+    assert any("home position" in blocker["message"].lower() for blocker in mock_drone_config.preflight_blockers)
+    home_check = next(check for check in mock_drone_config.readiness_checks if check["id"] == "home")
+    assert home_check["ready"] is False
+
+
+def test_update_pre_arm_status_allows_missing_home_when_already_airborne(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.home_position = None
+    mock_drone_config.is_armed = True
+    mock_drone_config.custom_mode = 50593792
+
+    controller._update_pre_arm_status()
+
+    assert mock_drone_config.is_ready_to_arm is True
+    assert mock_drone_config.readiness_status == "ready"
+    home_check = next(check for check in mock_drone_config.readiness_checks if check["id"] == "home")
+    assert home_check["ready"] is True
+
+
 def test_process_status_text_surfaces_px4_blocker(mock_drone_config):
     controller = build_controller(mock_drone_config)
     msg = SimpleNamespace(

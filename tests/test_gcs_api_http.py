@@ -91,6 +91,7 @@ def mock_telemetry_data():
             'system_status': 4,
             'is_armed': False,
             'is_ready_to_arm': True,
+            'home_position_set': True,
             'readiness_status': 'ready',
             'readiness_summary': 'Ready to fly',
             'readiness_checks': [
@@ -137,6 +138,7 @@ def mock_telemetry_data():
             'system_status': 4,
             'is_armed': False,
             'is_ready_to_arm': False,
+            'home_position_set': True,
             'readiness_status': 'blocked',
             'readiness_summary': 'Preflight Fail: ekf2 missing data',
             'readiness_checks': [

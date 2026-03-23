@@ -40,6 +40,7 @@ class LocalMavlinkController:
         self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
         self.drone_config = drone_config
         self.local_mavlink_refresh_interval = params.local_mavlink_refresh_interval
+        self.require_global_position = bool(getattr(params, 'REQUIRE_GLOBAL_POSITION', False))
         self.run_telemetry_thread = threading.Event()
         self.run_telemetry_thread.set()
 
@@ -399,7 +400,11 @@ class LocalMavlinkController:
             262152,
         ]
         mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
-        if mode_requires_gps:
+        takeoff_requires_gps = not bool(getattr(self.drone_config, 'is_armed', False))
+        gps_required = bool(getattr(self, 'require_global_position', False)) or takeoff_requires_gps or mode_requires_gps
+        home_ready = bool(getattr(self.drone_config, 'home_position', None))
+
+        if gps_required:
             gps_ready = gps_fix_ok and self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
         else:
             gps_ready = True
@@ -438,19 +443,28 @@ class LocalMavlinkController:
                 "Magnetometer health is incomplete; heading is not yet trustworthy for arming.",
                 now_ms,
             ))
-        if mode_requires_gps and not gps_ready:
+        if gps_required and not gps_ready:
+            requirement_context = "takeoff readiness" if takeoff_requires_gps and not mode_requires_gps else "the current flight mode"
             if not gps_fix_ok:
-                gps_message = "GPS fix is below 3D while the current flight mode requires GPS."
+                gps_message = f"GPS fix is below 3D while {requirement_context} requires GPS."
             else:
-                gps_message = f"GPS quality is insufficient for the current flight mode (HDOP={self.drone_config.hdop:.2f})."
+                gps_message = f"GPS quality is insufficient for {requirement_context} (HDOP={self.drone_config.hdop:.2f})."
             heuristic_blockers.append(self._build_message('telemetry', 'error', gps_message, now_ms))
+        if gps_required and not home_ready:
+            requirement_context = "Takeoff readiness" if takeoff_requires_gps else "This mode"
+            heuristic_blockers.append(self._build_message(
+                'telemetry',
+                'error',
+                f"{requirement_context} is waiting for PX4 home position.",
+                now_ms,
+            ))
 
         heuristic_warnings: List[Dict[str, Any]] = []
-        if not mode_requires_gps and getattr(self.drone_config, 'gps_fix_type', 0) < 3:
+        if not gps_required and getattr(self.drone_config, 'gps_fix_type', 0) < 3:
             heuristic_warnings.append(self._build_message(
                 'telemetry',
                 'warning',
-                "GPS is not required for the current mode, but fix quality is currently low.",
+                "GPS is not required for the current airborne mode, but fix quality is currently low.",
                 now_ms,
             ))
 
@@ -480,8 +494,18 @@ class LocalMavlinkController:
                 'label': 'GPS requirement',
                 'ready': gps_ready,
                 'detail': (
-                    f"Mode requires GPS: {'yes' if mode_requires_gps else 'no'}; "
+                    f"GPS required now: {'yes' if gps_required else 'no'}; "
                     f"fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop:.2f}"
+                ),
+            },
+            {
+                'id': 'home',
+                'label': 'Home position',
+                'ready': (not gps_required) or home_ready,
+                'detail': (
+                    "PX4 home position is set"
+                    if home_ready else
+                    ("Awaiting PX4 home position before takeoff." if gps_required else "Home position is not required in the current mode.")
                 ),
             },
             {
@@ -496,7 +520,7 @@ class LocalMavlinkController:
             },
         ]
 
-        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready and not blockers
+        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready and ((not gps_required) or home_ready) and not blockers
         if blockers:
             readiness_status = "blocked"
             readiness_summary = blockers[0]['message']
@@ -518,7 +542,7 @@ class LocalMavlinkController:
         self.log_debug(
             "Pre-arm checks: "
             f"system={system_ready}, imu={imu_sensors_ready}, mag={mag_ready}, "
-            f"gps_required={mode_requires_gps}, gps_ready={gps_ready} "
+            f"gps_required={gps_required}, gps_ready={gps_ready}, home_ready={home_ready} "
             f"(fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop}) "
             f"px4_blockers={len(px4_blockers)} -> ready={self.drone_config.is_ready_to_arm}"
         )

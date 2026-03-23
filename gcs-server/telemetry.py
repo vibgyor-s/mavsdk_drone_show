@@ -265,6 +265,7 @@ def poll_telemetry(drone):
                         'system_status': telemetry_data.get('system_status', 'UNKNOWN'),
                         'is_armed': _get_enhanced_armed_status(telemetry_data),  # Enhanced armed status
                         'is_ready_to_arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
+                        'home_position_set': telemetry_data.get('home_position_set', False),
                         'readiness_status': telemetry_data.get('readiness_status', 'unknown'),
                         'readiness_summary': telemetry_data.get('readiness_summary', 'Readiness unavailable'),
                         'readiness_checks': telemetry_data.get('readiness_checks', []),

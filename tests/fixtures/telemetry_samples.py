@@ -93,6 +93,7 @@ def drone_state_idle(hw_id: str = '1', pos_id: int = 1) -> Dict[str, Any]:
         'system_status': MAVState.STANDBY,
         'is_armed': False,
         'is_ready_to_arm': True,
+        'home_position_set': True,
         'readiness_status': 'ready',
         'readiness_summary': 'Ready to fly',
         'readiness_checks': [],
