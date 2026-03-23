@@ -180,8 +180,8 @@ def require(condition: bool, message: str) -> None:
 
 def _is_idle_baseline_row(row: dict) -> bool:
     heartbeat_last_seen = row.get("heartbeat_last_seen")
-    has_recent_heartbeat = True
-    if heartbeat_last_seen:
+    has_recent_heartbeat = False
+    if heartbeat_last_seen is not None:
         try:
             heartbeat_age = time.time() - (float(heartbeat_last_seen) / 1000.0)
             has_recent_heartbeat = heartbeat_age <= COMMAND_HEARTBEAT_GRACE_SECONDS
