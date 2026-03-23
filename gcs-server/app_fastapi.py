@@ -253,6 +253,25 @@ class BackgroundServices:
 background_services = BackgroundServices()
 
 
+def _normalize_heartbeat_first_seen(value: Any) -> Optional[int]:
+    """Normalize legacy heartbeat first_seen values into Unix milliseconds."""
+    if value in (None, ""):
+        return None
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if numeric_value <= 0:
+        return None
+
+    if numeric_value < 1_000_000_000_000:
+        numeric_value *= 1000.0
+
+    return int(numeric_value)
+
+
 def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Keep FastAPI background telemetry aligned with the typed telemetry API contract."""
     normalized_hw_id = str(hw_id)
@@ -266,7 +285,7 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
         "ip": data.get("ip", ip),
         "heartbeat_last_seen": heartbeat_data.get("timestamp"),
         "heartbeat_network_info": heartbeat_data.get("network_info") or {},
-        "heartbeat_first_seen": heartbeat_data.get("first_seen"),
+        "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
     }
 
 

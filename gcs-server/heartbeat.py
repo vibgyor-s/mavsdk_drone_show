@@ -54,7 +54,7 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "ip": ip,
                 "timestamp": timestamp,
                 "network_info": network_info,
-                "first_seen": time.time(),
+                "first_seen": int(time.time() * 1000),
                 "last_logged": time.time()
             }
             logger.info(f"💓 Heartbeat established from drone {hw_id} (IP: {ip}, Pos: {pos_id})")

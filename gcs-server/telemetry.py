@@ -33,6 +33,25 @@ telemetry_stats = {}  # Track success/failure rates per drone
 data_lock = threading.Lock()
 
 
+def _normalize_heartbeat_first_seen(value):
+    """Normalize legacy heartbeat first_seen values into Unix milliseconds."""
+    if value in (None, ""):
+        return None
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if numeric_value <= 0:
+        return None
+
+    if numeric_value < 1_000_000_000_000:
+        numeric_value *= 1000.0
+
+    return int(numeric_value)
+
+
 def _log_system_event(message: str, level: str = "INFO", component: str = "telemetry") -> None:
     """Log a telemetry system event with the standard logger interface."""
     target_logger = get_logger(component)
@@ -281,7 +300,7 @@ def poll_telemetry(drone):
                         # Heartbeat data (kept with prefix for clarity)
                         'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp
                         'heartbeat_network_info': heartbeat_data.get('network_info', {}),  # Network connectivity info
-                        'heartbeat_first_seen': heartbeat_data.get('first_seen', 0),  # First heartbeat time
+                        'heartbeat_first_seen': _normalize_heartbeat_first_seen(heartbeat_data.get('first_seen')),  # First heartbeat time
                     }
                     last_telemetry_time[drone_id] = time.time()
 

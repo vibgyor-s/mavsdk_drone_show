@@ -238,7 +238,7 @@ class TestBackgroundTelemetryHelpers:
         with patch.dict(last_heartbeats, {
             '1': {
                 'timestamp': 1700000000123,
-                'first_seen': 1699999999000,
+                'first_seen': 1699999999.0,
                 'network_info': {'reachable': True},
             }
         }, clear=True):
