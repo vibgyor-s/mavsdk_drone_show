@@ -117,6 +117,7 @@ from smart_swarm_src.utils import (
     fetch_home_position,
     lla_to_ned
 )
+from src.swarm_runtime_state import write_runtime_swarm_assignment
 
 # Unified logging system
 from mds_logging.drone import init_drone_logging
@@ -234,6 +235,19 @@ def assign_leader_target(new_leader_hw_id):
     return leader_cfg
 
 
+def persist_current_swarm_assignment(logger=None):
+    """Persist the latest local assignment so telemetry reflects live swarm changes."""
+    assignment = SWARM_CONFIG.get(str(HW_ID))
+    if not assignment:
+        return
+
+    try:
+        write_runtime_swarm_assignment(dict(assignment))
+    except Exception as exc:
+        active_logger = logger or logging.getLogger(__name__)
+        active_logger.debug("Failed to persist runtime swarm assignment: %s", exc)
+
+
 async def cancel_follower_tasks(logger):
     """Cancel follower-mode tasks without leaking unfinished coroutines."""
     global FOLLOWER_TASKS
@@ -313,6 +327,7 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
 
     IS_LEADER = True
     assign_leader_target(0)
+    persist_current_swarm_assignment(logger)
     await cancel_follower_tasks(logger)
 
     try:
@@ -342,6 +357,7 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
         return False
 
     IS_LEADER = False
+    persist_current_swarm_assignment(logger)
     logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
     return await ensure_follower_runtime(drone, logger, reason)
 
@@ -764,6 +780,7 @@ async def update_swarm_config_periodically(drone):
                 if new_cfg is None:
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
+                    persist_current_swarm_assignment(logger)
                     # Determine new role/offsets/frame
                     new_offsets     = {
                         'x':   new_cfg['offset_x'],
@@ -951,6 +968,7 @@ async def elect_new_leader():
 
     if failover["action"] == "self_hold":
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
+        persist_current_swarm_assignment(logger)
         try:
             await notify_gcs_of_leader_change(0)
         except Exception:
@@ -962,11 +980,13 @@ async def elect_new_leader():
     if new_leader is None:
         logger.warning("Failover did not resolve a leader candidate; entering HOLD mode.")
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
+        persist_current_swarm_assignment(logger)
         await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
         return
 
     logger.info("Attempting failover to Drone %s.", new_leader)
     SWARM_CONFIG[str(HW_ID)]['follow'] = int(new_leader)
+    persist_current_swarm_assignment(logger)
 
     accepted = await notify_gcs_of_leader_change(new_leader)
     if accepted and assign_leader_target(new_leader) is not None:
@@ -978,6 +998,7 @@ async def elect_new_leader():
         new_leader,
     )
     SWARM_CONFIG[str(HW_ID)]['follow'] = 0
+    persist_current_swarm_assignment(logger)
     try:
         await notify_gcs_of_leader_change(0)
     except Exception:
@@ -1336,6 +1357,7 @@ async def run_smart_swarm():
 
     # Determine drone role and set formation parameters
     IS_LEADER = swarm_config['follow'] == 0
+    persist_current_swarm_assignment(logger)
     OFFSETS['x'] = swarm_config['offset_x']
     OFFSETS['y'] = swarm_config['offset_y']
     OFFSETS['z'] = swarm_config['offset_z']

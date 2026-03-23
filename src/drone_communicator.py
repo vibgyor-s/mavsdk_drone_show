@@ -14,6 +14,7 @@ from src.enums import Mission, State
 logger = get_logger("drone_comm")
 from src.drone_config import DroneConfig
 from src.params import Params
+from src.swarm_runtime_state import read_runtime_swarm_assignment
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
 
 class DroneCommunicator:
@@ -53,6 +54,31 @@ class DroneCommunicator:
     def set_api_server(self, api_server):
         """Setter for injecting DroneAPIServer dependency after initialization."""
         self.api_server = api_server
+
+    def _get_live_swarm_assignment(self) -> Dict[str, Any]:
+        """Return the freshest known swarm assignment for this drone."""
+        current_swarm = getattr(self.drone_config, "swarm", {}) or {}
+        runtime_swarm = read_runtime_swarm_assignment()
+
+        if isinstance(runtime_swarm, dict) and runtime_swarm:
+            self.drone_config.swarm = runtime_swarm
+            return runtime_swarm
+
+        try:
+            latest_swarm = self.drone_config.read_swarm()
+        except Exception as exc:
+            logger.debug(
+                "Falling back to cached swarm assignment for hw_id=%s: %s",
+                safe_int(self.drone_config.hw_id),
+                exc,
+            )
+            latest_swarm = None
+
+        if isinstance(latest_swarm, dict) and latest_swarm:
+            self.drone_config.swarm = latest_swarm
+            return latest_swarm
+
+        return current_swarm
 
     def _initialize_socket(self) -> socket.socket:
         """Initialize and return a UDP socket for telemetry."""
@@ -326,6 +352,8 @@ class DroneCommunicator:
             logger.warning(f"[DRONE {self.drone_config.hw_id}] ⚠️ custom_mode=0 while armed! "
                           f"base_mode={self.drone_config.base_mode}, system_status={self.drone_config.system_status}")
 
+        live_swarm = self._get_live_swarm_assignment()
+
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
             "pos_id": safe_int(self.drone_config.pos_id),  # Position ID
@@ -342,7 +370,7 @@ class DroneCommunicator:
             "velocity_down": safe_float(safe_get(self.drone_config.velocity, 'down')),  # Velocity downwards
             "yaw": safe_float(self.drone_config.yaw),  # Yaw angle of the drone
             "battery_voltage": safe_float(self.drone_config.battery),  # Current battery voltage
-            "follow_mode": safe_int(safe_get(self.drone_config.swarm, 'follow')),  # Follow mode in swarm operation
+            "follow_mode": safe_int(safe_get(live_swarm, 'follow')),  # Follow mode in swarm operation
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
             "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags
