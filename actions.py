@@ -557,25 +557,42 @@ async def apply_common_params(drone, reboot_after=False):
 # Action Implementations
 # -----------------------
 
-async def ensure_ready_for_flight(drone):
+async def ensure_ready_for_flight(drone, timeout: float | None = None):
     """
     Before takeoff, ensure the drone is healthy, global position is good,
     and home position is set.
     """
+    preflight_timeout = float(timeout or getattr(Params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30))
     logger.info("Checking preflight conditions...")
-    start = time.time()
+    start = time.monotonic()
     gps_ok = False
     home_ok = False
+    last_reported_state = None
     async for health in drone.telemetry.health():
         if health.is_global_position_ok:
             gps_ok = True
         if health.is_home_position_ok:
             home_ok = True
+        current_state = (gps_ok, home_ok)
+        if current_state != last_reported_state:
+            logger.info(
+                "Preflight health update: gps_ok=%s, home_ok=%s, elapsed=%.1fs/%.1fs",
+                gps_ok,
+                home_ok,
+                time.monotonic() - start,
+                preflight_timeout,
+            )
+            last_reported_state = current_state
         if gps_ok and home_ok:
             logger.info("Preflight checks passed: GPS and Home position are good.")
             return True
-        if time.time() - start > 15:
-            logger.error("Preflight checks timed out. GPS or Home not ready.")
+        if time.monotonic() - start > preflight_timeout:
+            logger.error(
+                "Preflight checks timed out. GPS or Home not ready (gps_ok=%s, home_ok=%s, timeout=%.1fs).",
+                gps_ok,
+                home_ok,
+                preflight_timeout,
+            )
             return False
         await asyncio.sleep(1)
 

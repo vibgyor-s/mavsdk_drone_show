@@ -247,6 +247,7 @@ class Params:
 
     max_takeoff_alt = 100          # Maximum allowable takeoff altitude
     default_takeoff_alt = 10       # Default takeoff altitude
+    TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
 
     # LED Configuration
     led_count = 25        # Number of LED pixels
