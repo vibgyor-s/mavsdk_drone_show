@@ -24,6 +24,11 @@ import urllib.error
 import urllib.request
 from collections import defaultdict
 
+try:
+    from src.params import Params
+except Exception:
+    Params = None
+
 
 TAKEOFF = 10
 SMART_SWARM = 2
@@ -32,6 +37,10 @@ HOLD = 102
 RTL = 104
 
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout"}
+COMMAND_HEARTBEAT_GRACE_SECONDS = (
+    max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
+    if Params is not None else 20
+)
 
 
 def log(message: str) -> None:
@@ -170,6 +179,15 @@ def require(condition: bool, message: str) -> None:
 
 
 def _is_idle_baseline_row(row: dict) -> bool:
+    heartbeat_last_seen = row.get("heartbeat_last_seen")
+    has_recent_heartbeat = True
+    if heartbeat_last_seen:
+        try:
+            heartbeat_age = time.time() - (float(heartbeat_last_seen) / 1000.0)
+            has_recent_heartbeat = heartbeat_age <= COMMAND_HEARTBEAT_GRACE_SECONDS
+        except (TypeError, ValueError):
+            has_recent_heartbeat = False
+
     mission = int(row.get("mission", 0) or 0)
     state = int(row.get("state", 0) or 0)
     home_position_set = row.get("home_position_set")
@@ -181,6 +199,7 @@ def _is_idle_baseline_row(row: dict) -> bool:
         and mission == 0
         and state == 0
         and (home_position_set is None or bool(home_position_set))
+        and has_recent_heartbeat
     )
 
 
