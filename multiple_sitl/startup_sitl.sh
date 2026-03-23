@@ -1223,24 +1223,30 @@ read_offsets() {
 calculate_new_coordinates() {
     log_message "Calculating new geographic coordinates based on offsets..."
 
-    # Constants
-    EARTH_RADIUS=6371000  # in meters
-    PI=3.141592653589793238
+    local coord_helper="$BASE_DIR/multiple_sitl/calculate_spawn_coordinates.py"
+    local coord_output
 
-    # Convert latitude from degrees to radians
-    LAT_RAD=$(echo "$DEFAULT_LAT * ($PI / 180)" | bc -l)
+    if [[ ! -f "$coord_helper" ]]; then
+        log_message "ERROR: Coordinate helper missing: $coord_helper"
+        exit 1
+    fi
 
-    # Calculate new latitude based on northward offset (OFFSET_X)
-    # Formula: Δφ = (Offset_X / R) * (180 / π)
-    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * (180 / $PI)" | bc -l)
+    if ! coord_output=$(python3 "$coord_helper" \
+        --lat "$DEFAULT_LAT" \
+        --lon "$DEFAULT_LON" \
+        --offset-north "$OFFSET_X" \
+        --offset-east "$OFFSET_Y" 2>&1); then
+        log_message "ERROR: Failed to calculate spawn coordinates: $coord_output"
+        exit 1
+    fi
 
-    # Calculate meters per degree of longitude at the current latitude
-    # Formula: M_per_degree = (π / 180) * R * cos(lat_rad)
-    M_PER_DEGREE=$(echo "scale=10; ($PI / 180) * $EARTH_RADIUS * c($LAT_RAD)" | bc -l)
+    NEW_LAT=$(echo "$coord_output" | awk -F= '/^NEW_LAT=/{print $2}')
+    NEW_LON=$(echo "$coord_output" | awk -F= '/^NEW_LON=/{print $2}')
 
-    # Calculate new longitude based on eastward offset (OFFSET_Y)
-    # Formula: Δλ = Offset_Y / M_per_degree
-    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $M_PER_DEGREE)" | bc -l)
+    if [[ -z "$NEW_LAT" || -z "$NEW_LON" ]]; then
+        log_message "ERROR: Coordinate helper returned incomplete output: $coord_output"
+        exit 1
+    fi
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
