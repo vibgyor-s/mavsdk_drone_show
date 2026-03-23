@@ -51,6 +51,7 @@ import argparse
 import asyncio
 import csv
 import os
+import requests
 import socket
 import subprocess
 import sys
@@ -391,6 +392,20 @@ async def wait_for_telemetry_condition(stream_factory, predicate, description, t
             raise TimeoutError(f"Timed out waiting for {description}")
 
 
+def _get_local_drone_state_snapshot(timeout: float = 1.0):
+    """Read the local drone API state as a fallback readiness signal for this container."""
+    try:
+        response = requests.get(
+            f"http://127.0.0.1:{Params.drone_api_port}/get_drone_state",
+            timeout=timeout,
+        )
+        if response.status_code == 200:
+            return response.json()
+    except requests.RequestException:
+        return None
+    return None
+
+
 async def wait_until_armed_state(drone, expected: bool, timeout=15):
     state_label = "armed" if expected else "disarmed"
     return await wait_for_telemetry_condition(
@@ -573,12 +588,20 @@ async def ensure_ready_for_flight(drone, timeout: float | None = None):
             gps_ok = True
         if health.is_home_position_ok:
             home_ok = True
-        current_state = (gps_ok, home_ok)
+
+        local_state = _get_local_drone_state_snapshot()
+        local_home_ok = bool(local_state and local_state.get("home_position_set"))
+        if local_home_ok:
+            home_ok = True
+
+        home_source = "mavsdk" if health.is_home_position_ok else ("drone_api" if local_home_ok else "pending")
+        current_state = (gps_ok, home_ok, home_source)
         if current_state != last_reported_state:
             logger.info(
-                "Preflight health update: gps_ok=%s, home_ok=%s, elapsed=%.1fs/%.1fs",
+                "Preflight health update: gps_ok=%s, home_ok=%s, home_source=%s, elapsed=%.1fs/%.1fs",
                 gps_ok,
                 home_ok,
+                home_source,
                 time.monotonic() - start,
                 preflight_timeout,
             )
