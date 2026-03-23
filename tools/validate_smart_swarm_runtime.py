@@ -178,6 +178,10 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def _telemetry_has_ids(telemetry: dict[str, dict], ids: list[int]) -> bool:
+    return all(str(idx) in telemetry for idx in ids)
+
+
 def _is_idle_baseline_row(row: dict) -> bool:
     heartbeat_last_seen = row.get("heartbeat_last_seen")
     has_recent_heartbeat = False
@@ -310,12 +314,14 @@ def wait_altitude(client: ApiClient, ids: list[int], base_altitudes: dict[str, f
 
 def wait_fleet_ready(client: ApiClient, ids: list[int], timeout: int = 90):
     def _ready():
-        telemetry = snapshot(client, ids)
+        telemetry = client.get_telemetry()
+        if not _telemetry_has_ids(telemetry, ids):
+            return False
         for drone_id in ids:
             row = telemetry[str(drone_id)]
             if not _is_idle_baseline_row(row):
                 return False
-        return telemetry
+        return {str(idx): telemetry[str(idx)] for idx in ids}
 
     return wait_for(_ready, label=f"drones {ids} grounded, idle, and preflight ready", timeout=timeout, interval=2.0)
 
@@ -461,8 +467,6 @@ def main() -> None:
     ids = [int(part.strip()) for part in args.drones.split(",") if part.strip()]
     require(ids, "No drone IDs supplied.")
 
-    telemetry = client.get_telemetry()
-    require(all(str(idx) in telemetry for idx in ids), f"Expected telemetry for {ids}, got keys={sorted(telemetry.keys())}")
     telemetry = wait_fleet_ready(client, ids, timeout=120)
     base_altitudes = {str(idx): telemetry[str(idx)]["position_alt"] for idx in ids}
     log(f"BASE ALTITUDES: {base_altitudes}")

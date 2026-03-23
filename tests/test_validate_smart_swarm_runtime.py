@@ -1,6 +1,15 @@
 import time
 
-from tools.validate_smart_swarm_runtime import _is_idle_baseline_row, _is_idle_reset_row
+from tools.validate_smart_swarm_runtime import (
+    _is_idle_baseline_row,
+    _is_idle_reset_row,
+    _telemetry_has_ids,
+)
+
+
+def test_telemetry_has_ids_requires_full_selected_fleet():
+    assert _telemetry_has_ids({"1": {}, "2": {}, "3": {}}, [1, 2, 3]) is True
+    assert _telemetry_has_ids({"1": {}, "3": {}}, [1, 2, 3]) is False
 
 
 def test_idle_baseline_requires_ready_disarmed_idle_and_home():
