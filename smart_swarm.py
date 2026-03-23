@@ -110,6 +110,7 @@ import aiohttp
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
 from smart_swarm_src.pd_controller import PDController  # New import
 from smart_swarm_src.low_pass_filter import LowPassFilter  # New import
+from smart_swarm_src.failover import choose_leader_loss_response
 from smart_swarm_src.utils import (
     transform_body_to_nea,
     is_data_fresh,
@@ -160,6 +161,7 @@ FOLLOWER_TASKS = {}  # Dictionary to hold tasks for follower mode (leader update
 
 leader_unreachable_count = 0  # Initialize the counter for failed leader fetch attempts
 max_unreachable_attempts = Params.MAX_LEADER_UNREACHABLE_ATTEMPTS  # Set the max retries before leader election
+LEADER_FAILOVER_IN_PROGRESS = False  # Prevent duplicate failover runs while leader health is degraded
 
 # for leader-election cooldown
 last_election_time = 0.0
@@ -204,10 +206,11 @@ def get_drone_config_for_hw_id(hw_id):
 
 def reset_leader_tracking():
     """Drop leader-estimation state when the follow target changes."""
-    global LEADER_STATE, LEADER_KALMAN_FILTER, leader_unreachable_count
+    global LEADER_STATE, LEADER_KALMAN_FILTER, leader_unreachable_count, LEADER_FAILOVER_IN_PROGRESS
     LEADER_STATE.clear()
     LEADER_KALMAN_FILTER = LeaderKalmanFilter()
     leader_unreachable_count = 0
+    LEADER_FAILOVER_IN_PROGRESS = False
 
 
 def assign_leader_target(new_leader_hw_id):
@@ -250,6 +253,60 @@ async def cancel_follower_tasks(logger):
     FOLLOWER_TASKS.clear()
 
 
+def _follower_task_missing(task_name: str) -> bool:
+    task = FOLLOWER_TASKS.get(task_name)
+    return task is None or task.done()
+
+
+async def ensure_offboard_active_for_follower(drone: System, logger, reason: str) -> bool:
+    """Start follower offboard mode if it is not already active."""
+    try:
+        await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+        await drone.offboard.start()
+        logger.info("Follower offboard control active (%s).", reason)
+        return True
+    except OffboardError as exc:
+        message = str(exc).lower()
+        if "already" in message and "offboard" in message:
+            logger.debug("Follower offboard control already active (%s).", reason)
+            return True
+        logger.error("Failed to start follower offboard control (%s): %s", reason, exc)
+        return False
+    except Exception as exc:
+        logger.error("Unexpected error while starting follower offboard control (%s): %s", reason, exc)
+        return False
+
+
+async def ensure_follower_runtime(drone: System, logger, reason: str) -> bool:
+    """Ensure the follower control runtime is fully active and recover crashed tasks."""
+    if not await ensure_offboard_active_for_follower(drone, logger, reason):
+        return False
+
+    if _follower_task_missing('leader_update_task'):
+        FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
+    if _follower_task_missing('own_state_task'):
+        FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
+    if _follower_task_missing('control_task'):
+        FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
+    return True
+
+
+async def handle_leader_unavailability(drone: System, logger, reason: str):
+    """Run one failover sequence at a time when leader health is lost."""
+    global LEADER_FAILOVER_IN_PROGRESS
+
+    if LEADER_FAILOVER_IN_PROGRESS:
+        logger.debug("Leader failover already in progress (%s).", reason)
+        return
+
+    LEADER_FAILOVER_IN_PROGRESS = True
+    try:
+        await execute_failsafe(drone, reason=reason)
+        await elect_new_leader()
+    finally:
+        LEADER_FAILOVER_IN_PROGRESS = False
+
+
 async def transition_to_leader_mode(drone: System, logger, reason: str):
     """Stop follower control and leave the vehicle in an explicit leader-safe HOLD state."""
     global IS_LEADER
@@ -277,7 +334,7 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
 
 async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, reason: str):
     """Start follower-mode tasks against a validated leader target."""
-    global IS_LEADER, FOLLOWER_TASKS
+    global IS_LEADER
 
     leader_cfg = assign_leader_target(new_leader_hw_id)
     if leader_cfg is None:
@@ -285,14 +342,8 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
         return False
 
     IS_LEADER = False
-    if FOLLOWER_TASKS:
-        return True
-
-    logger.info("[Periodic Update] Launching follower tasks (%s).", reason)
-    FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
-    FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
-    FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
-    return True
+    logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
+    return await ensure_follower_runtime(drone, logger, reason)
 
 # Legacy configure_logging function - now using shared one from drone_show_src.utils
 # def configure_logging():
@@ -802,11 +853,9 @@ async def update_leader_state():
                         )
                     data = await response.json()
 
-                # reset on success
-                leader_unreachable_count = 0
-
                 leader_update_time = data.get('update_time', None)
                 if leader_update_time and leader_update_time != last_update_time:
+                    leader_unreachable_count = 0
                     last_update_time = leader_update_time
 
                     # Convert lat/lon/alt to NED
@@ -841,15 +890,26 @@ async def update_leader_state():
                     logger.debug(f"Leader @ {leader_update_time:.3f}s: {measurement}")
                     logger.debug(f"Kalman state: {LEADER_KALMAN_FILTER.get_state()}")
                 else:
-                    logger.debug("Leader response missing a fresh 'update_time'.")
+                    leader_unreachable_count += 1
+                    logger.debug(
+                        "Leader response missing a fresh 'update_time' (%s/%s).",
+                        leader_unreachable_count,
+                        max_unreachable_attempts,
+                    )
+                    if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
+                        logger.warning(
+                            "Leader telemetry stopped advancing for %s checks. Starting failover.",
+                            leader_unreachable_count,
+                        )
+                        await handle_leader_unavailability(DRONE_INSTANCE, logger, "stale leader update_time")
             except Exception as e:
                 leader_unreachable_count += 1
                 logger.debug("Leader state fetch failed (%s/%s): %s", leader_unreachable_count, max_unreachable_attempts, e)
-                if leader_unreachable_count >= max_unreachable_attempts:
+                if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
                     logger.warning(
-                        f"Leader unreachable for {leader_unreachable_count} attempts. Electing new leader."
+                        f"Leader unreachable for {leader_unreachable_count} attempts. Starting failover."
                     )
-                    await elect_new_leader()
+                    await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader fetch failures")
 
             await asyncio.sleep(update_interval)
 
@@ -857,12 +917,7 @@ async def update_leader_state():
 async def elect_new_leader():
     """
     Elect a new leader when the current leader is unreachable.
-    - Enforces a cooldown.
-    - Picks the very next HW_ID (wrapping) in numeric order.
-    - If that ID == self, self-promote: set role=0, cancel followers, stop offboard & HOLD.
-    - Otherwise, notify GCS; if accepted, commit new leader IP & reset counters/filters.
-
-    TODO: Later detect/prevent cycles of intermediate leaders.
+    The exact failover policy is controlled by Params.SMART_SWARM_LEADER_LOSS_STRATEGY.
     """
     global last_election_time
     global SWARM_CONFIG, LEADER_HW_ID, LEADER_IP
@@ -881,51 +936,53 @@ async def elect_new_leader():
 
     logger = logging.getLogger(__name__)
     old_leader = LEADER_HW_ID
-    old_follow = SWARM_CONFIG[str(HW_ID)]['follow']
+    strategy = getattr(Params, "SMART_SWARM_LEADER_LOSS_STRATEGY", "upstream_or_hold")
+    failover = choose_leader_loss_response(
+        self_hw_id=HW_ID,
+        current_leader_hw_id=old_leader,
+        swarm_config=SWARM_CONFIG,
+        strategy=strategy,
+    )
+    logger.warning(
+        "Leader-loss failover resolved using strategy '%s': %s",
+        failover["strategy"],
+        failover["reason"],
+    )
 
-    # Build sorted list of all drone IDs
-    all_ids = sorted(int(k) for k in SWARM_CONFIG.keys())
-    # Find index of current leader (or -1 if unknown)
-    current_idx = all_ids.index(int(old_leader)) if old_leader and int(old_leader) in all_ids else -1
-
-    # Compute the next candidate (wrap-around)
-    next_idx = (current_idx + 1) % len(all_ids)
-    candidate = all_ids[next_idx]
-    logger.info(f"Election candidate based on offset: {candidate}")
-
-    # Self-promotion if candidate == self
-    if candidate == HW_ID:
-        logger.info("Candidate is self → self-promoting to leader and entering HOLD mode.")
-        # Update manifest
+    if failover["action"] == "self_hold":
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
-        # Notify GCS (best-effort)
         try:
             await notify_gcs_of_leader_change(0)
         except Exception:
-            logger.warning("GCS notify failed for self-promotion.")
-        await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader election")
+            logger.warning("GCS notify failed for self-promotion during failover.")
+        await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
         return
 
-    # Otherwise, propose this candidate as new leader
-    new_leader = candidate
-    logger.info(f"Proposed new leader: {new_leader}")
+    new_leader = failover["leader_hw_id"]
+    if new_leader is None:
+        logger.warning("Failover did not resolve a leader candidate; entering HOLD mode.")
+        SWARM_CONFIG[str(HW_ID)]['follow'] = 0
+        await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
+        return
 
-    # Stage locally
+    logger.info("Attempting failover to Drone %s.", new_leader)
     SWARM_CONFIG[str(HW_ID)]['follow'] = int(new_leader)
 
-    # Notify GCS
     accepted = await notify_gcs_of_leader_change(new_leader)
-    if accepted:
-        # Commit: switch IP, reset Kalman filter & counter
-        if assign_leader_target(new_leader) is None:
-            logger.error("Leader election selected HW_ID=%s but no matching config was found.", new_leader)
-            SWARM_CONFIG[str(HW_ID)]['follow'] = old_follow
-            return
-        logger.info(f"Leader election committed: now following {new_leader} @ {LEADER_IP}")
-    else:
-        # Revert on rejection
-        SWARM_CONFIG[str(HW_ID)]['follow'] = old_follow
-        logger.warning(f"Leader election aborted; staying with {old_leader}")
+    if accepted and assign_leader_target(new_leader) is not None:
+        logger.info("Leader failover committed: now following %s @ %s", new_leader, LEADER_IP)
+        return
+
+    logger.warning(
+        "Leader failover to %s could not be committed; reverting to self-hold for safety.",
+        new_leader,
+    )
+    SWARM_CONFIG[str(HW_ID)]['follow'] = 0
+    try:
+        await notify_gcs_of_leader_change(0)
+    except Exception:
+        logger.warning("GCS notify failed while reverting to self-hold after failover rejection.")
+    await transition_to_leader_mode(DRONE_INSTANCE, logger, "failover commit rejected")
 
 
 
@@ -1027,12 +1084,34 @@ async def control_loop(drone: System):
     velocity_filter = LowPassFilter(alpha)
 
     previous_time = None
+    state_gate_status = None
 
     try:
         while True:
             current_time = time.time()
             dt = current_time - previous_time if previous_time else loop_interval
             previous_time = current_time
+
+            own_state_ready = 'timestamp' in OWN_STATE
+            leader_state_ready = 'update_time' in LEADER_STATE
+
+            if not own_state_ready:
+                if state_gate_status != 'own':
+                    logger.info("Follower waiting for own-state lock before sending setpoints.")
+                    state_gate_status = 'own'
+                await asyncio.sleep(loop_interval)
+                continue
+
+            if not leader_state_ready:
+                if state_gate_status != 'leader':
+                    logger.info("Follower waiting for leader-state lock before sending setpoints.")
+                    state_gate_status = 'leader'
+                await asyncio.sleep(loop_interval)
+                continue
+
+            if state_gate_status is not None:
+                logger.info("Follower state lock acquired; resuming formation control.")
+                state_gate_status = None
 
             # Check data freshness
             if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
@@ -1095,23 +1174,27 @@ async def control_loop(drone: System):
                 if stale_start_time is None:
                     stale_start_time = current_time
                 elif (current_time - stale_start_time) >= stale_duration_threshold:
-                    logger.warning(f"Leader data has been stale for over {stale_duration_threshold} seconds, executing failsafe.")
-                    await execute_failsafe(drone)
+                    logger.warning(
+                        "Leader data has been stale for over %s seconds. Starting failover.",
+                        stale_duration_threshold,
+                    )
+                    await handle_leader_unavailability(drone, logger, "control-loop stale leader data")
+                    stale_start_time = current_time
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:
         logger.info("Control loop cancelled.")
     except OffboardError as e:
         logger.error(f"Offboard error in control loop: {e}")
-        await execute_failsafe(drone)
+        await execute_failsafe(drone, reason="offboard error in control loop")
     except Exception:
         logger.exception("Unexpected error in control loop")
-        await execute_failsafe(drone)
+        await execute_failsafe(drone, reason="unexpected control-loop error")
 
 # ----------------------------- #
 #         Failsafe Function     #
 # ----------------------------- #
 
-async def execute_failsafe(drone: System):
+async def execute_failsafe(drone: System, reason: str = ""):
     """
     Executes a failsafe procedure, such as holding position or landing.
 
@@ -1124,7 +1207,7 @@ async def execute_failsafe(drone: System):
     try:
         # Hold position
         await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
-        logger.info("Failsafe: Holding position.")
+        logger.info("Failsafe: Holding position%s.", f" ({reason})" if reason else "")
     except OffboardError as e:
         logger.error(f"Failsafe offboard error: {e}")
         # Attempt to re-start offboard mode
@@ -1141,9 +1224,9 @@ async def execute_failsafe(drone: System):
 # ----------------------------- #
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
-async def initialize_drone():
+async def initialize_drone(start_offboard: bool = False):
     """
-    Initializes the drone connection, performs pre-flight checks, and starts offboard mode.
+    Initializes the drone connection and performs pre-flight checks.
 
     Returns:
         drone (System): MAVSDK drone system instance.
@@ -1198,14 +1281,10 @@ async def initialize_drone():
                 raise TimeoutError("Pre-flight checks timed out.")
             await asyncio.sleep(1)
 
-        # Arm the drone and start offboard mode
-        # TODO: Maybe do some checks later on here
-        # logger.info("Arming drone.")
-        # await drone.action.arm() # if not already arm (meaning we start on the ground)
-        logger.info("Starting offboard mode.")
-        # Send an initial setpoint before starting offboard mode
-        await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-        await drone.offboard.start()
+        if start_offboard:
+            logger.info("Starting offboard mode during initialization.")
+            await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+            await drone.offboard.start()
         led_controller.set_color(0, 255, 0)  # Green to indicate ready
 
         return drone
@@ -1291,7 +1370,7 @@ async def run_smart_swarm():
     # --------------------------- #
 
     try:
-        drone = await initialize_drone()
+        drone = await initialize_drone(start_offboard=False)
         global DRONE_INSTANCE
         DRONE_INSTANCE = drone
     except Exception:
@@ -1354,9 +1433,9 @@ async def run_smart_swarm():
 
     # For followers, start the corresponding tasks and store them in FOLLOWER_TASKS
     if not IS_LEADER:
-        FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
-        FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
-        FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
+        if not await ensure_follower_runtime(drone, logger, "startup"):
+            logger.error("Failed to start follower runtime.")
+            sys.exit(1)
     else:
         logger.info("No follower tasks started as drone is in Leader mode.")
 

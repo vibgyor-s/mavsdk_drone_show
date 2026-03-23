@@ -153,6 +153,7 @@ class Params:
 
     # minimum seconds between successive elections
     LEADER_ELECTION_COOLDOWN = 30
+    SMART_SWARM_LEADER_LOSS_STRATEGY = "upstream_or_hold"
 
     
     csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)

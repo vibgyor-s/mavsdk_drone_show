@@ -507,27 +507,18 @@ While SITL simulations are great for testing, they are not a substitute for real
 
 We are committed to regularly updating this project to make it a reliable product soon. Thank you for your interest, and happy flying!
 
-## Enhancements in Version 3.5 (Released September 2025)
+## Smart Swarm Notes
 
-With the switch from Version 2 to Version 3, we have fully re-enabled and hardened the smart swarm’s Leader–Follower mode, and overhauled the drone-show workflow. Details:
+Smart Swarm is the live leader-follower mission mode in MDS. For the current operator model, failover behavior, and runtime control surface, use the dedicated guide:
 
-- **Leader–Follower Mode Now Fully Operational**  
-  - Basic leader failure handling is implemented: if the leader goes offline or fails to respond, followers automatically revert to a safe loiter point and await a new leader assignment.  
-  - Followers transition smoothly when the leader changes, with minimal jitter.  
-  - Queueing logic has been optimized so that newly joining drones sync to the current formation without disrupting existing members.
+- [Smart Swarm Guide](../features/smart-swarm.md)
 
-- **Drone-Show Workflow Improvements**  
-  - **Global Mode Setpoints:** You can now specify a single global “ShowMode” parameter in the mission file. All drones read this parameter at startup to determine flight patterns (e.g., “Spiral,” “Wave,” “Heart”).  
-  - **Enhanced Failsafe Checks:**  
-    - Preflight sanity checks verify that every drone’s parameters (battery, GPS lock, ESC responsiveness) meet minimum thresholds before arming.  
-    - In-flight failsafes detect communication timeouts, altimeter discrepancies, and ESC reboot events; the system automatically issues a “Return-to-Home” or “Loiter” command if any failsafe is triggered.  
-  - **Stable Startup Sequence:**  
-    - Each drone now waits for a global “OK-to-Start” broadcast from the GCS. This ensures that all SITL instances have connected and parameterized before any takeoff commands are sent.  
-    - The initialization handshake has been simplified: three-way acknowledgments (drone⇄PX4, PX4⇄MAVSDK, MAVSDK⇄GCS) guarantee that no drone launches prematurely.  
-  - **Robustness & Bug Fixes:**  
-    - Fixed a race condition where, under high CPU load, some drones would skip critical parameter uploads and end up in GUIDED mode instead of AUTO.  
-    - Resolved an issue in which emergency land commands were occasionally ignored when issued during a mode transition.  
-    - Optimized network-buffer handling to prevent packet drops when simulating large swarms (100+ drones).  
+Current behavior summary:
+
+- single-drone commands remain scoped to the addressed drone
+- swarm-level intent should use the `Smart Swarm Runtime` controls on the `Swarm Design` page
+- followers do not silently stop just because one leader receives an individual override
+- leader-loss handling now defaults to an `upstream_or_hold` policy instead of jumping across unrelated drones
 
 
 ## Additional Resources

@@ -653,6 +653,80 @@ async def get_trajectory_first_row(pos_id: int = Query(..., description="Positio
 # Swarm Endpoints
 # ============================================================================
 
+def _normalize_swarm_hw_id(value):
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized > 0 else None
+
+
+def _extract_swarm_assignments(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict) and isinstance(payload.get("assignments"), list):
+        return payload["assignments"]
+    return None
+
+
+def _would_create_swarm_cycle(assignments, hw_id, follow):
+    normalized_hw_id = _normalize_swarm_hw_id(hw_id)
+    normalized_follow = _normalize_swarm_hw_id(follow)
+    if normalized_hw_id is None or normalized_follow is None:
+        return False
+
+    follow_map = {}
+    for entry in assignments:
+        entry_hw_id = _normalize_swarm_hw_id(entry.get("hw_id"))
+        if entry_hw_id is None:
+            continue
+        try:
+            follow_map[entry_hw_id] = int(entry.get("follow", 0))
+        except (TypeError, ValueError):
+            follow_map[entry_hw_id] = 0
+
+    follow_map[normalized_hw_id] = normalized_follow
+
+    visited = {normalized_hw_id}
+    current = normalized_follow
+    while current > 0:
+        if current in visited:
+            return True
+        visited.add(current)
+        current = int(follow_map.get(current, 0) or 0)
+
+    return False
+
+
+def _validate_swarm_cycle_constraints(payload):
+    assignments = _extract_swarm_assignments(payload)
+    if assignments is None:
+        return
+
+    known_hw_ids = {
+        _normalize_swarm_hw_id(entry.get("hw_id"))
+        for entry in assignments
+    }
+    known_hw_ids.discard(None)
+
+    for entry in assignments:
+        hw_id = _normalize_swarm_hw_id(entry.get("hw_id"))
+        try:
+            follow = int(entry.get("follow", 0))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="follow must be zero or a valid leader hw_id")
+
+        if hw_id is None:
+            raise HTTPException(status_code=400, detail="Each swarm assignment requires a valid positive hw_id")
+        if follow < 0:
+            raise HTTPException(status_code=400, detail="follow must be zero or a valid leader hw_id")
+        if follow == hw_id:
+            raise HTTPException(status_code=400, detail=f"A drone cannot follow itself (hw_id={hw_id})")
+        if follow > 0 and follow not in known_hw_ids:
+            raise HTTPException(status_code=400, detail=f"Leader hw_id={follow} is not present in swarm config")
+        if _would_create_swarm_cycle(assignments, hw_id, follow):
+            raise HTTPException(status_code=400, detail=f"Follow update would create a cycle for hw_id={hw_id}")
+
 @app.get("/get-swarm-data", tags=["Swarm"])
 async def get_swarm():
     """Get swarm configuration"""
@@ -671,6 +745,8 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
 
         if not swarm_data:
             raise HTTPException(status_code=400, detail="No swarm data provided")
+
+        _validate_swarm_cycle_constraints(swarm_data)
 
         log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
 
@@ -693,6 +769,8 @@ async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None
             "git_result": git_result
         })
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -718,7 +796,13 @@ async def submit_command(request: Request):
         # Log command reception
         mission_type = command_data.get('missionType', 'unknown')
         trigger_time = command_data.get('triggerTime', '0')
-        log_system_event(f"Command received: missionType={mission_type}, triggerTime={trigger_time}", "INFO", "command")
+        operator_label = command_data.get('operatorLabel')
+        log_suffix = f", operatorLabel={operator_label}" if operator_label else ""
+        log_system_event(
+            f"Command received: missionType={mission_type}, triggerTime={trigger_time}{log_suffix}",
+            "INFO",
+            "command",
+        )
 
         # Extract target drones
         target_drones = command_data.pop('target_drones', None)
@@ -2417,6 +2501,10 @@ async def request_new_leader(request: Request):
 
         updated_assignment = dict(swarm_data[assignment_index])
         updated_assignment['follow'] = follow
+
+        projected_swarm = list(swarm_data)
+        projected_swarm[assignment_index] = updated_assignment
+        _validate_swarm_cycle_constraints(projected_swarm)
 
         try:
             if 'offset_x' in data:

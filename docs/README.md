@@ -43,6 +43,7 @@ Start here to get your first drone show simulation running:
 |--------------|---------------|
 | Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
+| Run or tune live Smart Swarm missions | [Smart Swarm Guide](features/smart-swarm.md) |
 | Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
 | Customize deployment | [Advanced SITL Guide](guides/advanced-sitl.md) |
 | Build or redistribute a custom SITL release | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
@@ -78,7 +79,8 @@ Detailed documentation for MDS features:
 
 | Feature | Description |
 |---------|-------------|
-| **[Swarm Trajectory](features/swarm-trajectory.md)** | Smart swarm mode, leader-follower clustering, Kalman filters |
+| **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, and operator workflow |
+| **[Swarm Trajectory](features/swarm-trajectory.md)** | Processed cluster trajectories, leader-follow offsets, plotting, and KML export |
 | **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
 | **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |

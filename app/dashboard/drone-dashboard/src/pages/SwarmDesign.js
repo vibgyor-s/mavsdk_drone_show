@@ -17,6 +17,7 @@ import { toast } from 'react-toastify';
 import DroneCard from '../components/DroneCard';
 import DroneGraph from '../components/DroneGraph';
 import SwarmPlots from '../components/SwarmPlots';
+import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import '../styles/SwarmDesign.css';
 import { getBackendURL } from '../utilities/utilities';
 import {
@@ -532,6 +533,15 @@ function SwarmDesign() {
           </div>
         )}
       </section>
+
+      <SwarmRuntimeControls
+        viewModel={viewModel}
+        selectedDroneId={selectedDroneId}
+        selectedClusterId={selectedClusterId}
+        hasBlockingIssues={hasBlockingIssues}
+        hasPendingSync={hasPendingSync}
+        hasStagedChanges={hasStagedChanges}
+      />
 
       <div className="swarm-operations-layout">
         <section className="swarm-panel swarm-panel--assignments">

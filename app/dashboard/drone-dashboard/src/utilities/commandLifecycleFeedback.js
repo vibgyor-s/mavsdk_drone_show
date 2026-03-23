@@ -15,7 +15,9 @@ function normalizeMissionType(missionType) {
 }
 
 function formatCommandLabel(commandData, response) {
-  return response?.mission_name || getCommandName(normalizeMissionType(commandData?.missionType));
+  return commandData?.operatorLabel
+    || response?.mission_name
+    || getCommandName(normalizeMissionType(commandData?.missionType));
 }
 
 function getAcceptedCount(response) {

@@ -48,6 +48,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - `tools/sitl_image_prepare.sh` to rebuild a clean runtime filesystem inside a temporary container
   - `tools/release_sitl_image.sh` to flatten and retag official SITL releases without carrying old `docker commit` history
   - `tools/run_with_log_policy.py` for bounded runtime file logs in SITL containers
+- **Smart Swarm Runtime Guide**:
+  - Dedicated operator/developer guide at `docs/features/smart-swarm.md`
+  - Explicit command-scope model for single-drone vs swarm-level runtime controls
+  - Documented leader-loss policy and extension points for future election strategies
 
 ### Changed
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
@@ -61,6 +65,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - SITL image preparation/build docs now pin PX4 plus baked `mavsdk_server` inside the image, pass `MDS_MAVSDK_VERSION` / `MDS_MAVSDK_URL` through the image-build path, and use updated MAVSDK release asset naming for current releases
 - SITL public setup docs now separate pinned validated releases from mutable latest-on-boot development mode, add a dedicated custom release workflow guide, and refresh FastAPI startup/version guidance for current GCS deployment behavior
 - Root and docs index READMEs now reflect the current MDS 5 scope more accurately, including QuickScout SAR, trajectory planning, unified logging, and the current SITL/custom-release workflow paths
+- Smart Swarm now refreshes GCS-backed assignments before startup role selection, exposes compact swarm-runtime controls in the dashboard, and uses a safer `upstream_or_hold` leader-loss default instead of cross-cluster numeric fallback
+- Smart Swarm runtime controls now default to `Selected Drone`, with explicit `Selected Cluster` scope for formation-level actions so mixed missions stay predictable
+- Smart Swarm follower recovery now restarts offboard cleanly on follower re-entry, waits for state lock before sending setpoints, and treats stale leader telemetry as a failover condition
+- GCS swarm updates now reject follow-chain cycles both for dashboard saves and live `/request-new-leader` changes
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)

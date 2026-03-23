@@ -501,13 +501,26 @@ class TestSwarmEndpoints:
         assert response.status_code == 200
 
     @patch('app_fastapi.save_swarm')
-    @patch('app_fastapi.git_operations', return_value={'success': True, 'message': 'Pushed', 'commit_hash': 'abc123'})
-    def test_save_swarm_data(self, mock_git, mock_save, test_client):
+    def test_save_swarm_data(self, mock_save, test_client):
         """Test POST /save-swarm-data"""
         swarm_data = {'hierarchies': {}}
 
-        response = test_client.post("/save-swarm-data", json=swarm_data)
+        response = test_client.post("/save-swarm-data?commit=false", json=swarm_data)
         assert response.status_code == 200
+
+    @patch('app_fastapi.save_swarm')
+    def test_save_swarm_data_rejects_cycles(self, mock_save, test_client):
+        """Test POST /save-swarm-data rejects cyclic follow chains."""
+        swarm_data = [
+            {'hw_id': 1, 'follow': 2, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        ]
+
+        response = test_client.post("/save-swarm-data", json=swarm_data)
+
+        assert response.status_code == 400
+        assert 'cycle' in response.json()['detail']
+        mock_save.assert_not_called()
 
     @patch('app_fastapi.save_swarm')
     @patch('app_fastapi.load_swarm')
@@ -547,6 +560,39 @@ class TestSwarmEndpoints:
 
         assert response.status_code == 400
         assert response.json()['detail'] == 'A drone cannot follow itself'
+
+    @patch('app_fastapi.load_swarm')
+    def test_request_new_leader_rejects_cycle_creation(self, mock_load, test_client):
+        """Test POST /request-new-leader rejects updates that would create a follow loop."""
+        mock_load.return_value = [
+            {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 3, 'follow': 2, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        ]
+
+        response = test_client.post(
+            "/request-new-leader",
+            json={'hw_id': 1, 'follow': 3},
+        )
+
+        assert response.status_code == 400
+        assert response.json()['detail'] == 'Follow update would create a cycle for hw_id=1'
+
+    @patch('app_fastapi.load_swarm')
+    def test_request_new_leader_rejects_cycle(self, mock_load, test_client):
+        """Test POST /request-new-leader rejects updates that introduce a cycle."""
+        mock_load.return_value = [
+            {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        ]
+
+        response = test_client.post(
+            "/request-new-leader",
+            json={'hw_id': 1, 'follow': 2},
+        )
+
+        assert response.status_code == 400
+        assert 'cycle' in response.json()['detail']
 
 
 # ============================================================================
