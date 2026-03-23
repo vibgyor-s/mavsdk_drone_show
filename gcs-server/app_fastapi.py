@@ -65,7 +65,13 @@ from origin import (
     calculate_position_deviations
 )
 from coordinate_utils import get_expected_position_from_trajectory
-from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
+from heartbeat import (
+    handle_heartbeat_post,
+    get_all_heartbeats,
+    get_network_info_from_heartbeats,
+    last_heartbeats,
+    last_heartbeats_lock,
+)
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
 from src import __version__ as MDS_VERSION
@@ -173,7 +179,7 @@ class BackgroundServices:
                     if not self.running:
                         break
 
-                    hw_id = drone['hw_id']
+                    hw_id = str(drone['hw_id'])
                     ip = drone['ip']
 
                     try:
@@ -187,7 +193,7 @@ class BackgroundServices:
                         if response.status_code == 200:
                             data = response.json()
                             with telemetry_lock:
-                                telemetry_data_all_drones[hw_id] = data
+                                telemetry_data_all_drones[hw_id] = _build_background_telemetry_record(hw_id, ip, data)
 
                     except Exception as e:
                         # Silent failure - telemetry polling errors are expected
@@ -245,6 +251,23 @@ class BackgroundServices:
 
 # Global background services instance
 background_services = BackgroundServices()
+
+
+def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep FastAPI background telemetry aligned with the typed telemetry API contract."""
+    normalized_hw_id = str(hw_id)
+
+    with last_heartbeats_lock:
+        heartbeat_data = (last_heartbeats.get(normalized_hw_id) or {}).copy()
+
+    return {
+        **data,
+        "hw_id": str(data.get("hw_id", normalized_hw_id)),
+        "ip": data.get("ip", ip),
+        "heartbeat_last_seen": heartbeat_data.get("timestamp"),
+        "heartbeat_network_info": heartbeat_data.get("network_info") or {},
+        "heartbeat_first_seen": heartbeat_data.get("first_seen"),
+    }
 
 
 # ============================================================================

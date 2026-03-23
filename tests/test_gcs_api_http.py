@@ -229,6 +229,38 @@ class TestHealthEndpoints:
         assert 'timestamp' in data
 
 
+class TestBackgroundTelemetryHelpers:
+    """Test live telemetry shaping used by the FastAPI background poller."""
+
+    def test_build_background_telemetry_record_merges_heartbeat_metadata(self):
+        from app_fastapi import _build_background_telemetry_record, last_heartbeats
+
+        with patch.dict(last_heartbeats, {
+            '1': {
+                'timestamp': 1700000000123,
+                'first_seen': 1699999999000,
+                'network_info': {'reachable': True},
+            }
+        }, clear=True):
+            payload = _build_background_telemetry_record(
+                1,
+                '192.168.1.101',
+                {
+                    'hw_id': 1,
+                    'position_lat': 35.123456,
+                    'position_long': -120.654321,
+                    'position_alt': 488.5,
+                    'timestamp': 1700000000999,
+                },
+            )
+
+        assert payload['hw_id'] == '1'
+        assert payload['ip'] == '192.168.1.101'
+        assert payload['heartbeat_last_seen'] == 1700000000123
+        assert payload['heartbeat_first_seen'] == 1699999999000
+        assert payload['heartbeat_network_info'] == {'reachable': True}
+
+
 # ============================================================================
 # Configuration Tests
 # ============================================================================
