@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { calculateClusterPlotData } from '../utilities/swarmDesignUtils';
 import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
@@ -280,18 +280,21 @@ function NorthAltitudePlot({ points }) {
 function SwarmPlots({ swarmData, configData, selectedClusterId }) {
   const [activeClusterId, setActiveClusterId] = useState(selectedClusterId || null);
   const { data, clusters, description } = calculateClusterPlotData(swarmData, configData, activeClusterId);
-  const clusterOptions = clusters.length > 0
-    ? [
-        {
-          id: 'all',
-          title: 'All executable clusters',
-          counts: {
-            total: clusters.reduce((sum, cluster) => sum + cluster.counts.total, 0),
+  const clusterOptions = useMemo(
+    () => (clusters.length > 0
+      ? [
+          {
+            id: 'all',
+            title: 'All executable clusters',
+            counts: {
+              total: clusters.reduce((sum, cluster) => sum + cluster.counts.total, 0),
+            },
           },
-        },
-        ...clusters,
-      ]
-    : [];
+          ...clusters,
+        ]
+      : []),
+    [clusters]
+  );
 
   useEffect(() => {
     if (!clusters.length) {

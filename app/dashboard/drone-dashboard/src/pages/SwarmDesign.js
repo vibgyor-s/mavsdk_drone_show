@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import Papa from 'papaparse';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -74,14 +74,26 @@ function SwarmDesign() {
   const [saving, setSaving] = useState(false);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
 
-  const viewModel = buildSwarmViewModel(workingAssignments, configData);
-  const dirtyIds = getDirtyAssignmentIds(workingAssignments, baselineAssignments);
-  const dirtyIdSet = new Set(dirtyIds);
-  const syncChanges = buildWorkingSwarmAssignments(configData, serverSwarmData).syncChanges;
+  const viewModel = useMemo(
+    () => buildSwarmViewModel(workingAssignments, configData),
+    [configData, workingAssignments]
+  );
+  const dirtyIds = useMemo(
+    () => getDirtyAssignmentIds(workingAssignments, baselineAssignments),
+    [baselineAssignments, workingAssignments]
+  );
+  const dirtyIdSet = useMemo(() => new Set(dirtyIds), [dirtyIds]);
+  const syncChanges = useMemo(
+    () => buildWorkingSwarmAssignments(configData, serverSwarmData).syncChanges,
+    [configData, serverSwarmData]
+  );
   const selectedDrone = selectedDroneId ? viewModel.dronesById[selectedDroneId] : null;
-  const selectedClusterId = selectedDrone?.clusterRootId
-    || viewModel.clusters.find((cluster) => cluster.type === 'cluster')?.id
-    || null;
+  const selectedClusterId = useMemo(
+    () => selectedDrone?.clusterRootId
+      || viewModel.clusters.find((cluster) => cluster.type === 'cluster')?.id
+      || null,
+    [selectedDrone?.clusterRootId, viewModel.clusters]
+  );
 
   const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasPendingSync = syncChanges.addedIds.length > 0 || syncChanges.removedIds.length > 0;
@@ -91,20 +103,26 @@ function SwarmDesign() {
   );
 
   const searchValue = searchTerm.trim().toLowerCase();
-  const filteredClusters = viewModel.clusters
-    .map((cluster) => ({
-      ...cluster,
-      drones: cluster.drones.filter((drone) => (
-        searchValue.length === 0 || getSelectedSearchFields(drone).includes(searchValue)
-      )),
-    }))
-    .filter((cluster) => cluster.drones.length > 0);
-
-  const filteredDroneIds = new Set(
-    filteredClusters.flatMap((cluster) => cluster.drones.map((drone) => drone.hw_id))
+  const filteredClusters = useMemo(
+    () => viewModel.clusters
+      .map((cluster) => ({
+        ...cluster,
+        drones: cluster.drones.filter((drone) => (
+          searchValue.length === 0 || getSelectedSearchFields(drone).includes(searchValue)
+        )),
+      }))
+      .filter((cluster) => cluster.drones.length > 0),
+    [searchValue, viewModel.clusters]
   );
-  const visibleDroneCount = filteredClusters.reduce((count, cluster) => count + cluster.drones.length, 0);
-  const droneRosterKey = viewModel.drones.map((drone) => drone.hw_id).join('|');
+
+  const filteredDroneIds = useMemo(
+    () => new Set(filteredClusters.flatMap((cluster) => cluster.drones.map((drone) => drone.hw_id))),
+    [filteredClusters]
+  );
+  const visibleDroneCount = useMemo(
+    () => filteredClusters.reduce((count, cluster) => count + cluster.drones.length, 0),
+    [filteredClusters]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -167,7 +185,7 @@ function SwarmDesign() {
     if (expandedDroneId && !viewModel.dronesById[expandedDroneId]) {
       setExpandedDroneId(selectedDroneId || viewModel.drones[0].hw_id);
     }
-  }, [droneRosterKey, expandedDroneId, selectedDroneId]);
+  }, [expandedDroneId, selectedDroneId, viewModel.drones, viewModel.dronesById]);
 
   useEffect(() => {
     if (!pendingCardFocusId) {
