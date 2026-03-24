@@ -144,6 +144,9 @@ class Params:
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
     MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
+    SMART_SWARM_LEADER_STATE_TIMEOUT_SEC = 1.0   # Per-request timeout for follower -> leader state fetches
+    SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS swarm config refresh
+    SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS leader-change notify
     
     reboot_after_params = True
     
@@ -165,6 +168,8 @@ class Params:
     polling_interval = 1                    # Polling interval in seconds (legacy, used by standalone git_status.py)
     telem_poll_interval = 1                 # GCS telemetry polling interval in seconds
     git_poll_interval = 10                  # GCS git status polling interval in seconds
+    GCS_TELEMETRY_REQUEST_TIMEOUT_SEC = 2.0 # Per-request timeout for GCS -> drone telemetry pulls
+    GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC = 5.0  # Per-request timeout for GCS -> drone git-status pulls
     get_drone_state_URI = 'get_drone_state' # URI for getting drone state
     send_drone_command_URI = 'api/send-command'  # Replace with actual URI
 

@@ -78,6 +78,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Smart Swarm leader-change notifications now update only `follow` in GCS so failover or runtime reassignment does not overwrite fresher operator-edited offsets/frame values
 - GCS launcher logging is now quieter by default: duplicate raw access logs are disabled unless `MDS_GCS_ACCESS_LOGS=true`, and noisy third-party HTTP client debug output is suppressed so Smart Swarm/runtime signal stays readable
 - GCS launchers now set console logging deterministically through `MDS_GCS_CONSOLE_LOG_LEVEL` (default `INFO`), so inherited shell/debug state does not silently make the first-run tester flow noisy
+- Smart Swarm and GCS polling paths now use named transport timeout parameters instead of scattered literals, including follower leader-state fetches, GCS swarm-config refresh, leader-change notify, and GCS drone telemetry/git pulls
 - Routine successful command-status polling (`GET /command/<id>`) and internal execution-result callbacks are now treated as `DEBUG` request noise instead of `INFO`
 - Drone config lookups no longer spam routine `INFO` lines during normal runtime polling
 - SITL and Smart Swarm docs now reflect Python 3.11+ manual requirements, the optional nature of external NetBird/MAVLink routing, the stock 5-drone SITL config limit, and the validated Smart Swarm acceptance flow

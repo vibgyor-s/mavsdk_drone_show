@@ -545,7 +545,7 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
 
     try:
         if active_session is None:
-            timeout = aiohttp.ClientTimeout(total=2)
+            timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC)
             active_session = aiohttp.ClientSession(timeout=timeout)
 
         async with active_session.get(state_url) as resp:
@@ -863,7 +863,7 @@ async def update_leader_state():
     update_interval = 1.0 / Params.LEADER_UPDATE_FREQUENCY
     last_update_time = None
 
-    timeout = aiohttp.ClientTimeout(total=1)
+    timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_LEADER_STATE_TIMEOUT_SEC)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
             try:
@@ -1034,7 +1034,8 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(notify_url, json=payload) as resp:
                 resp.raise_for_status()
                 data = await resp.json()

@@ -123,6 +123,20 @@ That is intentionally conservative for this phase:
 
 WebSocket transport can reduce polling overhead in larger swarms, but it should be added later behind a transport abstraction with HTTP fallback. For the current validated 4-5 drone clustered flow, the main reliability issues were not transport-related.
 
+The current transport timing knobs are centralized in [params.py](../../src/params.py), including:
+
+- `SMART_SWARM_LEADER_STATE_TIMEOUT_SEC`
+- `SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC`
+- `SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC`
+- `MAX_LEADER_UNREACHABLE_ATTEMPTS`
+- `LEADER_ELECTION_COOLDOWN`
+- `MAX_STALE_DURATION`
+- `LEADER_UPDATE_FREQUENCY`
+- `DATA_FRESHNESS_THRESHOLD`
+- `CONFIG_UPDATE_INTERVAL`
+
+That keeps Smart Swarm timing policy in one place instead of scattering literals across runtime tasks.
+
 ### Mission start
 
 When Smart Swarm starts, each drone:

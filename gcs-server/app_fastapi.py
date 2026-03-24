@@ -187,7 +187,7 @@ class BackgroundServices:
                         url = f"http://{ip}:{Params.drone_api_port}/get_drone_state"
                         response = await loop.run_in_executor(
                             None,
-                            lambda u=url: requests.get(u, timeout=2)
+                            lambda u=url: requests.get(u, timeout=Params.GCS_TELEMETRY_REQUEST_TIMEOUT_SEC)
                         )
 
                         if response.status_code == 200:
@@ -227,7 +227,7 @@ class BackgroundServices:
                         url = f"http://{ip}:{Params.drone_api_port}/get-git-status"
                         response = await loop.run_in_executor(
                             None,
-                            lambda u=url: requests.get(u, timeout=5)
+                            lambda u=url: requests.get(u, timeout=Params.GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC)
                         )
 
                         if response.status_code == 200:
