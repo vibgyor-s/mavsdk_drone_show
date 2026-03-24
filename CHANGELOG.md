@@ -77,6 +77,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Smart Swarm predictor/control internals now use corrected grouped-state Kalman process noise, incremental prediction timing, and leader-velocity feedforward to reduce formation lag
 - Smart Swarm leader-change notifications now update only `follow` in GCS so failover or runtime reassignment does not overwrite fresher operator-edited offsets/frame values
 - GCS launcher logging is now quieter by default: duplicate raw access logs are disabled unless `MDS_GCS_ACCESS_LOGS=true`, and noisy third-party HTTP client debug output is suppressed so Smart Swarm/runtime signal stays readable
+- GCS console logging now defaults to `INFO` even in the standard `--sitl` tester flow; detailed DEBUG traces remain available through session files or by explicitly setting `MDS_LOG_LEVEL=DEBUG`
 - Drone config lookups no longer spam routine `INFO` lines during normal runtime polling
 - SITL and Smart Swarm docs now reflect Python 3.11+ manual requirements, the optional nature of external NetBird/MAVLink routing, the stock 5-drone SITL config limit, and the validated Smart Swarm acceptance flow
 - README and Smart Swarm docs now spell out the first dashboard-driven Smart Swarm operator path from `Overview` readiness checks through `Swarm Design` runtime control

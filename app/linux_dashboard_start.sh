@@ -61,11 +61,7 @@ enforce_fastapi_single_worker() {
 }
 
 apply_logging_mode_defaults() {
-    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
-    else
-        export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-DEBUG}"
-    fi
+    export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
 
     export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
 }
