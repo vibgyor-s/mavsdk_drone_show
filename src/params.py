@@ -248,6 +248,7 @@ class Params:
     max_takeoff_alt = 100          # Maximum allowable takeoff altitude
     default_takeoff_alt = 10       # Default takeoff altitude
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
+    TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
 
     # LED Configuration
     led_count = 25        # Number of LED pixels

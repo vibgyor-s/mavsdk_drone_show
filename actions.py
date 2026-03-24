@@ -406,6 +406,36 @@ def _get_local_drone_state_snapshot(timeout: float = 1.0):
     return None
 
 
+def _get_local_home_position_snapshot(timeout: float = 1.0):
+    """Read the local drone API home position as a fallback altitude reference."""
+    try:
+        response = requests.get(
+            f"http://127.0.0.1:{Params.drone_api_port}/{Params.get_drone_home_URI}",
+            timeout=timeout,
+        )
+        if response.status_code == 200:
+            return response.json()
+    except requests.RequestException:
+        return None
+    return None
+
+
+def _get_local_relative_altitude_snapshot(timeout: float = 1.0):
+    """Derive relative altitude from the local drone API when MAVSDK telemetry lags."""
+    drone_state = _get_local_drone_state_snapshot(timeout=timeout)
+    home_position = _get_local_home_position_snapshot(timeout=timeout)
+    if not drone_state or not home_position:
+        return None
+
+    try:
+        current_altitude = float(drone_state.get("position_alt"))
+        home_altitude = float(home_position.get("altitude"))
+    except (TypeError, ValueError):
+        return None
+
+    return current_altitude - home_altitude
+
+
 async def wait_until_armed_state(drone, expected: bool, timeout=15):
     state_label = "armed" if expected else "disarmed"
     return await wait_for_telemetry_condition(
@@ -436,12 +466,26 @@ async def wait_until_flight_mode(drone, expected_mode, timeout=15):
 
 
 async def wait_until_relative_altitude(drone, minimum_relative_altitude_m: float, timeout=30):
-    return await wait_for_telemetry_condition(
-        drone.telemetry.position,
-        lambda position: position.relative_altitude_m >= minimum_relative_altitude_m,
-        f"relative altitude >= {minimum_relative_altitude_m:.1f}m",
-        timeout=timeout,
-    )
+    try:
+        return await wait_for_telemetry_condition(
+            drone.telemetry.position,
+            lambda position: position.relative_altitude_m >= minimum_relative_altitude_m,
+            f"relative altitude >= {minimum_relative_altitude_m:.1f}m",
+            timeout=timeout,
+        )
+    except TimeoutError:
+        local_relative_altitude = _get_local_relative_altitude_snapshot(timeout=1.0)
+        if (
+            local_relative_altitude is not None
+            and local_relative_altitude >= minimum_relative_altitude_m
+        ):
+            logger.warning(
+                "Relative altitude confirmed via local drone API fallback: %.2fm >= %.2fm",
+                local_relative_altitude,
+                minimum_relative_altitude_m,
+            )
+            return local_relative_altitude
+        raise
 
 async def safe_action(func, *args, **kwargs):
     """
@@ -646,7 +690,11 @@ async def takeoff(drone, altitude):
             timeout=15,
         )
         minimum_altitude = max(1.5, min(target_altitude - 0.5, target_altitude * 0.8))
-        await wait_until_relative_altitude(drone, minimum_altitude, timeout=30)
+        await wait_until_relative_altitude(
+            drone,
+            minimum_altitude,
+            timeout=Params.TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC,
+        )
     except ActionError as e:
         logger.error(f"Failed to take off: {e}")
         raise
