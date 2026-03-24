@@ -137,6 +137,53 @@ The current transport timing knobs are centralized in [params.py](../../src/para
 
 That keeps Smart Swarm timing policy in one place instead of scattering literals across runtime tasks.
 
+### Transport roadmap and engineering note
+
+This section is the intended starting point for the next transport-focused Smart Swarm audit. Re-check the live codebase at that time before implementing it, because surrounding runtime, GCS, and dashboard behavior may have changed.
+
+What is true in the current validated branch:
+
+- follower to leader state is short HTTP polling
+- follower to GCS assignment refresh is short HTTP polling
+- follower to GCS leader-change notify is HTTP POST
+- GCS exposes WebSocket streams for browser telemetry, heartbeat, and git-status consumers
+- the current React dashboard still mostly uses REST polling, while the Log Viewer uses SSE
+
+Why the current design is acceptable right now:
+
+- the validated 4-5 drone Smart Swarm flow is working on the HTTP path
+- failures are easy to inspect in logs and easy to reproduce in SITL
+- stale-data detection and leader-loss failover already depend on explicit request outcomes and advancing `update_time`
+- command scope and assignment scope remain loosely coupled instead of being hidden inside a bidirectional streaming layer
+
+Why it is not yet the final large-scale architecture:
+
+- GCS still performs a meaningful amount of REST polling
+- current browser pages do not fully consume the existing backend WebSocket streams
+- leader/follower transport is implemented directly in runtime tasks instead of behind a pluggable interface
+- real-world degraded networks can introduce jitter, head-of-line delay, short partitions, asymmetric loss, and reconnect storms that deserve transport-specific controls
+
+Recommended industrial path for the next transport phase:
+
+1. keep HTTP polling as the known-good fallback path
+2. add a transport abstraction for leader-state delivery
+3. move dashboard live telemetry and heartbeat views onto the already-existing GCS WebSocket streams
+4. if swarm scale or bandwidth pressure justifies it, add a follower leader subscription mode with:
+   - bounded reconnect/backoff
+   - stale-data timers independent of transport
+   - explicit fallback to HTTP polling
+   - identical failover semantics across both transports
+5. only after those foundations are in place, consider higher-performance optimizations such as delta/state compression or binary payloads
+
+Real-world network considerations to keep in mind:
+
+- short disconnects must not immediately cause unsafe topology churn
+- stale but reachable links are often more dangerous than hard failures
+- leader election should stay topology-safe even when GCS is slow or briefly unavailable
+- reconnect behavior must avoid synchronized thundering-herd retries
+- operator logs must distinguish transport loss, stale data, and actual flight-mode failover
+- transport changes must not hide command scope; a leader-only override should stay leader-only unless explicit swarm logic says otherwise
+
 ### Mission start
 
 When Smart Swarm starts, each drone:

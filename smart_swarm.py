@@ -855,6 +855,12 @@ async def update_swarm_config_periodically(drone):
 async def update_leader_state():
     """
     Periodically fetches the leader's state and updates the Kalman filter.
+
+    TODO(next transport phase):
+    Keep the validated HTTP polling path as the fallback transport, but move
+    leader-state delivery behind a transport abstraction so a future
+    WebSocket/subscription path can be added without changing failover,
+    stale-data detection, or control-loop behavior.
     """
     logger = logging.getLogger(__name__)
     global LEADER_STATE, LEADER_KALMAN_FILTER, LEADER_IP
