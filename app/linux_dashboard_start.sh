@@ -51,6 +51,7 @@ SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
 ENABLE_GCS_ACCESS_LOGS="${MDS_GCS_ACCESS_LOGS:-false}"
+GCS_CONSOLE_LOG_LEVEL="${MDS_GCS_CONSOLE_LOG_LEVEL:-INFO}"
 
 enforce_fastapi_single_worker() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
@@ -61,7 +62,7 @@ enforce_fastapi_single_worker() {
 }
 
 apply_logging_mode_defaults() {
-    export MDS_LOG_LEVEL="${MDS_LOG_LEVEL:-INFO}"
+    export MDS_LOG_LEVEL="$GCS_CONSOLE_LOG_LEVEL"
 
     export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
 }
