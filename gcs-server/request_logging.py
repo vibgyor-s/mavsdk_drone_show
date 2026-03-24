@@ -22,6 +22,12 @@ def is_routine_success_path(path: str) -> bool:
     if path in _ROUTINE_SUCCESS_PATHS:
         return True
 
+    if path == "/command/execution-result":
+        return True
+
+    if path.startswith("/command/"):
+        return True
+
     if path == "/api/logs/stream":
         return True
 

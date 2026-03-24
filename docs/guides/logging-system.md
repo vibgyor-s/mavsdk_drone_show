@@ -74,8 +74,9 @@ logger.debug("Processing data")
 | `MDS_LOG_FLUSH` | `true` | Flush file handler after every line |
 
 Launcher defaults:
-- Dashboard/GCS development runs default console logging to `DEBUG`.
-- Dashboard/GCS production runs default console logging to `INFO`.
+- Dashboard/GCS launchers default console logging to `INFO` in both development and production.
+- Dashboard/GCS launchers set that console level through `MDS_GCS_CONSOLE_LOG_LEVEL`, so inherited shell state does not silently change first-run/operator behavior.
+- If you want deeper live GCS console traces, set `MDS_GCS_CONSOLE_LOG_LEVEL=DEBUG` before launch.
 - SITL drone containers default console logging to `INFO`, or `DEBUG` when started with `startup_sitl.sh --verbose`.
 - File/session logging stays at `DEBUG` by default in all modes so historical analysis still has full detail.
 
