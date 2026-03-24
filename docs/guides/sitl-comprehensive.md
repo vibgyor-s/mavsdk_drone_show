@@ -268,6 +268,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - On smaller VPSes, raise the React build heap before `--prod` if needed:
   `export MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE=4096`
 - The launcher uses `npm ci` by default and refuses to mutate `package-lock.json` with `npm install` unless you explicitly opt in with `MDS_ALLOW_NPM_INSTALL_FALLBACK=true`.
+- Raw Uvicorn/Gunicorn access logs are disabled by default because MDS already emits structured API request logs. Re-enable them only when you explicitly need that extra layer with `export MDS_GCS_ACCESS_LOGS=true`.
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 

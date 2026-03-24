@@ -50,6 +50,7 @@ DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
+ENABLE_GCS_ACCESS_LOGS="${MDS_GCS_ACCESS_LOGS:-false}"
 
 enforce_fastapi_single_worker() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
@@ -808,10 +809,18 @@ get_gcs_server_command() {
     # FastAPI backend (only option)
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         # Production: single Uvicorn worker behind Gunicorn until backend state is externalized
-        echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
+        local production_access_log_args=""
+        if [[ "${ENABLE_GCS_ACCESS_LOGS,,}" == "true" ]]; then
+            production_access_log_args=" --access-logfile -"
+        fi
+        echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL${production_access_log_args} app_fastapi:app"
     else
         # Development: Uvicorn with auto-reload
-        echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
+        local development_access_log_args=" --no-access-log"
+        if [[ "${ENABLE_GCS_ACCESS_LOGS,,}" == "true" ]]; then
+            development_access_log_args=""
+        fi
+        echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload${development_access_log_args}"
     fi
 }
 

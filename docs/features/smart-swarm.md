@@ -107,6 +107,22 @@ Important operator rule:
 
 ## Runtime Behavior
 
+### Leader transport and latency model
+
+Today, Smart Swarm follower-to-leader state exchange uses short HTTP polls:
+
+- follower drones poll the leader drone API for state
+- GCS remains the source of truth for saved swarm assignments
+- followers also refresh assignment changes from GCS during flight
+
+That is intentionally conservative for this phase:
+
+- HTTP polling is simple to inspect and debug
+- failures are explicit and already feed the current leader-loss logic
+- it keeps command scope, assignment storage, and follower control loosely coupled
+
+WebSocket transport can reduce polling overhead in larger swarms, but it should be added later behind a transport abstraction with HTTP fallback. For the current validated 4-5 drone clustered flow, the main reliability issues were not transport-related.
+
 ### Mission start
 
 When Smart Swarm starts, each drone:

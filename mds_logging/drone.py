@@ -11,6 +11,7 @@ import os
 import sys
 
 import mds_logging
+from mds_logging import configure_external_loggers
 from mds_logging.constants import (
     get_log_level, get_file_log_level, get_log_dir,
     get_console_format, get_flush_enabled, get_max_sessions, get_max_size_mb,
@@ -66,5 +67,7 @@ def init_drone_logging(drone_id: int | None = None, log_dir: str | None = None) 
     watcher_handler = WatcherHandler(get_watcher(), JSONLFormatter())
     watcher_handler.setLevel(logging.DEBUG)
     root.addHandler(watcher_handler)
+
+    configure_external_loggers()
 
     return session_id

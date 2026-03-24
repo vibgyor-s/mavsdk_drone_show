@@ -24,6 +24,21 @@ _session_id: str = ""
 _source: str = "gcs"  # default, overridden by init_drone_logging / init_server_logging
 _drone_id: int | str | None = None
 
+_NOISY_EXTERNAL_LOGGERS = {
+    # HTTP client internals can flood DEBUG logs during normal polling.
+    "urllib3": logging.WARNING,
+    "urllib3.connectionpool": logging.WARNING,
+    "requests": logging.WARNING,
+    "aiohttp": logging.WARNING,
+    "aiohttp.access": logging.WARNING,
+    "httpx": logging.WARNING,
+    # Uvicorn access logs duplicate the structured API request logs we already emit.
+    "uvicorn.access": logging.WARNING,
+    # File-watcher reload internals are not operator signal.
+    "watchfiles": logging.WARNING,
+    "watchfiles.main": logging.WARNING,
+}
+
 
 def _normalize_drone_id(drone_id: int | str | None) -> int | str | None:
     """Normalize drone identifiers while preserving non-numeric IDs."""
@@ -64,6 +79,14 @@ def get_logger(component: str) -> logging.Logger:
     logger.addFilter(_MDSFilter())
     _loggers[component] = logger
     return logger
+
+
+def configure_external_loggers() -> None:
+    """Quiet third-party debug noise while preserving warning/error signal."""
+    for logger_name, minimum_level in _NOISY_EXTERNAL_LOGGERS.items():
+        logger = logging.getLogger(logger_name)
+        if logger.level == logging.NOTSET or logger.level < minimum_level:
+            logger.setLevel(minimum_level)
 
 
 def set_session(session_id: str) -> None:

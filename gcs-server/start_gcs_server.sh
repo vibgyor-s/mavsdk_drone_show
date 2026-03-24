@@ -210,18 +210,32 @@ start_server() {
 start_fastapi() {
     log_info "Starting FastAPI server..."
     enforce_fastapi_single_worker
+    local enable_access_logs="${MDS_GCS_ACCESS_LOGS:-false}"
 
     if [[ "$MODE" == "production" ]]; then
         # Production: keep a single worker until API state is moved out of process memory
         log_info "Running FastAPI with Gunicorn + Uvicorn worker ($PROD_WSGI_WORKERS worker)"
         log_info "Production optimizations: single-worker Gunicorn, worker recycling, graceful timeout"
+        if [[ "${enable_access_logs,,}" == "true" ]]; then
+            exec gunicorn app_fastapi:app \
+                -w "$PROD_WSGI_WORKERS" \
+                -k uvicorn.workers.UvicornWorker \
+                -b "0.0.0.0:$PORT" \
+                --timeout "$PROD_GUNICORN_TIMEOUT" \
+                --log-level "$PROD_LOG_LEVEL" \
+                --access-logfile - \
+                --error-logfile - \
+                --max-requests 1000 \
+                --max-requests-jitter 50 \
+                --graceful-timeout 30 \
+                --keep-alive 5
+        fi
         exec gunicorn app_fastapi:app \
             -w "$PROD_WSGI_WORKERS" \
             -k uvicorn.workers.UvicornWorker \
             -b "0.0.0.0:$PORT" \
             --timeout "$PROD_GUNICORN_TIMEOUT" \
             --log-level "$PROD_LOG_LEVEL" \
-            --access-logfile - \
             --error-logfile - \
             --max-requests 1000 \
             --max-requests-jitter 50 \
@@ -232,11 +246,19 @@ start_fastapi() {
         # NOTE: Auto-reload spawns 2 processes (reloader + worker), so startup code runs twice
         log_info "Running FastAPI with Uvicorn (auto-reload enabled)"
         log_warn "Development mode: Server will auto-reload on file changes"
+        if [[ "${enable_access_logs,,}" == "true" ]]; then
+            exec uvicorn app_fastapi:app \
+                --host 0.0.0.0 \
+                --port "$PORT" \
+                --reload \
+                --log-level info
+        fi
         exec uvicorn app_fastapi:app \
             --host 0.0.0.0 \
             --port "$PORT" \
             --reload \
-            --log-level info
+            --log-level info \
+            --no-access-log
     fi
 }
 
