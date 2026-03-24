@@ -82,6 +82,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Routine successful command-status polling (`GET /command/<id>`) and internal execution-result callbacks are now treated as `DEBUG` request noise instead of `INFO`
 - Drone config lookups no longer spam routine `INFO` lines during normal runtime polling
 - SITL and Smart Swarm docs now reflect Python 3.11+ manual requirements, the optional nature of external NetBird/MAVLink routing, the stock 5-drone SITL config limit, and the validated Smart Swarm acceptance flow
+- SITL distribution docs now treat third-party `megatools` as public-download-only and standardize authenticated archive replacement on official `MEGAcmd`, including the refreshed public archive link for the current validated image
 - README and Smart Swarm docs now spell out the first dashboard-driven Smart Swarm operator path from `Overview` readiness checks through `Swarm Design` runtime control
 
 ### Removed

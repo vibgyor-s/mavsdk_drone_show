@@ -105,7 +105,7 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 ```bash
 cd ~
 # Public Mega download; large archives may take several minutes to complete.
-megadl 'https://mega.nz/file/2CR3HLyJ#qRKzPmUvQh9nHkw5MBXTz56RpQgX7zQcxKXL80hiGOs'
+megadl 'https://mega.nz/file/OfwzhYIQ#vZMecNJ5LhIy244aiF9rUkM7mOGFXpsZVc6qV1oKk6I'
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
@@ -121,9 +121,10 @@ After extraction you should have:
 > - If Mega free-tier throttling or temporary limits block the public download, retry with the official MEGAcmd client after signing in:
 >   ```bash
 >   mega-login 'you@example.com' 'your-password'
->   mega-get 'https://mega.nz/file/2CR3HLyJ#qRKzPmUvQh9nHkw5MBXTz56RpQgX7zQcxKXL80hiGOs' .
+>   mega-get 'https://mega.nz/file/OfwzhYIQ#vZMecNJ5LhIy244aiF9rUkM7mOGFXpsZVc6qV1oKk6I' .
 >   ```
 > - For authenticated MEGA account operations, prefer the official MEGAcmd client over third-party tools.
+> - If third-party `megatools` login returns `HTTP POST failed: Server returned 402`, treat that as a client/workflow issue and switch to official `MEGAcmd` for account-backed operations.
 > - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
 > - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
 

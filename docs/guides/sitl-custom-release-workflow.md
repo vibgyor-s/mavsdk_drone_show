@@ -175,6 +175,14 @@ This keeps the download instructions stable while still preserving release trace
 
 For authenticated archive management, prefer the official `MEGAcmd` client.
 
+Do not rely on third-party `megatools` for authenticated account replacement workflows. In practice, modern MEGA account protections can cause `megals`/`megaput` login failures such as `HTTP POST failed: Server returned 402` even when browser login is fine. Use `MEGAcmd` for:
+
+- `mega-login`
+- `mega-ls`
+- `mega-put`
+- `mega-export`
+- `mega-rm`
+
 Typical release flow:
 1. package the image archive locally or on the release host
 2. upload the new `.7z`, checksum, and manifest
