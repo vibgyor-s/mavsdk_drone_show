@@ -39,10 +39,12 @@ For a clean first Smart Swarm demo in SITL:
    ```bash
    bash app/linux_dashboard_start.sh --sitl
    ```
-3. open `Swarm Design` and verify the saved SITL assignments from `swarm_sitl.json`
-4. wait until the target drones show `Ready`
-5. use `Smart Swarm Runtime` to start either a selected drone or a selected cluster
-6. if you want the full branch acceptance run from the command line, use:
+3. open `Overview` and wait until the target drones show `READY` with live telemetry
+4. open `Swarm Design` and verify the saved SITL assignments from `swarm_sitl.json`
+5. use `Formation Analysis` to preview the intended cluster
+6. use `Smart Swarm Runtime` to review `Formation Preview` and the live readiness snapshot for either the selected drone or selected cluster
+7. start Smart Swarm for the intended scope
+8. if you want the full branch acceptance run from the command line, use:
    ```bash
    python3 tools/validate_smart_swarm_runtime.py
    ```
@@ -84,7 +86,24 @@ The runtime panel supports:
 - `Selected Drone`
 - `Selected Cluster`
 
+Specific cluster selections in `Formation Analysis` also drive the cluster-scoped runtime target. The `All executable clusters` option is analysis-only and does not issue one command across the full fleet.
+
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
+
+### Formation preview and live readiness
+
+The `Smart Swarm Runtime` panel intentionally separates:
+
+- saved formation preview
+- live readiness snapshot
+
+The preview shows the saved follow chain, roles, and offsets for the current runtime target. The live readiness snapshot is based on current telemetry/readiness state for the targeted drones.
+
+Important operator rule:
+
+- formation plots are not live flight views
+- runtime start still performs final gating at command dispatch time
+- if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
 
 ## Runtime Behavior
 
@@ -150,6 +169,7 @@ That prevents live leader changes from silently introducing a loop into the foll
 - failed follower re-entry now retries instead of getting stuck half-switched
 - stale leader telemetry now participates in the same failover path as explicit request failures
 - runtime controls default to `Selected Drone`; cluster scope is opt-in
+- cluster-scoped start blockers now apply only to the targeted drones instead of unrelated unsaved edits elsewhere in the design page
 
 ## Files That Matter
 

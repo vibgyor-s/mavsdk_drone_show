@@ -277,7 +277,7 @@ function NorthAltitudePlot({ points }) {
   return <PlotFrame title="North-Altitude View" data={data} layout={layout} hasData={points.length > 0} />;
 }
 
-function SwarmPlots({ swarmData, configData, selectedClusterId }) {
+function SwarmPlots({ swarmData, configData, selectedClusterId, onSelectedClusterChange }) {
   const [activeClusterId, setActiveClusterId] = useState(selectedClusterId || null);
   const { data, clusters, description } = calculateClusterPlotData(swarmData, configData, activeClusterId);
   const clusterOptions = useMemo(
@@ -315,12 +315,25 @@ function SwarmPlots({ swarmData, configData, selectedClusterId }) {
     }
   }, [activeClusterId, clusterOptions, clusters, selectedClusterId]);
 
+  useEffect(() => {
+    if (typeof onSelectedClusterChange !== 'function') {
+      return;
+    }
+
+    onSelectedClusterChange(activeClusterId || null);
+  }, [activeClusterId, onSelectedClusterChange]);
+
   return (
     <div className="swarm-plots-container">
       <div className="cluster-selection">
         <div className="cluster-selection__text">
           <strong>Formation Analysis Cluster</strong>
-          <span>{description || 'Preview offsets relative to the selected top leader.'}</span>
+          <span>
+            {description || 'Preview offsets relative to the selected top leader.'}
+            {activeClusterId === 'all'
+              ? ' Plot-only overlay mode.'
+              : ' Specific cluster selections also drive cluster-scoped runtime actions.'}
+          </span>
         </div>
         <select
           value={activeClusterId || ''}

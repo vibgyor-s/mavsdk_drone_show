@@ -14,6 +14,8 @@ import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycl
 import { formatDroneLabel } from '../utilities/missionIdentityUtils';
 import {
   buildSwarmRuntimeCommand,
+  getSwarmRuntimeStartBlockerReason,
+  getSwarmRuntimeTelemetrySummary,
   resolveSwarmRuntimeTargets,
   SWARM_RUNTIME_ACTIONS,
   SWARM_RUNTIME_SCOPE,
@@ -73,49 +75,13 @@ function buildRuntimeBrief(targetDrones = []) {
   };
 }
 
-function getStartBlockerReason({
-  scope,
-  selectedDrone,
-  hasBlockingIssues,
-  hasStagedChanges,
-  hasPendingSync,
-  selectedCluster,
-  targetIds,
-}) {
-  if (targetIds.length === 0) {
-    return 'No valid swarm targets are available.';
-  }
-
-  if (scope === SWARM_RUNTIME_SCOPE.CLUSTER && !selectedCluster) {
-    return 'Resolve the selected cluster issues before starting Smart Swarm.';
-  }
-
-  if (scope === SWARM_RUNTIME_SCOPE.DRONE && selectedDrone?.hasBlockingWarnings) {
-    return 'Resolve the selected drone follow-chain issues before starting Smart Swarm.';
-  }
-
-  if (selectedCluster?.type === 'attention') {
-    return 'Resolve the selected cluster issues before starting Smart Swarm.';
-  }
-
-  if (hasBlockingIssues) {
-    return 'Resolve follow-chain errors before starting Smart Swarm.';
-  }
-
-  if (hasStagedChanges || hasPendingSync) {
-    return 'Update Swarm first so runtime commands use the intended saved assignments.';
-  }
-
-  return '';
-}
-
 const SwarmRuntimeControls = ({
   viewModel,
   selectedDroneId,
   selectedClusterId,
-  hasBlockingIssues,
-  hasPendingSync,
-  hasStagedChanges,
+  dirtyIds,
+  pendingSyncIds,
+  telemetryById,
   onReviewSelection,
   onOpenMissionConfig,
 }) => {
@@ -133,19 +99,39 @@ const SwarmRuntimeControls = ({
     .map((targetId) => viewModel?.dronesById?.[targetId])
     .filter(Boolean);
   const runtimeBrief = buildRuntimeBrief(targetDrones);
+  const liveSummary = getSwarmRuntimeTelemetrySummary(targetIds, telemetryById);
   const reviewDroneId = scope === SWARM_RUNTIME_SCOPE.CLUSTER
     ? (selectedCluster?.leaderId || selectedDrone?.hw_id || null)
     : (selectedDrone?.hw_id || null);
+  const missionConfigDroneId = scope === SWARM_RUNTIME_SCOPE.CLUSTER
+    ? (selectedCluster?.leaderId || null)
+    : (selectedDrone?.hw_id || null);
 
-  const startBlockerReason = getStartBlockerReason({
+  const startBlockerReason = getSwarmRuntimeStartBlockerReason({
     scope,
     selectedDrone,
-    hasBlockingIssues,
-    hasPendingSync,
-    hasStagedChanges,
     selectedCluster,
     targetIds,
+    targetDrones,
+    dirtyIds,
+    pendingSyncIds,
   });
+  const targetedIdSet = new Set(targetIds.map((targetId) => String(targetId)));
+  const scopedDirtyIds = dirtyIds.filter((targetId) => targetedIdSet.has(String(targetId)));
+  const scopedPendingIds = pendingSyncIds.filter((targetId) => targetedIdSet.has(String(targetId)));
+  const nonTargetDirtyCount = dirtyIds.length - scopedDirtyIds.length;
+  const nonTargetPendingCount = pendingSyncIds.length - scopedPendingIds.length;
+  const hasAnalysisOnlySelection = scope === SWARM_RUNTIME_SCOPE.CLUSTER && selectedClusterId === 'all';
+  const hasExplicitClusterOverride = scope === SWARM_RUNTIME_SCOPE.CLUSTER
+    && selectedClusterId
+    && selectedClusterId !== 'all'
+    && selectedCluster?.id === selectedClusterId
+    && selectedDrone?.clusterId
+    && selectedDrone.clusterId !== selectedClusterId;
+  const reviewButtonLabel = scope === SWARM_RUNTIME_SCOPE.CLUSTER ? 'Review leader' : 'Review selected drone';
+  const missionConfigButtonLabel = scope === SWARM_RUNTIME_SCOPE.CLUSTER
+    ? 'Mission Config (leader)'
+    : 'Mission Config';
 
   const actions = [
     SWARM_RUNTIME_ACTIONS.START,
@@ -233,9 +219,24 @@ const SwarmRuntimeControls = ({
         {startBlockerReason ? (
           <div className="swarm-runtime-target__note warning">{startBlockerReason}</div>
         ) : null}
-        {(hasStagedChanges || hasPendingSync) ? (
+        {(scopedDirtyIds.length > 0 || scopedPendingIds.length > 0) ? (
           <div className="swarm-runtime-target__note">
-            Runtime overrides are always sent immediately. Start Smart Swarm should use the saved assignment set, not unsaved local edits.
+            Runtime overrides are always sent immediately. Start Smart Swarm uses the saved assignments for the targeted drones only.
+          </div>
+        ) : null}
+        {(nonTargetDirtyCount > 0 || nonTargetPendingCount > 0) ? (
+          <div className="swarm-runtime-target__note">
+            Other swarm edits exist outside this target set. They do not block this runtime scope.
+          </div>
+        ) : null}
+        {hasAnalysisOnlySelection ? (
+          <div className="swarm-runtime-target__note">
+            &quot;All executable clusters&quot; is analysis-only. Cluster runtime scope falls back to the selected drone&apos;s executable cluster, or the first executable cluster if none is selected.
+          </div>
+        ) : null}
+        {hasExplicitClusterOverride ? (
+          <div className="swarm-runtime-target__note">
+            Cluster runtime scope follows the selected formation-analysis cluster, not necessarily the selected drone&apos;s cluster.
           </div>
         ) : null}
       </div>
@@ -244,8 +245,11 @@ const SwarmRuntimeControls = ({
         <div className="swarm-runtime-brief">
           <div className="swarm-runtime-brief__header">
             <div>
-              <span className="swarm-selection-panel__eyebrow">Last-Second Check</span>
-              <strong>Verify the intended live formation before sending runtime commands.</strong>
+              <span className="swarm-selection-panel__eyebrow">Formation Preview</span>
+              <strong>Verify target layout and live readiness before sending runtime commands.</strong>
+              <p className="swarm-runtime-brief__summary">
+                This panel previews the saved follow chain for the current target set and shows a live readiness snapshot when telemetry is available.
+              </p>
             </div>
             <div className="swarm-runtime-brief__actions">
               {reviewDroneId && onReviewSelection && (
@@ -254,16 +258,16 @@ const SwarmRuntimeControls = ({
                   className="swarm-runtime-brief__action-button"
                   onClick={() => onReviewSelection(reviewDroneId)}
                 >
-                  Review selection
+                  {reviewButtonLabel}
                 </button>
               )}
-              {selectedDrone?.hw_id && onOpenMissionConfig && (
+              {missionConfigDroneId && onOpenMissionConfig && (
                 <button
                   type="button"
                   className="swarm-runtime-brief__action-button ghost"
-                  onClick={() => onOpenMissionConfig(selectedDrone.hw_id)}
+                  onClick={() => onOpenMissionConfig(missionConfigDroneId)}
                 >
-                  Mission Config
+                  {missionConfigButtonLabel}
                 </button>
               )}
             </div>
@@ -278,6 +282,31 @@ const SwarmRuntimeControls = ({
             {runtimeBrief.warningCount > 0 && (
               <span>{runtimeBrief.warningCount} design warning{runtimeBrief.warningCount === 1 ? '' : 's'}</span>
             )}
+          </div>
+
+          <div className="swarm-runtime-brief__live">
+            <span className="swarm-runtime-brief__live-label">Live Readiness</span>
+            <div className="swarm-runtime-brief__stats">
+              <span>{liveSummary.total} target drone{liveSummary.total === 1 ? '' : 's'}</span>
+              {liveSummary.readyCount > 0 && (
+                <span>{liveSummary.readyCount} ready</span>
+              )}
+              {liveSummary.blockedCount > 0 && (
+                <span>{liveSummary.blockedCount} blocked</span>
+              )}
+              {liveSummary.reviewCount > 0 && (
+                <span>{liveSummary.reviewCount} review</span>
+              )}
+              {liveSummary.linkIssueCount > 0 && (
+                <span>{liveSummary.linkIssueCount} telemetry delayed</span>
+              )}
+              {liveSummary.waitingCount > 0 && (
+                <span>{liveSummary.waitingCount} waiting for telemetry</span>
+              )}
+              {liveSummary.telemetryCount === 0 && (
+                <span>Waiting for telemetry snapshot</span>
+              )}
+            </div>
           </div>
 
           <div className="swarm-runtime-brief__roster">
@@ -342,9 +371,9 @@ SwarmRuntimeControls.propTypes = {
   }).isRequired,
   selectedDroneId: PropTypes.string,
   selectedClusterId: PropTypes.string,
-  hasBlockingIssues: PropTypes.bool.isRequired,
-  hasPendingSync: PropTypes.bool.isRequired,
-  hasStagedChanges: PropTypes.bool.isRequired,
+  dirtyIds: PropTypes.arrayOf(PropTypes.string),
+  pendingSyncIds: PropTypes.arrayOf(PropTypes.string),
+  telemetryById: PropTypes.object,
   onReviewSelection: PropTypes.func,
   onOpenMissionConfig: PropTypes.func,
 };
@@ -352,6 +381,9 @@ SwarmRuntimeControls.propTypes = {
 SwarmRuntimeControls.defaultProps = {
   selectedDroneId: null,
   selectedClusterId: null,
+  dirtyIds: [],
+  pendingSyncIds: [],
+  telemetryById: {},
   onReviewSelection: null,
   onOpenMissionConfig: null,
 };

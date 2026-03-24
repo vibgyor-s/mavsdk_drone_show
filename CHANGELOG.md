@@ -71,12 +71,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Root and docs index READMEs now reflect the current MDS 5 scope more accurately, including QuickScout SAR, trajectory planning, unified logging, and the current SITL/custom-release workflow paths
 - Smart Swarm now refreshes GCS-backed assignments before startup role selection, exposes compact swarm-runtime controls in the dashboard, and uses a safer `upstream_or_hold` leader-loss default instead of cross-cluster numeric fallback
 - Smart Swarm runtime controls now default to `Selected Drone`, with explicit `Selected Cluster` scope for formation-level actions so mixed missions stay predictable
+- Smart Swarm dashboard flow now includes a clearer `Formation Preview`, live readiness snapshot, scoped start blockers, explicit cluster-target semantics, and less redundant ready-state noise on drone cards
 - Smart Swarm follower recovery now restarts offboard cleanly on follower re-entry, waits for state lock before sending setpoints, and treats stale leader telemetry as a failover condition
 - GCS swarm updates now reject follow-chain cycles both for dashboard saves and live `/request-new-leader` changes
 - Smart Swarm predictor/control internals now use corrected grouped-state Kalman process noise, incremental prediction timing, and leader-velocity feedforward to reduce formation lag
 - Smart Swarm leader-change notifications now update only `follow` in GCS so failover or runtime reassignment does not overwrite fresher operator-edited offsets/frame values
 - Drone config lookups no longer spam routine `INFO` lines during normal runtime polling
 - SITL and Smart Swarm docs now reflect Python 3.11+ manual requirements, the optional nature of external NetBird/MAVLink routing, the stock 5-drone SITL config limit, and the validated Smart Swarm acceptance flow
+- README and Smart Swarm docs now spell out the first dashboard-driven Smart Swarm operator path from `Overview` readiness checks through `Swarm Design` runtime control
 
 ### Removed
 - `gcs-server/logging_config.py` (857 lines, DroneSwarmLogger)

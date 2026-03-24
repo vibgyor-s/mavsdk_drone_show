@@ -42,6 +42,7 @@ Start here to get your first drone show simulation running:
 | I want to... | Start with... |
 |--------------|---------------|
 | Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| Run the first Smart Swarm operator flow in the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
 | Run or tune live Smart Swarm missions | [Smart Swarm Guide](features/smart-swarm.md) |
 | Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |

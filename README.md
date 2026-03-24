@@ -32,6 +32,14 @@ bash app/linux_dashboard_start.sh --sitl
 
 Then open `http://<host>:3030`.
 
+For a first dashboard-driven Smart Swarm run after SITL launch:
+
+1. open `Overview` and confirm the target drones show `READY` with live telemetry
+2. open `Swarm Design` and review the saved follow chain / cluster layout
+3. use `Formation Analysis` to choose the cluster you want to operate on
+4. use `Smart Swarm Runtime` to verify the `Formation Preview` and live readiness snapshot
+5. start `Selected Drone` or `Selected Cluster`, then use `Stop Swarm (Hold)`, `Land Swarm`, or `RTL Swarm` for explicit swarm-level control
+
 For the validated 5-drone Smart Swarm acceptance flow after a SITL launch, use:
 
 ```bash

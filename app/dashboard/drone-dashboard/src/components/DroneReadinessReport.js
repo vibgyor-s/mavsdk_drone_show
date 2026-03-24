@@ -37,9 +37,9 @@ function renderMessageList(messages, emptyLabel) {
 
 const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'compact' }) => {
   const readiness = getDroneReadinessModel(drone, runtimeStatus);
-  const hasDetails = readiness.issueCount > 0 || readiness.recentMessages.length > 0 || readiness.checks.length > 0;
+  const hasCompactDetails = readiness.issueCount > 0 || readiness.recentMessages.length > 0;
 
-  if (variant === 'compact' && readiness.isReady && !hasDetails) {
+  if (variant === 'compact' && readiness.isReady && !hasCompactDetails) {
     return null;
   }
 
@@ -100,7 +100,7 @@ const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'com
         <p className="drone-readiness__summary">{readiness.summary}</p>
       </div>
 
-      {hasDetails && (
+      {hasCompactDetails && (
         <details className="drone-readiness__details">
           <summary className="drone-readiness__details-summary">
             <FaExclamationTriangle aria-hidden="true" />

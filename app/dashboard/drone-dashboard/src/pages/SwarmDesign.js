@@ -19,6 +19,7 @@ import DroneCard from '../components/DroneCard';
 import DroneGraph from '../components/DroneGraph';
 import SwarmPlots from '../components/SwarmPlots';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
+import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
 import { getBackendURL } from '../utilities/utilities';
 import {
@@ -68,11 +69,13 @@ function SwarmDesign() {
   const [baselineAssignments, setBaselineAssignments] = useState([]);
   const [workingAssignments, setWorkingAssignments] = useState([]);
   const [selectedDroneId, setSelectedDroneId] = useState(null);
+  const [selectedClusterId, setSelectedClusterId] = useState(null);
   const [expandedDroneId, setExpandedDroneId] = useState(null);
   const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
+  const { data: telemetryById = {} } = useNormalizedTelemetry('/telemetry', 2000);
 
   const viewModel = useMemo(
     () => buildSwarmViewModel(workingAssignments, configData),
@@ -88,18 +91,15 @@ function SwarmDesign() {
     [configData, serverSwarmData]
   );
   const selectedDrone = selectedDroneId ? viewModel.dronesById[selectedDroneId] : null;
-  const selectedClusterId = useMemo(
-    () => selectedDrone?.clusterRootId
-      || viewModel.clusters.find((cluster) => cluster.type === 'cluster')?.id
-      || null,
-    [selectedDrone?.clusterRootId, viewModel.clusters]
-  );
-
-  const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasPendingSync = syncChanges.addedIds.length > 0 || syncChanges.removedIds.length > 0;
   const hasStagedChanges = dirtyIds.length > 0;
+  const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasIncompleteInputs = workingAssignments.some((assignment) =>
     ['offset_x', 'offset_y', 'offset_z'].some((field) => hasIncompleteNumericValue(assignment[field]))
+  );
+  const pendingSyncIds = useMemo(
+    () => [...new Set([...syncChanges.addedIds, ...syncChanges.removedIds].map((value) => String(value)))],
+    [syncChanges.addedIds, syncChanges.removedIds]
   );
 
   const searchValue = searchTerm.trim().toLowerCase();
@@ -188,6 +188,33 @@ function SwarmDesign() {
   }, [expandedDroneId, selectedDroneId, viewModel.drones, viewModel.dronesById]);
 
   useEffect(() => {
+    const executableClusterIds = new Set(
+      viewModel.clusters
+        .filter((cluster) => cluster.type === 'cluster')
+        .map((cluster) => cluster.id)
+    );
+
+    if (executableClusterIds.size === 0) {
+      if (selectedClusterId !== null) {
+        setSelectedClusterId(null);
+      }
+      return;
+    }
+
+    if (selectedClusterId === 'all' || executableClusterIds.has(selectedClusterId)) {
+      return;
+    }
+
+    const fallbackClusterId = selectedDrone?.clusterRootId
+      || viewModel.clusters.find((cluster) => cluster.type === 'cluster')?.id
+      || null;
+
+    if (fallbackClusterId && fallbackClusterId !== selectedClusterId) {
+      setSelectedClusterId(fallbackClusterId);
+    }
+  }, [selectedClusterId, selectedDrone?.clusterRootId, viewModel.clusters]);
+
+  useEffect(() => {
     if (!pendingCardFocusId) {
       return;
     }
@@ -263,9 +290,13 @@ function SwarmDesign() {
       setSearchTerm('');
     }
 
+    const nextDrone = viewModel.dronesById[droneId];
     setSelectedDroneId(droneId);
     setExpandedDroneId(droneId);
     setPendingCardFocusId(droneId);
+    if (nextDrone?.clusterRootId) {
+      setSelectedClusterId(nextDrone.clusterRootId);
+    }
   };
 
   const handleToggleExpand = (droneId) => {
@@ -581,9 +612,9 @@ function SwarmDesign() {
         viewModel={viewModel}
         selectedDroneId={selectedDroneId}
         selectedClusterId={selectedClusterId}
-        hasBlockingIssues={hasBlockingIssues}
-        hasPendingSync={hasPendingSync}
-        hasStagedChanges={hasStagedChanges}
+        dirtyIds={dirtyIds}
+        pendingSyncIds={pendingSyncIds}
+        telemetryById={telemetryById}
         onReviewSelection={(droneId) => handleSelectDrone(droneId)}
         onOpenMissionConfig={(droneId) => navigate(`/mission-config?drone=${droneId}&edit=1`)}
       />
@@ -757,7 +788,11 @@ function SwarmDesign() {
         <div className="swarm-panel__header">
           <div>
             <h2>Formation Analysis</h2>
-            <p>Cluster plots are relative previews for design review. They are not live telemetry views.</p>
+            <p>
+              Cluster plots are relative previews for design review. They are not live telemetry views. Selecting a
+              specific cluster here also sets the cluster-scoped runtime target. &quot;All executable clusters&quot; remains
+              analysis-only.
+            </p>
           </div>
         </div>
 
@@ -765,6 +800,7 @@ function SwarmDesign() {
           swarmData={workingAssignments}
           configData={configData}
           selectedClusterId={selectedClusterId}
+          onSelectedClusterChange={setSelectedClusterId}
         />
       </section>
     </div>

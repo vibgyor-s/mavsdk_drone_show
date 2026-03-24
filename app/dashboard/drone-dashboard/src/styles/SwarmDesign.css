@@ -265,6 +265,13 @@
   line-height: var(--line-height-relaxed);
 }
 
+.swarm-runtime-brief__summary {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
 .swarm-runtime-brief__actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -308,6 +315,18 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
+}
+
+.swarm-runtime-brief__live {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.swarm-runtime-brief__live-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .swarm-runtime-brief__roster {

@@ -51,4 +51,31 @@ describe('DroneReadinessReport', () => {
     expect(screen.getByText('Review Warnings')).toBeInTheDocument();
     expect(screen.getAllByText('GPS quality needs review.')).toHaveLength(2);
   });
+
+  test('hides compact readiness block when only readiness checks are present', () => {
+    const { container } = render(
+      <DroneReadinessReport
+        drone={{
+          [FIELD_NAMES.IS_READY_TO_ARM]: true,
+          [FIELD_NAMES.READINESS_STATUS]: 'ready',
+          [FIELD_NAMES.READINESS_SUMMARY]: 'Ready to fly',
+          [FIELD_NAMES.PREFLIGHT_BLOCKERS]: [],
+          [FIELD_NAMES.PREFLIGHT_WARNINGS]: [],
+          [FIELD_NAMES.STATUS_MESSAGES]: [],
+          [FIELD_NAMES.READINESS_CHECKS]: [
+            {
+              id: 'gps',
+              label: 'GPS lock',
+              ready: true,
+              detail: '3D fix available.',
+            },
+          ],
+        }}
+        runtimeStatus={{ level: 'online' }}
+        variant="compact"
+      />
+    );
+
+    expect(container.firstChild).toBeNull();
+  });
 });

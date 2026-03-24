@@ -531,6 +531,8 @@ Current behavior summary:
 
 - single-drone commands remain scoped to the addressed drone
 - swarm-level intent should use the `Smart Swarm Runtime` controls on the `Swarm Design` page
+- use `Overview` to confirm live `READY` state before you start Smart Swarm from the dashboard
+- use `Formation Analysis` to choose a specific cluster; `All executable clusters` is plot-only and does not become one fleet-wide runtime target
 - followers do not silently stop just because one unrelated drone receives an individual override
 - if the addressed drone is a leader or relay leader, followers can still react through leader-loss logic
 - leader-loss handling now defaults to an `upstream_or_hold` policy instead of jumping across unrelated drones

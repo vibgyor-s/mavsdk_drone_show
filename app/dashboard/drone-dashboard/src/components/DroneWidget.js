@@ -193,7 +193,8 @@ const DroneWidget = ({
             title="Open Mission Config for this drone"
             aria-label="Open Mission Config for this drone"
           >
-            <FaCog />
+            <FaCog aria-hidden="true" />
+            <span className="drone-header__action-label">Mission</span>
           </button>
           <button
             type="button"
@@ -202,7 +203,8 @@ const DroneWidget = ({
             title="Open Swarm Design for this drone"
             aria-label="Open Swarm Design for this drone"
           >
-            <FaProjectDiagram />
+            <FaProjectDiagram aria-hidden="true" />
+            <span className="drone-header__action-label">Swarm</span>
           </button>
         </div>
       </h3>
