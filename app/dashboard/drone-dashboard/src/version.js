@@ -10,9 +10,9 @@
  * 3. Rebuild the frontend: npm run build
  */
 
-const DEFAULT_VERSION = '5.0';
-const DEFAULT_GIT_COMMIT = '98cf4c4d';
-const DEFAULT_GIT_BRANCH = 'main-candidate';
+const DEFAULT_VERSION = '5.1';
+const DEFAULT_GIT_COMMIT = '5039e182';
+const DEFAULT_GIT_BRANCH = 'main';
 
 const VERSION = process.env.REACT_APP_VERSION || DEFAULT_VERSION;
 const GIT_COMMIT = process.env.REACT_APP_GIT_COMMIT || DEFAULT_GIT_COMMIT;
